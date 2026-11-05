@@ -1,0 +1,24 @@
+name: CI
+on: [push, pull_request]
+jobs:
+  native:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: hustcer/setup-moonbit@bdc8c076af1f4c5012a6ac3451a2009ec75bf921 # v1.22
+        with:
+          version: 0.10.19+bee578715
+          core-version: 0.10.19+bee578715
+      - run: moon version --all
+      - run: moon fmt --check
+      - run: |
+          moon info
+          test -z "$(git status --porcelain -- '*.mbti')"
+      - run: moon check --target native --deny-warn
+      - run: moon build --target native
+      - name: Run nonempty tests
+        shell: bash
+        run: |
+          set -o pipefail
+          moon test --target native --deny-warn | tee test.log
+          grep -E 'Total tests: [1-9][0-9]*, passed: [1-9][0-9]*, failed: 0' test.log

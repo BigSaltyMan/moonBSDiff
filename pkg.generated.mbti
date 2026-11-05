@@ -1,0 +1,75 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "BigSaltyMan/moonbsdiff"
+
+import {
+  "moonbitlang/core/debug",
+}
+
+// Values
+
+// Errors
+
+// Types and methods
+#derive(Eq, @debug.Debug)
+pub(all) struct BsdiffError {
+  kind : ErrorKind
+  stage : ErrorStage
+  block : String?
+  offset : Int64?
+  field : String?
+  value : Int64?
+  limit : Int64?
+}
+pub fn BsdiffError::equal(Self, Self) -> Bool
+pub fn BsdiffError::not_equal(Self, Self) -> Bool
+pub fn BsdiffError::to_repr(Self) -> @debug.Repr
+
+#derive(Eq, @debug.Debug)
+pub(all) enum ErrorKind {
+  InvalidConfiguration
+  UnsupportedFormat
+  TruncatedData
+  InvalidField
+  IntegerOverflow
+  DecompressionFailed
+  OutputOutOfBounds
+  ResourceLimitExceeded
+}
+pub fn ErrorKind::equal(Self, Self) -> Bool
+pub fn ErrorKind::not_equal(Self, Self) -> Bool
+pub fn ErrorKind::to_repr(Self) -> @debug.Repr
+
+#derive(Eq, @debug.Debug)
+pub(all) enum ErrorStage {
+  Configuration
+  Header
+  Control
+  Diff
+  Extra
+  Output
+  Sorting
+  Matching
+}
+pub fn ErrorStage::equal(Self, Self) -> Bool
+pub fn ErrorStage::not_equal(Self, Self) -> Bool
+pub fn ErrorStage::to_repr(Self) -> @debug.Repr
+
+#derive(Eq, @debug.Debug)
+pub(all) struct Limits {
+  max_old_bytes : Int64
+  max_new_bytes : Int64
+  max_patch_bytes : Int64
+  max_output_bytes : Int64
+  max_decompressed_bytes : Int64
+  max_control_instructions : Int64
+  max_sort_work : Int64
+  max_match_work : Int64
+}
+pub fn Limits::equal(Self, Self) -> Bool
+pub fn Limits::not_equal(Self, Self) -> Bool
+pub fn Limits::to_repr(Self) -> @debug.Repr
+pub fn Limits::validate(Self) -> Result[Unit, BsdiffError]
+
+// Type aliases
+
+// Traits

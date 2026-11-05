@@ -1,0 +1,92 @@
+{
+  "date": "2026-11-04",
+  "scope": "BSDiff topic feasibility; bzip2 dependency only",
+  "root": "C:/Users/85953/AppData/Local/Temp/bsdiff-probe-w1FzDI",
+  "compiler": "moonc v0.10.19+bee578715 (2026-11-02)",
+  "defaultCompiler": "moonc v0.10.13+cbb11c36f (2026-09-15), unchanged",
+  "toolchainSha256": "13dcc26ff3009e93da4d3bdb2f41a9961179d60a621f1b8c56fecea24d6cdf96",
+  "dependency": "moonbitstack/moonzip@0.3.5",
+  "fixtureCodec": "Python 3.14.6 bz2.compress(compresslevel=1)",
+  "vectors": [
+    {
+      "name": "empty",
+      "inputBytes": 0,
+      "compressedBytes": 14
+    },
+    {
+      "name": "unicode",
+      "inputBytes": 22,
+      "compressedBytes": 76
+    },
+    {
+      "name": "binary256",
+      "inputBytes": 256,
+      "compressedBytes": 425
+    },
+    {
+      "name": "repeat",
+      "inputBytes": 28672,
+      "compressedBytes": 57
+    },
+    {
+      "name": "random",
+      "inputBytes": 4096,
+      "compressedBytes": 4575
+    },
+    {
+      "name": "multiblock",
+      "inputBytes": 110080,
+      "compressedBytes": 1732
+    }
+  ],
+  "typeCheckTargets": [
+    "native",
+    "js",
+    "wasm",
+    "wasm-gc"
+  ],
+  "runs": [
+    {
+      "target": "native",
+      "ok": true,
+      "vectors": 6,
+      "verification": "6 MoonBit->Python vectors passed",
+      "elapsedMs": 1585
+    },
+    {
+      "target": "js",
+      "ok": true,
+      "vectors": 6,
+      "verification": "6 MoonBit->Python vectors passed",
+      "elapsedMs": 918
+    },
+    {
+      "target": "wasm-gc",
+      "ok": true,
+      "vectors": 6,
+      "verification": "6 MoonBit->Python vectors passed",
+      "elapsedMs": 765
+    }
+  ],
+  "templateChecks": [
+    {
+      "command": "info",
+      "ok": true,
+      "stdout": "",
+      "stderr": "Finished. moon: ran 10 tasks, now up to date\n"
+    },
+    {
+      "command": "fmt",
+      "ok": true,
+      "stdout": "",
+      "stderr": "Finished. moon: ran 8 tasks, now up to date\n"
+    },
+    {
+      "command": "test --target native",
+      "ok": true,
+      "stdout": "Total tests: 0, passed: 0, failed: 0.\n",
+      "stderr": "robe-w1FzDI\\modern-probe\\_build\\native\\debug\\test\\bsdiff_bzip2.blackbox_test.lib 和对象 C:\\Users\\85953\\AppData\\Local\\Temp\\bsdiff-probe-w1FzDI\\modern-probe\\_build\\native\\debug\\test\\bsdiff_bzip2.blackbox_test.exp\r\n  正在创建库 C:\\Users\\85953\\AppData\\Local\\Temp\\bsdiff-probe-w1FzDI\\modern-probe\\_build\\native\\debug\\test\\cmd\\main\\main.blackbox_test.lib 和对象 C:\\Users\\85953\\AppData\\Local\\Temp\\bsdiff-probe-w1FzDI\\modern-probe\\_build\\native\\debug\\test\\cmd\\main\\main.blackbox_test.exp\r\nWarning: no test entry found.\n"
+    }
+  ],
+  "note": "Template tests are not BSDiff functionality tests. No BSDiff implementation or upstream patch interoperability was tested. bikallem/compress@0.3.4 install failed on unsupported legacy transitive manifest before compiling; no upstream source modified."
+}
