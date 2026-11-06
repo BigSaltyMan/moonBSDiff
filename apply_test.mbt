@@ -1,15 +1,6 @@
 ///|
 fn apply_limits() -> @moonbsdiff.Limits {
-  {
-    max_old_bytes: 10000L,
-    max_new_bytes: 10000L,
-    max_patch_bytes: 20000L,
-    max_output_bytes: 10000L,
-    max_decompressed_bytes: 30000L,
-    max_control_instructions: 1000L,
-    max_sort_work: 1L,
-    max_match_work: 1L,
-  }
+  @moonbsdiff.Limits::for_apply()
 }
 
 ///|

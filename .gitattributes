@@ -8,3 +8,5 @@ testdata/compression/*.bz2 binary
 testdata/compression/manifest.json text eol=lf
 
 testdata/apply/manifest.json text eol=lf
+testdata/apply/boundaries.json text eol=lf
+testdata/apply/resource-measurements.json text eol=lf

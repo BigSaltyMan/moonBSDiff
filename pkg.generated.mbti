@@ -67,6 +67,7 @@ pub(all) struct Limits {
   max_match_work : Int64
 }
 pub fn Limits::equal(Self, Self) -> Bool
+pub fn Limits::for_apply() -> Self
 pub fn Limits::not_equal(Self, Self) -> Bool
 pub fn Limits::to_repr(Self) -> @debug.Repr
 pub fn Limits::validate(Self) -> Result[Unit, BsdiffError]

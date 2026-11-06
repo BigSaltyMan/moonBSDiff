@@ -2,7 +2,7 @@
 
 MoonBSDiff is a planned MoonBit reference port of BSDiff 4.3 for binary diffs and patches. The current stage implements structured errors, `Limits::validate`, internal BSDIFF40 integer/envelope parsing, and a private bounded bzip2 adapter. The public apply API now restores strict BSDIFF40 patches. Patch generation and a native CLI remain planned. Compression uses moonzip 0.3.5 at level 9; strict bounded decoding uses its attributed, adapted sources under `internal/bzip2/`.
 
-The `Limits` fields for old, new, patch and output buffer sizes are byte counts in 1..2147483647, bounded for Int indexing. `max_decompressed_bytes` is an aggregate byte count, `max_control_instructions` counts instructions, and `max_sort_work` / `max_match_work` count algorithm-defined work units; each is a positive Int64. The work unit definitions and actual enforcement will be established with the algorithms. No defaults are supplied; application and generation defaults will be measured in Commit 6 and Commit 11. Validation means only that a configuration is legal, not that a complete patch operation has runtime resource protection. The private decoder now enforces per-call and shared decompression budgets. No cross-field relationships are imposed.
+The `Limits` fields for old, new, patch and output buffer sizes are byte counts in 1..2147483647, bounded for Int indexing. `max_decompressed_bytes` is an aggregate byte count, `max_control_instructions` counts instructions, and `max_sort_work` / `max_match_work` count algorithm-defined work units; each is a positive Int64. The work unit definitions and actual enforcement will be established with the algorithms. Limits::for_apply() supplies conservative application defaults: old/new/output 1 MiB each, patch 64 KiB, total decompression 2 MiB and 16384 instructions. Sorting/matching fields are unused positive placeholders, not generation defaults; those remain for Commit 11. Validation means only that a configuration is legal, not that a complete patch operation has runtime resource protection. The private decoder now enforces per-call and shared decompression budgets. No cross-field relationships are imposed.
 
 Errors provide a kind, stage, and optional block, offset, field, value and limit. Missing details are `None`. See the generated interface for exact types.
 
@@ -53,4 +53,14 @@ test "apply-memory-example" {
 }
 ```
 
-BSDIFF40 does not identify the old file. A wrong old file is not guaranteed to cause an error; verify expected old/output hashes externally. See [apply behavior and limits](docs/apply.md). Defaults and full memory measurements remain for Commit 6.
+BSDIFF40 does not identify the old file. A wrong old file is not guaranteed to cause an error; verify expected old/output hashes externally. See [apply behavior and limits](docs/apply.md). See [application-stage acceptance and measurements](docs/apply-acceptance.md) for default selection, actual tested scales and unmeasured peak memory.
+
+Use the public default configuration in memory:
+
+```moonbit
+let limits = @moonbsdiff.Limits::for_apply()
+// old_bytes and patch_bytes are supplied by the caller.
+let result = @moonbsdiff.apply(old_bytes, patch_bytes, limits)
+```
+
+Explicit caller-selected Limits continue to work. The three targets each passed the final 73-test application-stage collection; the independent upstream case count remains 13.

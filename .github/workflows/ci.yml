@@ -18,6 +18,8 @@ jobs:
       - run: moon build --target native
       - run: python3 scripts/check_format_vectors.py
       - run: python3 scripts/check_apply.py
+      - run: python3 scripts/check_apply_boundaries.py
+      - run: python3 scripts/measure_apply.py --verify-report
       - run: python3 scripts/check_compression.py
       - run: python3 scripts/generate_reference.py
       - run: python3 -m unittest discover -s scripts -p test_reference.py
@@ -43,6 +45,6 @@ jobs:
         run: |
           set -o pipefail
           for target in js wasm-gc; do
-            moon test apply_test.mbt apply_vectors_test.mbt --target "$target" --deny-warn | tee "apply-$target.log"
+            moon test apply_test.mbt apply_vectors_test.mbt apply_boundaries_test.mbt apply_resources_test.mbt --target "$target" --deny-warn | tee "apply-$target.log"
             grep -E 'Total tests: [1-9][0-9]*, passed: [1-9][0-9]*, failed: 0' "apply-$target.log"
           done

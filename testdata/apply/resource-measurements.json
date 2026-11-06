@@ -1,0 +1,114 @@
+{
+  "platform": "Windows-11-10.0.26300-SP0",
+  "architecture": "AMD64",
+  "toolchain": "moon 0.1.20261102 (ea07287 2026-11-02)\nmoonc v0.10.19+bee578715 (2026-11-02)\nmoonrun 0.1.20261102 (ea07287 2026-11-02)",
+  "executable_sha256": "a567ebe2ada39fe0b537694577078ac5d826468d7d41766817b595b5e4644df9",
+  "compiler": "\u7528\u4e8e x64 \u7684 Microsoft (R) C/C++ \u4f18\u5316\u7f16\u8bd1\u5668 19.44.35229 \u7248",
+  "mode": "moon build --target native --release; default compiler flags; separate direct executable runs",
+  "measurement": "whole process: startup + input construction + apply + full byte assertions; RSS sampled at 1ms, not reliable peak memory",
+  "peak_memory": "not measured",
+  "samples": [
+    {
+      "id": "diff-4096",
+      "old_size": 4096,
+      "new_size": 4096,
+      "patch_size": 131,
+      "instructions": 1,
+      "decoded_bytes": 4120,
+      "old_sha256": "d67c656e01756650d77717b0839985a056ec28ffe174601d690fc407a2ceffca",
+      "new_sha256": "d67c656e01756650d77717b0839985a056ec28ffe174601d690fc407a2ceffca",
+      "patch_sha256": "60edf2f923ed186ba41909964c044d22238f009ce6c2c222e191009c7061309f"
+    },
+    {
+      "id": "extra-4096",
+      "old_size": 0,
+      "new_size": 4096,
+      "patch_size": 795,
+      "instructions": 1,
+      "decoded_bytes": 4120,
+      "old_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "new_sha256": "d67c656e01756650d77717b0839985a056ec28ffe174601d690fc407a2ceffca",
+      "patch_sha256": "f0934b1e4190365c2866b1d895a80b0600a7573886a49608523367d4b202a443"
+    },
+    {
+      "id": "diff-1048576",
+      "old_size": 1048576,
+      "new_size": 1048576,
+      "patch_size": 133,
+      "instructions": 1,
+      "decoded_bytes": 1048600,
+      "old_sha256": "631b84027d6b9e52b539c4e8373622d23032dfadc64d60af87339c9037e4f769",
+      "new_sha256": "631b84027d6b9e52b539c4e8373622d23032dfadc64d60af87339c9037e4f769",
+      "patch_sha256": "0a0b19d35eeea3d0b97c925102f03da0d73ae8471589e0c2e82df7549a00e95a"
+    },
+    {
+      "id": "extra-1048576",
+      "old_size": 0,
+      "new_size": 1048576,
+      "patch_size": 2044,
+      "instructions": 1,
+      "decoded_bytes": 1048600,
+      "old_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "new_sha256": "631b84027d6b9e52b539c4e8373622d23032dfadc64d60af87339c9037e4f769",
+      "patch_sha256": "fcdbfd4cb6280cae9d6be34135dc69f817b0f92ac0245f8ca162e255d47e5e79"
+    },
+    {
+      "id": "repeat-1048576",
+      "old_size": 0,
+      "new_size": 1048576,
+      "patch_size": 137,
+      "instructions": 1,
+      "decoded_bytes": 1048600,
+      "old_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "new_sha256": "4e29ad18ab9f42d7c233500771a39d7c852b200baf328fd00fbbe3fecea1eb56",
+      "patch_sha256": "a33faa183ed87f436bfd28d6bc6412381dfdbc5f6da03b7e8ef374b8add77e54"
+    },
+    {
+      "id": "many-controls",
+      "old_size": 1048576,
+      "new_size": 1048576,
+      "patch_size": 139,
+      "instructions": 16384,
+      "decoded_bytes": 1441792,
+      "old_sha256": "30e14955ebf1352266dc2ff8067e68104607e750abb9d3b36582b8af909fcb58",
+      "new_sha256": "30e14955ebf1352266dc2ff8067e68104607e750abb9d3b36582b8af909fcb58",
+      "patch_sha256": "1bd99330f180c36cc36696c59c9c4aed22b8c8ebb6b33629fc3d408990951566"
+    },
+    {
+      "id": "zero-controls",
+      "old_size": 0,
+      "new_size": 4096,
+      "patch_size": 145,
+      "instructions": 4097,
+      "decoded_bytes": 102424,
+      "old_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "new_sha256": "f302957da5220938a7e3e51a8718c79b9e00dc13ab2119e8cfc978f041720382",
+      "patch_sha256": "bb6c89c8b999233d038839c9060a5391e688c691e7f651374adc42244cba1699"
+    },
+    {
+      "id": "random-extra-32768",
+      "old_size": 0,
+      "new_size": 32768,
+      "patch_size": 33325,
+      "instructions": 1,
+      "decoded_bytes": 32792,
+      "old_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "new_sha256": "780ee258e3059b40d069aac62adcebb565f905d79c82f8426c1bd03bd81b7b6e",
+      "patch_sha256": "ae34bd0a4184e694552964fa6863c8c66116210da7ba38d8bb37590dc4d3705a"
+    }
+  ],
+  "runs": [
+    {
+      "process_elapsed_seconds": 0.124357,
+      "sampled_max_rss_bytes": 17620992
+    },
+    {
+      "process_elapsed_seconds": 0.107532,
+      "sampled_max_rss_bytes": 17719296
+    },
+    {
+      "process_elapsed_seconds": 0.111441,
+      "sampled_max_rss_bytes": 17371136
+    }
+  ]
+}

@@ -1,0 +1,245 @@
+[
+  {
+    "id": "output-control-truncate",
+    "kind": "TruncatedData",
+    "stage": "Control",
+    "field": null,
+    "offset": 72,
+    "size": 123,
+    "sha256": "b22c5acd0f49f044cd51c433383d9eecd5a711f1b29d6001d2e0820ba3d20104"
+  },
+  {
+    "id": "output-control-combined-crc",
+    "kind": "DecompressionFailed",
+    "stage": "Control",
+    "field": "crc",
+    "offset": null,
+    "size": 124,
+    "sha256": "4c9858c60be842083031c7b8278d624d2315674b29cdb4cf19a67aa4dacf2b09"
+  },
+  {
+    "id": "output-control-trailing",
+    "kind": "InvalidField",
+    "stage": "Control",
+    "field": "trailing data after single bzip2 stream",
+    "offset": 73,
+    "size": 125,
+    "sha256": "5cb985eb60ac482666c0106a5a85ce4457fed2a8b2abbf536e881a7793c41d5c"
+  },
+  {
+    "id": "output-control-concat",
+    "kind": "InvalidField",
+    "stage": "Control",
+    "field": "trailing data after single bzip2 stream",
+    "offset": 73,
+    "size": 165,
+    "sha256": "e71e29ab53526eac92ae3ab18e6de09524cc3724210bd41299d557ca13524504"
+  },
+  {
+    "id": "output-control-block-crc",
+    "kind": "DecompressionFailed",
+    "stage": "Control",
+    "field": "crc",
+    "offset": null,
+    "size": 124,
+    "sha256": "20ef422a98f526ff9f597455dc0ced7a993b22469a643f7ee7d92f3233c0adc6"
+  },
+  {
+    "id": "output-diff-truncate",
+    "kind": "TruncatedData",
+    "stage": "Diff",
+    "field": null,
+    "offset": 109,
+    "size": 123,
+    "sha256": "702d0f1267c12dc6b1d0d7b542d56e8c7b6e4cab3185654276838a13cb19dc8a"
+  },
+  {
+    "id": "output-diff-combined-crc",
+    "kind": "DecompressionFailed",
+    "stage": "Diff",
+    "field": "crc",
+    "offset": null,
+    "size": 124,
+    "sha256": "c04651265413d726473bf9b518d2731caa0d9b7b8cb4b949eef5c1e0e575f6e7"
+  },
+  {
+    "id": "output-diff-trailing",
+    "kind": "InvalidField",
+    "stage": "Diff",
+    "field": "trailing data after single bzip2 stream",
+    "offset": 110,
+    "size": 125,
+    "sha256": "e42211d170d0ed2392eb42749746a35764611d6ee473a6f62244fe1c497d6ce7"
+  },
+  {
+    "id": "output-diff-concat",
+    "kind": "InvalidField",
+    "stage": "Diff",
+    "field": "trailing data after single bzip2 stream",
+    "offset": 110,
+    "size": 161,
+    "sha256": "78c02801da41aaa751133a2a7cdacff1017540149918f7ad7010b824c54eed00"
+  },
+  {
+    "id": "output-diff-block-crc",
+    "kind": "DecompressionFailed",
+    "stage": "Diff",
+    "field": "crc",
+    "offset": null,
+    "size": 124,
+    "sha256": "56f9266ba92c4c9ffd5bac970390ccd846e881d4df3d151c50e7de7c58d21556"
+  },
+  {
+    "id": "output-extra-truncate",
+    "kind": "TruncatedData",
+    "stage": "Extra",
+    "field": null,
+    "offset": 123,
+    "size": 123,
+    "sha256": "c649efe6267acf4050f1422fa359de07023671efe3049ce418cdb8a7fc8d522c"
+  },
+  {
+    "id": "output-extra-combined-crc",
+    "kind": "DecompressionFailed",
+    "stage": "Extra",
+    "field": "crc",
+    "offset": null,
+    "size": 124,
+    "sha256": "6cd631ffd51a00315771e4e59c8a037a212f84aeb826438ed7a1d025c9b2fbbf"
+  },
+  {
+    "id": "output-extra-trailing",
+    "kind": "InvalidField",
+    "stage": "Extra",
+    "field": "trailing data after single bzip2 stream",
+    "offset": 124,
+    "size": 125,
+    "sha256": "d3ca07357ee4e6381048aa1e2304d1a1233b167e6bb09c89ec00dab69710e192"
+  },
+  {
+    "id": "output-extra-concat",
+    "kind": "InvalidField",
+    "stage": "Extra",
+    "field": "trailing data after single bzip2 stream",
+    "offset": 124,
+    "size": 161,
+    "sha256": "28dd313108703f33cd7865b9213cb789eeffe79f851e46308967ee9f6ff6830a"
+  },
+  {
+    "id": "output-extra-block-crc",
+    "kind": "DecompressionFailed",
+    "stage": "Extra",
+    "field": "crc",
+    "offset": null,
+    "size": 124,
+    "sha256": "0df2cfcc0677d575313c74af9c7de08afa58354dfccf951a0f3f46e80d32b705"
+  },
+  {
+    "id": "empty-control-truncate",
+    "kind": "TruncatedData",
+    "stage": "Control",
+    "field": null,
+    "offset": 45,
+    "size": 73,
+    "sha256": "91ee8a0692ce79cce6a600fb481742f9ffe73813eedebf7672ae48c78dcddf42"
+  },
+  {
+    "id": "empty-control-combined-crc",
+    "kind": "DecompressionFailed",
+    "stage": "Control",
+    "field": "crc",
+    "offset": null,
+    "size": 74,
+    "sha256": "9d7baf885dc31a6f15ec233575a117424b6cdd5a9dbb409e1f492b0f828d42c5"
+  },
+  {
+    "id": "empty-control-trailing",
+    "kind": "InvalidField",
+    "stage": "Control",
+    "field": "trailing data after single bzip2 stream",
+    "offset": 46,
+    "size": 75,
+    "sha256": "fdd1ed3c24a1ed353c3666571174312ff5f429f1694f8d065681cc148ee94022"
+  },
+  {
+    "id": "empty-control-concat",
+    "kind": "InvalidField",
+    "stage": "Control",
+    "field": "trailing data after single bzip2 stream",
+    "offset": 46,
+    "size": 88,
+    "sha256": "57d43bcd5b01c009d7b71361f536cddd154656a1867ebe63a746e1a481dc490d"
+  },
+  {
+    "id": "empty-diff-truncate",
+    "kind": "TruncatedData",
+    "stage": "Diff",
+    "field": null,
+    "offset": 59,
+    "size": 73,
+    "sha256": "c901a325acb4fceffb7d4195f55984474ef34915bd5eecb92fc43aa99eecab40"
+  },
+  {
+    "id": "empty-diff-combined-crc",
+    "kind": "DecompressionFailed",
+    "stage": "Diff",
+    "field": "crc",
+    "offset": null,
+    "size": 74,
+    "sha256": "5a1a4be2750244e7641c106d9c581c284454bdd1c1b258422c444bb476ad113b"
+  },
+  {
+    "id": "empty-diff-trailing",
+    "kind": "InvalidField",
+    "stage": "Diff",
+    "field": "trailing data after single bzip2 stream",
+    "offset": 60,
+    "size": 75,
+    "sha256": "6fca503339f29345edd9b4b7ce6a2f4f8c58f947807768c2b0aa6b77280808b0"
+  },
+  {
+    "id": "empty-diff-concat",
+    "kind": "InvalidField",
+    "stage": "Diff",
+    "field": "trailing data after single bzip2 stream",
+    "offset": 60,
+    "size": 88,
+    "sha256": "424d776a73afdc53c2cc60c2a9de242da1310905f092d0019cc16fbf1f430959"
+  },
+  {
+    "id": "empty-extra-truncate",
+    "kind": "TruncatedData",
+    "stage": "Extra",
+    "field": null,
+    "offset": 73,
+    "size": 73,
+    "sha256": "fd8184a37d752dd6f62990b5bd4d3a8ade9a7caa738cfc870971c9a7a08c4979"
+  },
+  {
+    "id": "empty-extra-combined-crc",
+    "kind": "DecompressionFailed",
+    "stage": "Extra",
+    "field": "crc",
+    "offset": null,
+    "size": 74,
+    "sha256": "005fbb3e79af27c34b8d694cb55757eda44f45be55982cd53a74adc64120f890"
+  },
+  {
+    "id": "empty-extra-trailing",
+    "kind": "InvalidField",
+    "stage": "Extra",
+    "field": "trailing data after single bzip2 stream",
+    "offset": 74,
+    "size": 75,
+    "sha256": "9381efcfd49486313e21e2b3dae634e2dc4b5504fbf2a728503012edcca0f848"
+  },
+  {
+    "id": "empty-extra-concat",
+    "kind": "InvalidField",
+    "stage": "Extra",
+    "field": "trailing data after single bzip2 stream",
+    "offset": 74,
+    "size": 88,
+    "sha256": "a3ddb54d963cfadb89742790d269ad7fd6231167a9006b407fc1188ff2715bac"
+  }
+]
