@@ -1,0 +1,37 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "BigSaltyMan/moonbsdiff/internal/bzip2"
+
+import {
+  "moonbitlang/core/debug",
+}
+
+// Values
+pub fn decode(BytesView, Int32, Budget) -> Decoded raise Fault
+
+// Errors
+#derive(@debug.Debug)
+pub(all) suberror Fault {
+  Truncated(at~ : Int32)
+  Header(at~ : Int32, what~ : String)
+  Code(at~ : Int32)
+  Checksum(want~ : UInt32, got~ : UInt32)
+  Limit(field~ : String, value~ : Int64, limit~ : Int64)
+  Parameter
+}
+pub fn Fault::to_repr(Self) -> @debug.Repr
+
+// Types and methods
+pub(all) struct Budget {
+  mut remaining : Int64
+  mut emitted : Int64
+}
+
+pub(all) struct Decoded {
+  output : Bytes
+  consumed_bits : Int64
+  blocks : Int32
+}
+
+// Type aliases
+
+// Traits

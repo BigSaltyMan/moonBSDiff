@@ -15,7 +15,7 @@ pub(all) struct Limits {
 }
 
 ///|
-/// Validate the configuration only; runtime enforcement is not yet implemented.
+/// Validate configuration only; runtime checks belong to the operation adapters.
 pub fn Limits::validate(self : Limits) -> Result[Unit, BsdiffError] {
   let fields = [
     ("max_old_bytes", self.max_old_bytes, 2147483647L),

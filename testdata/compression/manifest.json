@@ -1,0 +1,90 @@
+{
+  "generator": "Python bz2.compress; inputs in scripts/check_compression.py",
+  "python": "3.14.6",
+  "cases": [
+    {
+      "id": "empty_1",
+      "input_size": 0,
+      "input_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "compressed_size": 14,
+      "compressed_sha256": "c82685296a2d914c9acd6f6f6db1d1ad364f502b26af5e6ca8874c09880d5cf9"
+    },
+    {
+      "id": "empty_9",
+      "input_size": 0,
+      "input_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "compressed_size": 14,
+      "compressed_sha256": "d3dda84eb03b9738d118eb2be78e246106900493c0ae07819ad60815134a8058"
+    },
+    {
+      "id": "binary_1",
+      "input_size": 12,
+      "input_sha256": "989bfd6431f00500a0db4de36131480d11eb2d9553dd6205563857a267c2b80d",
+      "compressed_size": 56,
+      "compressed_sha256": "4150f0659471787474014374431d8a0b6c81dcebe3074c145b8547d558449a84"
+    },
+    {
+      "id": "binary_9",
+      "input_size": 12,
+      "input_sha256": "989bfd6431f00500a0db4de36131480d11eb2d9553dd6205563857a267c2b80d",
+      "compressed_size": 56,
+      "compressed_sha256": "237e9079ad7a9568d7537a14fd824283a29d50165c83c6807b5ce3c6f1f93a88"
+    },
+    {
+      "id": "all_1",
+      "input_size": 256,
+      "input_sha256": "40aff2e9d2d8922e47afd4648e6967497158785fbd1da870e7110266bf944880",
+      "compressed_size": 425,
+      "compressed_sha256": "0dd4bcb9e08c5aa4de9394659e21a64330b7d7cda8682597fde72d26a1703867"
+    },
+    {
+      "id": "all_9",
+      "input_size": 256,
+      "input_sha256": "40aff2e9d2d8922e47afd4648e6967497158785fbd1da870e7110266bf944880",
+      "compressed_size": 425,
+      "compressed_sha256": "3e0d2be815144b42d7638df42ba7d93cde105aef602f17716f0d0e80a9ab06c2"
+    },
+    {
+      "id": "repeat_1",
+      "input_size": 4096,
+      "input_sha256": "6896d9ea3f73a4434f5832bc65714e7d066f177373f36f34dc8a6f735daa41b1",
+      "compressed_size": 46,
+      "compressed_sha256": "3107094a6cf6f412a00f7837c55b07c106619d49859d6633f8a31a1418525297"
+    },
+    {
+      "id": "repeat_9",
+      "input_size": 4096,
+      "input_sha256": "6896d9ea3f73a4434f5832bc65714e7d066f177373f36f34dc8a6f735daa41b1",
+      "compressed_size": 46,
+      "compressed_sha256": "00aeabee93afaddc3a5665c97aaa6eb46f1769aac9e47216d794e16db7dfec0b"
+    },
+    {
+      "id": "near1_1",
+      "input_size": 99980,
+      "input_sha256": "2b4c2dec3d6cf082a22e082151d5bf0167407a1c8586410076f32b1d3d18ab0c",
+      "compressed_size": 935,
+      "compressed_sha256": "2b531ece249ce43862541a9fddb5a50abdf420b0dedc13b4aaad63e43321b7fb"
+    },
+    {
+      "id": "cross1_1",
+      "input_size": 110080,
+      "input_sha256": "ca2739b46bbc8a1820f81b471e6e829f8c41cdc48b37465dfe9441ce68e3b3a2",
+      "compressed_size": 1732,
+      "compressed_sha256": "d4cb14e0e5b5b319c230fc772bf7a190b52feac5b657a95e3c70df6f80a2f79b"
+    },
+    {
+      "id": "near9_9",
+      "input_size": 899980,
+      "input_sha256": "808dfea3b682fe271ed84b819ef0477dd3d62ca67f4a4c7ebd25c1c429c9fc34",
+      "compressed_size": 1066,
+      "compressed_sha256": "b0af9d5e3a6cdddc4b4004971631eff24124ffe4ca1fef99eb25533f6d72306d"
+    },
+    {
+      "id": "cross9_9",
+      "input_size": 921600,
+      "input_sha256": "d6cd3656f5e6f254b5aa2c5aab6c2a8da6add3269b7ee82b175fd839dfde8ab7",
+      "compressed_size": 1885,
+      "compressed_sha256": "022feae5647607cf6f3825f3c5abe6f609dc235f4f683d18ac93bcfa61754542"
+    }
+  ]
+}

@@ -17,6 +17,7 @@ jobs:
       - run: moon check --target native --deny-warn
       - run: moon build --target native
       - run: python3 scripts/check_format_vectors.py
+      - run: python3 scripts/check_compression.py
       - run: python3 scripts/generate_reference.py
       - run: python3 -m unittest discover -s scripts -p test_reference.py
       - name: Run nonempty tests
@@ -25,3 +26,13 @@ jobs:
           set -o pipefail
           moon test --target native --deny-warn | tee test.log
           grep -E 'Total tests: [1-9][0-9]*, passed: [1-9][0-9]*, failed: 0' test.log
+      - run: python3 scripts/check_compression.py --log test.log --large
+      - name: Compact compression contracts on JS and Wasm-GC
+        shell: bash
+        run: |
+          set -o pipefail
+          for target in js wasm-gc; do
+            moon test compression_wbtest.mbt --filter 'compression-compact*' --target "$target" --deny-warn | tee "compression-$target.log"
+            grep -E 'Total tests: [1-9][0-9]*, passed: [1-9][0-9]*, failed: 0' "compression-$target.log"
+            python3 scripts/check_compression.py --log "compression-$target.log"
+          done

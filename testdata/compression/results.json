@@ -1,0 +1,65 @@
+{
+  "date": "2026-11-06",
+  "baseline": "6d1e109ca27a4d08b465e67653e6b8affef5dc77",
+  "toolchain": {
+    "moon": "0.1.20261102 (ea07287 2026-11-02)",
+    "moonc": "v0.10.19+bee578715 (2026-11-02)"
+  },
+  "runs": [
+    {
+      "target": "native",
+      "selection": "full initial suite",
+      "passed": 17,
+      "failed": 0,
+      "large_runs": 1
+    },
+    {
+      "target": "native",
+      "selection": "compression-compact* after added constructor/level assertions",
+      "passed": 4,
+      "failed": 0
+    },
+    {
+      "target": "native",
+      "selection": "compression-dependency* added gap reproduction",
+      "passed": 1,
+      "failed": 0
+    },
+    {
+      "target": "js",
+      "selection": "compression-compact*",
+      "passed": 4,
+      "failed": 0
+    },
+    {
+      "target": "wasm-gc",
+      "selection": "compression-compact*",
+      "passed": 4,
+      "failed": 0
+    }
+  ],
+  "python_strict_output_counts": {
+    "native_full": 5,
+    "native_compact_rerun": 4,
+    "js": 4,
+    "wasm-gc": 4
+  },
+  "distinct_python_fixtures": 12,
+  "actual_large_decoded_block_counts": {
+    "near1": 1,
+    "cross1": 2,
+    "near9": 1,
+    "cross9": 2
+  },
+  "dependency_gaps": {
+    "trailing_data": "bunzip2 accepted garbage",
+    "reader_push_total": 110080,
+    "reader_limit": 100000
+  },
+  "offline_upstream_integrity_checks": 1,
+  "oracle_rebuilds": 0,
+  "oracle_fixture_regenerations": 0,
+  "historical_probe_runs": 0,
+  "remote_ci": "not run",
+  "root_interface": "unchanged"
+}

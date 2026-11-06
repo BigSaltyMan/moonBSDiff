@@ -1,0 +1,402 @@
+--- a/bits.mbt
++++ b/bits.mbt
+@@ -1,5 +1,6 @@
+ // Copyright 2026 Leo Cheng
+ // SPDX-License-Identifier: Apache-2.0
++// Modified 2026-11-06 for MoonBSDiff; see README.md and changes.patch.
+
+ ///|
+ /// bzip2 reads its bits most significant first. That is the opposite of DEFLATE,
+@@ -62,64 +63,3 @@
+ fn Bits::used(self : Bits) -> Int32 {
+   self.at
+ }
+-
+-///|
+-/// The other half: a sink that fills a byte from the top down.
+-priv struct Sink {
+-  out : Array[Byte]
+-  mut acc : UInt32
+-  mut held : Int32
+-}
+-
+-///|
+-fn Sink::new() -> Sink {
+-  { out: [], acc: 0, held: 0, }
+-}
+-
+-///|
+-fn Sink::bits(self : Sink, value : Int32, n : Int32) -> Unit {
+-  if n == 0 {
+-    return
+-  }
+-  let mask = (1U << n) - 1U
+-  self.acc = (self.acc << n) | (value.reinterpret_as_uint() & mask)
+-  self.held += n
+-  while self.held >= 8 {
+-    self.held -= 8
+-    self.out.push(
+-      ((self.acc >> self.held) & 0xFFU).reinterpret_as_int().to_byte(),
+-    )
+-  }
+-}
+-
+-///|
+-/// Thirty-two bits, as two sixteen-bit halves, for the same reason the reader
+-/// takes them that way.
+-fn Sink::word(self : Sink, value : UInt32) -> Unit {
+-  self.bits((value >> 16).reinterpret_as_int(), 16)
+-  self.bits((value & 0xFFFFU).reinterpret_as_int(), 16)
+-}
+-
+-///|
+-/// The bytes written so far, and forget them.
+-///
+-/// A streaming writer hands back what it has after every call rather than keeping
+-/// it, so what is held between calls is a block and not a stream.
+-fn Sink::drain(self : Sink) -> Bytes {
+-  let made = Bytes::from_array(self.out)
+-  self.out.clear()
+-  made
+-}
+-
+-///|
+-/// Pad the last byte with zeros and hand the bytes over. bzip2 pads a block the
+-/// same way, so the padding of one block is not part of the next.
+-fn Sink::finish(self : Sink) -> Bytes {
+-  if self.held > 0 {
+-    self.out.push(
+-      ((self.acc << (8 - self.held)) & 0xFFU).reinterpret_as_int().to_byte(),
+-    )
+-    self.held = 0
+-  }
+-  Bytes::from_array(self.out)
+-}
+--- a/decode.mbt
++++ b/decode.mbt
+@@ -1,5 +1,6 @@
+ // Copyright 2026 Leo Cheng
+ // SPDX-License-Identifier: Apache-2.0
++// Modified 2026-11-06 for MoonBSDiff; see README.md and changes.patch.
+
+ ///|
+ /// A field that has to be there, or the stream is short.
+@@ -8,10 +9,10 @@
+ /// error, because a decoder being fed a stream a piece at a time cannot tell the
+ /// two apart — and should not pretend to. The reader keeps its position and asks
+ /// again when it has more; the one-shot reader passes the error on.
+-fn need(bits : Bits, n : Int32) -> Int32 raise @moonzip.Refused {
++fn need(bits : Bits, n : Int32) -> Int32 raise Fault {
+   match bits.take(n) {
+     Some(value) => value
+-    None => raise @moonzip.Truncated(at=bits.used())
++    None => raise Truncated(at=bits.used())
+   }
+ }
+
+@@ -74,7 +75,7 @@
+ }
+
+ ///|
+-fn Codes::read(self : Codes, bits : Bits) -> Int32 raise @moonzip.Refused {
++fn Codes::read(self : Codes, bits : Bits) -> Int32 raise Fault {
+   let mut len = self.min_len
+   let mut code = need(bits, len)
+   while code > self.limit[len] {
+@@ -114,13 +115,13 @@
+ }
+
+ ///|
+-fn Fetcher::next(self : Fetcher, bits : Bits) -> Int32 raise @moonzip.Refused {
++fn Fetcher::next(self : Fetcher, bits : Bits) -> Int32 raise Fault {
+   if self.group_pos == 0 {
+     self.group_no += 1
+     if self.group_no >= self.selectors.length() {
+       // The block said how many selectors it has; running past them is a table
+       // that does not describe the data, not a stream that ends here.
+-      raise @moonzip.Code(at=bits.used())
++      raise Code(at=bits.used())
+     }
+     self.group_pos = 50
+     self.group = self.selectors[self.group_no]
+@@ -140,16 +141,17 @@
+ fn read_block(
+   bits : Bits,
+   level : Int32,
+-) -> (Bytes, UInt32) raise @moonzip.Refused {
++  meter : Meter,
++) -> (Bytes, UInt32) raise Fault {
+   let want_crc = match bits.take_word() {
+     Some(v) => v
+-    None => raise @moonzip.Truncated(at=bits.used())
++    None => raise Truncated(at=bits.used())
+   }
+   let randomised = need(bits, 1) != 0
+   let orig_ptr = need(bits, 24)
+   let max_block = 100000 * level
+   if orig_ptr < 0 || orig_ptr > max_block + 10 {
+-    raise @moonzip.Header(
++    raise Header(
+       at=bits.used(),
+       what="the block's start pointer is outside the block",
+     )
+@@ -177,16 +179,13 @@
+   }
+   let n_in_use = seq_to_unseq.length()
+   if n_in_use == 0 {
+-    raise @moonzip.Header(
+-      at=bits.used(),
+-      what="a block that uses no bytes at all",
+-    )
++    raise Header(at=bits.used(), what="a block that uses no bytes at all")
+   }
+   let alpha = n_in_use + 2
+   let eob = n_in_use + 1
+   let n_groups = need(bits, 3)
+   if n_groups < 2 || n_groups > 6 {
+-    raise @moonzip.Header(
++    raise Header(
+       at=bits.used(),
+       what="a block with the wrong number of code tables",
+     )
+@@ -196,7 +195,7 @@
+   // the data.
+   let n_selectors = need(bits, 15)
+   if n_selectors < 1 {
+-    raise @moonzip.Header(at=bits.used(), what="a block with no selectors")
++    raise Header(at=bits.used(), what="a block with no selectors")
+   }
+   let selector_mtf = Array::make(n_selectors, 0)
+   for i in 0..<n_selectors {
+@@ -204,7 +203,7 @@
+     while need(bits, 1) == 1 {
+       j += 1
+       if j >= n_groups {
+-        raise @moonzip.Code(at=bits.used())
++        raise Code(at=bits.used())
+       }
+     }
+     selector_mtf[i] = j
+@@ -233,7 +232,7 @@
+     for symbol in 0..<alpha {
+       while true {
+         if curr < 1 || curr > 20 {
+-          raise @moonzip.Code(at=bits.used())
++          raise Code(at=bits.used())
+         }
+         if need(bits, 1) == 0 {
+           break
+@@ -266,7 +265,7 @@
+   let mut sym = fetcher.next(bits)
+   while true {
+     if sym < 0 {
+-      raise @moonzip.Code(at=bits.used())
++      raise Code(at=bits.used())
+     }
+     if sym == eob {
+       break
+@@ -276,7 +275,7 @@
+       let mut weight = 1
+       while true {
+         if weight >= 2097152 {
+-          raise @moonzip.Code(at=bits.used())
++          raise Code(at=bits.used())
+         }
+         if sym == 0 {
+           run += weight
+@@ -286,15 +285,15 @@
+         weight = weight * 2
+         sym = fetcher.next(bits)
+         if sym < 0 {
+-          raise @moonzip.Code(at=bits.used())
++          raise Code(at=bits.used())
+         }
+         if sym > 1 {
+           break
+         }
+       }
+       run += 1
+-      if block.length() + run > max_block {
+-        raise @moonzip.Code(at=bits.used())
++      if run > max_block - block.length() {
++        raise Code(at=bits.used())
+       }
+       let byte = seq_to_unseq[mtf[0]]
+       for _ in 0..<run {
+@@ -304,7 +303,7 @@
+     }
+     let v = sym - 1
+     if v < 0 || v >= mtf.length() {
+-      raise @moonzip.Code(at=bits.used())
++      raise Code(at=bits.used())
+     }
+     let value = mtf[v]
+     let mut k = v
+@@ -314,17 +313,17 @@
+     }
+     mtf[0] = value
+     if block.length() >= max_block {
+-      raise @moonzip.Code(at=bits.used())
++      raise Code(at=bits.used())
+     }
+     block.push(seq_to_unseq[value])
+     sym = fetcher.next(bits)
+   }
+   let n = block.length()
+   if n == 0 {
+-    raise @moonzip.Header(at=bits.used(), what="an empty block")
++    raise Header(at=bits.used(), what="an empty block")
+   }
+   if orig_ptr < 0 || orig_ptr >= n {
+-    raise @moonzip.Header(
++    raise Header(
+       at=bits.used(),
+       what="the block's start pointer is past its end",
+     )
+@@ -388,10 +387,15 @@
+       i += 1
+     }
+     let mut total = run
++    if run == 4 && i == n {
++      raise Code(at=bits.used())
++    }
+     if run == 4 && i < n {
+       total = 4 + plain[i].to_int()
+       i += 1
+     }
++    // Reserve before either the output array or CRC is extended.
++    meter.reserve(total)
+     for _ in 0..<total {
+       crc.push_byte(value)
+       out.push(byte)
+@@ -399,7 +403,7 @@
+   }
+   let got = crc.finish()
+   if got != want_crc {
+-    raise @moonzip.Checksum(want=want_crc, got~)
++    raise Checksum(want=want_crc, got~)
+   }
+   (Bytes::from_array(out), got)
+ }
+--- a/bzip2.mbt
++++ b/bzip2.mbt
+@@ -1,5 +1,6 @@
+ // Copyright 2026 Leo Cheng
+ // SPDX-License-Identifier: Apache-2.0
++// Modified 2026-11-06 for MoonBSDiff; see README.md and changes.patch.
+
+ ///|
+ /// The six bytes that open a block, and the six that close a stream. They are
+@@ -12,7 +13,7 @@
+
+ ///|
+ /// Which of the two markers comes next, or `None` if it is neither.
+-fn marker(bits : Bits) -> Int32? raise @moonzip.Refused {
++fn marker(bits : Bits) -> Int32? raise Fault {
+   let seen : Array[Int32] = []
+   for _ in 0..<6 {
+     seen.push(need(bits, 8))
+@@ -35,103 +36,3 @@
+     None
+   }
+ }
+-
+-///|
+-/// Decompress a bzip2 stream.
+-///
+-/// `limit` is how much output the caller is prepared to hold; a compressed stream
+-/// says nothing about how far it expands, so a reader of untrusted input should
+-/// say. Past it, `TooBig` rather than an allocation.
+-///
+-/// ```moonbit nocheck
+-/// let plain = @bzip2.bunzip2(packed[:])
+-/// ```
+-pub fn bunzip2(
+-  data : BytesView,
+-  limit? : Int32,
+-) -> Bytes raise @moonzip.Refused {
+-  run(
+-    data,
+-    match limit {
+-      Some(n) => n
+-      None => -1
+-    },
+-  )
+-}
+-
+-///|
+-/// The one-shot reader, with the bound passed down rather than in an option.
+-fn run(data : BytesView, limit : Int32) -> Bytes raise @moonzip.Refused {
+-  let bits = Bits::new(data)
+-  match read_up_to(bits, limit) {
+-    Some(out) => out
+-    None => raise @moonzip.Truncated(at=bits.used())
+-  }
+-}
+-
+-///|
+-/// Everything the stream holds, or `None` if the bytes run out first.
+-///
+-/// Both entry points go through here: the one-shot reader turns `None` into
+-/// `Truncated`, and a reader being fed a piece at a time keeps the position and
+-/// asks again when it has more.
+-fn read_up_to(bits : Bits, limit : Int32) -> Bytes? raise @moonzip.Refused {
+-  Some(decode_all(bits, limit)) catch {
+-    @moonzip.Truncated(_) => None
+-    error => raise error
+-  }
+-}
+-
+-///|
+-fn decode_all(bits : Bits, limit : Int32) -> Bytes raise @moonzip.Refused {
+-  for i in 0..<3 {
+-    let want = [0x42, 0x5A, 0x68][i]
+-    if need(bits, 8) != want {
+-      raise @moonzip.Header(at=0, what="this is not a bzip2 stream")
+-    }
+-  }
+-  let level_byte = need(bits, 8)
+-  if level_byte < 0x31 || level_byte > 0x39 {
+-    raise @moonzip.Header(
+-      at=3,
+-      what="a block size that is not a digit from one to nine",
+-    )
+-  }
+-  let level = level_byte - 0x30
+-  let out : Array[Byte] = []
+-  let mut combined = 0U
+-  let mut done = false
+-  while !done {
+-    let what = match marker(bits) {
+-      Some(kind) => kind
+-      None =>
+-        raise @moonzip.Header(
+-          at=bits.used() - 6,
+-          what="a block marker that is neither the block nor the end of stream",
+-        )
+-    }
+-    if what == 1 {
+-      let want = match bits.take_word() {
+-        Some(v) => v
+-        None => raise @moonzip.Truncated(at=bits.used())
+-      }
+-      if want != combined {
+-        raise @moonzip.Checksum(want~, got=combined)
+-      }
+-      done = true
+-      continue
+-    }
+-    let (block, stamp) = read_block(bits, level)
+-    if limit >= 0 && out.length() + block.length() > limit {
+-      raise @moonzip.TooBig(limit~)
+-    }
+-    // The combined checksum is each block's own, rotated one bit and xored in, so
+-    // a block that is out of order or missing shows up at the end as well as at
+-    // its own trailer.
+-    combined = ((combined << 1) | (combined >> 31)) ^ stamp
+-    for byte in block {
+-      out.push(byte)
+-    }
+-  }
+-  Bytes::from_array(out)
+-}
