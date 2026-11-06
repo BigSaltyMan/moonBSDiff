@@ -6,3 +6,5 @@ testdata/upstream/**/*.bin binary
 internal/bzip2/* text eol=lf
 testdata/compression/*.bz2 binary
 testdata/compression/manifest.json text eol=lf
+
+testdata/apply/manifest.json text eol=lf

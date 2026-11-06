@@ -1,5 +1,4 @@
 ///|
-#warnings("-unused_value")
 fn decompression_budget(
   limits : Limits,
 ) -> Result[@bounded.Budget, BsdiffError] {
@@ -21,7 +20,6 @@ fn compress_block(data : Bytes) -> Bytes {
 }
 
 ///|
-#warnings("-unused_value")
 fn decompress_block(
   data : Bytes,
   cap : Int64,

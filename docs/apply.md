@@ -1,0 +1,19 @@
+# Applying BSDIFF40 patches
+
+`apply(old_bytes : Bytes, patch_bytes : Bytes, limits : Limits) -> Result[Bytes, BsdiffError]` is a pure in-memory operation. Limits are required. It validates configuration and actual old/patch sizes, checks the header, and requires restored size to fit both max_new_bytes and max_output_bytes (each bounded to Int indexing by Limits). It creates one decompression budget for the three intervals. Control output is capped at min(Int maximum, 24 * max_control_instructions), using division before multiplication to avoid overflow. Diff and extra output caps each equal the validated restored size. A zero internal cap accepts only empty decoded output. These controls do not provide an overall peak-memory or wall-clock guarantee. Default measurement remains for Commit 6.
+
+Three strict bzip2 streams are decoded with the existing bounded adapter, correct block labels and absolute starting offsets. Aligned control length and finite instruction count are checked before allocating the output array. The current full-buffer implementation copies compressed intervals, keeps decoded blocks and output in memory, and copies the final array to Bytes; limits are not a whole-process memory cap.
+
+For each (x,y,z), x/y must be nonnegative. Output and source availability are checked with remaining lengths before narrowing. Old cursor plus x and then plus z use checked Int64 additions. Per-byte old access occurs only when its Int64 position is in [0, old length); outside positions contribute zero. This also handles Int64 minimum without negating it. Byte sums are explicitly reduced modulo 256. Zero-output instructions are allowed before the output is complete; each consumes one finite control triple. Once output is complete, any remaining control triple is rejected as unconsumed, including for empty targets. All three compressed streams must still be valid for an empty target.
+
+Success requires exactly the declared output size and full consumption of control, diff and extra data. Errors return no partial bytes, and neither input is modified. Each call creates a fresh budget; failures cannot reduce the next call's budget.
+
+## Location and error conventions
+
+Compressed decoder errors retain patch-file absolute offsets (when available). Header errors retain field offsets. Decoded instruction errors have offset None and field `control_decoded_byte[N].x`, `.y`, `.old_plus_x`, or `.old_plus_z`: N is a decoded control byte position, not a compressed patch offset. Other decoded errors use fields such as control_decoded_alignment, diff_decoded_consumption, unconsumed_extra and output_size; offsets are None. Kind/stage/block remain structured. Negative control counts are InvalidField, missing data/alignment are TruncatedData, output overrun is OutputOutOfBounds, arithmetic overflow is IntegerOverflow, unused data is InvalidField, and limits are ResourceLimitExceeded. Per-block caps may reject redundant decoded bytes before a later consumption check.
+
+## Reproduction and evidence
+
+`python scripts/check_apply.py` verifies embedded bytes against all 13 unchanged upstream fixtures and the independent Python bz2 manual cases. `--generate` explicitly regenerates only the compact apply embedding and manual manifest; it does not rebuild the oracle or regenerate upstream patches. Manual controls and expected results are reviewable in the script and testdata/apply/manifest.json. Run apply tests with `moon test apply_test.mbt apply_vectors_test.mbt --target native --deny-warn` (also js or wasm-gc). The README memory example is an executed public API test.
+
+Only upstream generation -> MoonBSDiff application is established here. Diff and CLI are not implemented. BSDIFF40 has no built-in old-file identity hash. Wrong old bytes can produce apparently successful but incorrect output, so applications must verify expected input/output hashes externally.

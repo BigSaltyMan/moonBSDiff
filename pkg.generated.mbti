@@ -6,6 +6,7 @@ import {
 }
 
 // Values
+pub fn apply(Bytes, Bytes, Limits) -> Result[Bytes, BsdiffError]
 
 // Errors
 

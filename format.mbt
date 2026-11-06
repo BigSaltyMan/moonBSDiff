@@ -1,6 +1,4 @@
 ///|
-// Consumed by the later patch application stage.
-#warnings("-unused_field")
 priv struct PatchRanges {
   control_start : Int32
   control_end : Int32
@@ -10,8 +8,6 @@ priv struct PatchRanges {
 }
 
 ///|
-// Internal until the apply stage integrates the parser.
-#warnings("-unused_value")
 fn parse_header(
   data : Bytes,
   limits : Limits,

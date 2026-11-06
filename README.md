@@ -1,6 +1,6 @@
 # MoonBSDiff
 
-MoonBSDiff is a planned MoonBit reference port of BSDiff 4.3 for binary diffs and patches. The current stage implements structured errors, `Limits::validate`, internal BSDIFF40 integer/envelope parsing, and a private bounded bzip2 adapter. Patch generation, application and a native CLI are planned, not implemented. Compression uses moonzip 0.3.5 at level 9; strict bounded decoding uses its attributed, adapted sources under `internal/bzip2/`.
+MoonBSDiff is a planned MoonBit reference port of BSDiff 4.3 for binary diffs and patches. The current stage implements structured errors, `Limits::validate`, internal BSDIFF40 integer/envelope parsing, and a private bounded bzip2 adapter. The public apply API now restores strict BSDIFF40 patches. Patch generation and a native CLI remain planned. Compression uses moonzip 0.3.5 at level 9; strict bounded decoding uses its attributed, adapted sources under `internal/bzip2/`.
 
 The `Limits` fields for old, new, patch and output buffer sizes are byte counts in 1..2147483647, bounded for Int indexing. `max_decompressed_bytes` is an aggregate byte count, `max_control_instructions` counts instructions, and `max_sort_work` / `max_match_work` count algorithm-defined work units; each is a positive Int64. The work unit definitions and actual enforcement will be established with the algorithms. No defaults are supplied; application and generation defaults will be measured in Commit 6 and Commit 11. Validation means only that a configuration is legal, not that a complete patch operation has runtime resource protection. The private decoder now enforces per-call and shared decompression budgets. No cross-field relationships are imposed.
 
@@ -19,9 +19,38 @@ moon build --target native
 moon test --target native --deny-warn
 python scripts/check_format_vectors.py
 python scripts/check_compression.py
+python scripts/check_apply.py
 git diff --check
 ```
 
-The initial CI runs these checks and compares the generated interface; remote CI has not yet run. [Dependency probe](testdata/dependency-probe/README.md) explains historical and repeatable bzip2 tests and their limits. The project tests cover configuration, error data, integer encoding and envelope boundaries; no patch application, full BSDiff interoperability or general runtime resource protection is claimed. See [compression contracts and verification](docs/compression.md). See [format details](docs/format.md). [Licenses and upstream](docs/upstream.md).
+The initial CI runs these checks and compares the generated interface; remote CI has not yet run. [Dependency probe](testdata/dependency-probe/README.md) explains historical and repeatable bzip2 tests and their limits. The project tests cover configuration, error data, integer encoding and envelope boundaries; apply is verified against the 13 fixed upstream patches; bidirectional BSDiff interoperability and whole-process resource guarantees remain unverified. See [compression contracts and verification](docs/compression.md). See [format details](docs/format.md). [Licenses and upstream](docs/upstream.md).
 
-[Fixed BSDiff 4.3 reference tools](tools/oracle/README.md) and [13 offline upstream fixtures](testdata/upstream/README.md) are available for future interoperability tests. Run `python scripts/generate_reference.py` for offline integrity verification. The upstream self-check does not establish MoonBSDiff patch interoperability.
+[Fixed BSDiff 4.3 reference tools](tools/oracle/README.md) and [13 offline upstream fixtures](testdata/upstream/README.md) provide the fixed upstream patches used by the apply tests. Run `python scripts/generate_reference.py` for offline integrity verification. The upstream self-check is separate from the apply results above.
+
+## Apply in memory
+
+This example is executed in apply_test.mbt. It uses three complete empty bzip2 streams.
+
+```moonbit
+test "apply-memory-example" {
+  let stream = b"BZh9\x17\x72\x45\x38\x50\x90\x00\x00\x00\x00"
+  let patch = b"BSDIFF40" +
+    b"\x0e\x00\x00\x00\x00\x00\x00\x00\x0e\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00" +
+    stream +
+    stream +
+    stream
+  let limits : @moonbsdiff.Limits = {
+    max_old_bytes: 1024L,
+    max_new_bytes: 1024L,
+    max_patch_bytes: 1024L,
+    max_output_bytes: 1024L,
+    max_decompressed_bytes: 4096L,
+    max_control_instructions: 128L,
+    max_sort_work: 1L,
+    max_match_work: 1L,
+  }
+  assert_eq(@moonbsdiff.apply(b"", patch, limits), Ok(b""))
+}
+```
+
+BSDIFF40 does not identify the old file. A wrong old file is not guaranteed to cause an error; verify expected old/output hashes externally. See [apply behavior and limits](docs/apply.md). Defaults and full memory measurements remain for Commit 6.

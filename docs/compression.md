@@ -2,9 +2,9 @@
 
 ## Scope and integration
 
-`compression.mbt` is private root-library plumbing. `compress_block` calls moonzip 0.3.5 at fixed level 9, including a real empty stream. `decompression_budget(limits)` validates the existing Limits and creates one budget from `max_decompressed_bytes`; a future apply operation must create it once and pass the same object to Control, Diff and Extra. `decompress_block` accepts one compressed interval, a per-call output cap (0..2147483647), shared budget, stage, and interval start offset. A zero internal cap or remaining budget permits only zero output. Negative values never mean unlimited.
+`compression.mbt` is private root-library plumbing. `compress_block` calls moonzip 0.3.5 at fixed level 9, including a real empty stream. `decompression_budget(limits)` validates the existing Limits and creates one budget from `max_decompressed_bytes`; apply creates it once and passes the same object to Control, Diff and Extra. `decompress_block` accepts one compressed interval, a per-call output cap (0..2147483647), shared budget, stage, and interval start offset. A zero internal cap or remaining budget permits only zero output. Negative values never mean unlimited.
 
-No diff/apply or product CLI exists yet. Control instructions and exact consumption of decompressed control/diff/extra data belong to Commit 5/6. No library call invokes an external process. Root `pkg.generated.mbti` is unchanged; the internal decoder package has a generated implementation interface.
+The public apply API now executes control instructions and requires exact decoded-data consumption; see [apply.md](apply.md). Diff and a product CLI remain planned. No library call invokes an external process. Root `pkg.generated.mbti` is unchanged; the internal decoder package has a generated implementation interface.
 
 ## Original gaps and chosen adaptation
 
