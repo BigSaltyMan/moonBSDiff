@@ -1,0 +1,13 @@
+# Fixed upstream fixtures
+
+These 13 small deterministic cases were generated on 2026-11-06 by the real BSDiff 4.3 oracle described in [tools/oracle](../../tools/oracle/README.md). `manifest.json` is the single versioned fixture inventory. Its source-lock hash identifies the fixed archive and source hashes; [verified-build.json](../../tools/oracle/verified-build.json) records the exact producing environment and executable hashes. Each case has original old/new bytes, an upstream patch, method description, file sizes and SHA-256. Original `new.bin` bytes are the expected output.
+
+Cases: both empty, old empty, new empty, identical, replacement, insertion, deletion, prepend, append, all 256 byte values (including 00/ff), periodic data, block move, and random edits with seed 20261106. Input definitions live in `scripts/generate_reference.py`; they are original test literals/generation recipes under the repository BSD-2-Clause license. Reference patches were generated from these original inputs by the BSD-licensed upstream tool. Upstream notices are retained under `tools/oracle`. No third-party input files were copied.
+
+Offline check from repository root: `python scripts/generate_reference.py`. It verifies the complete case set, recipes, original deterministic inputs, file existence, sizes, hashes and lock identity. Normal checks do not invoke an oracle or network. The fixed files can be read directly by future MoonBit tests.
+
+To rebuild and regenerate, follow the oracle README. Generation uses fresh temporary paths, invokes `bsdiff OLD NEW PATCH` and `bspatch OLD OUTPUT PATCH`, requires successful exits within 15 seconds and actual output files, and compares the restored bytes with original new bytes. Existing fixtures are never silently replaced: repeat generation verifies full input and patch bytes plus manifest equality; unexpected changes fail for investigation. Across environments, different patch bytes alone are not proof of format incompatibility; correct restoration is the legal-input criterion.
+
+Actual result: all 13 upstream generations and restorations passed; repeated generation in the same environment exactly matched all fixtures and the manifest. Ten failure tests, on temporary copies or isolated subprocess outputs, confirm rejection of missing files/cases, modified patches, wrong size/hash, corrupt archive cache, nonzero exits, timeout, absent outputs and corrupt restored bytes.
+
+This proves the fixed upstream build, upstream self-verification and offline fixture integrity. Upstream -> MoonBSDiff and MoonBSDiff -> upstream interoperability remain unverified. Stream ending/consumption checks and decompression budgeting remain future work.

@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "bsdiff": {
+    "version": "4.3",
+    "urls": [
+      "https://www.daemonology.net/bsdiff/bsdiff-4.3.tar.gz",
+      "https://deb.debian.org/debian/pool/main/b/bsdiff/bsdiff_4.3.orig.tar.gz"
+    ],
+    "archive": "bsdiff-4.3.tar.gz",
+    "size": 5740,
+    "sha256": "18821588b2dc5bf159aa37d3bcb7b885d85ffd1e19f23a0c57a58723fea85f48",
+    "files": {
+      "bsdiff.c": "fc0a6e634ef77dcf14bf36c7b6d1e57ba1ac5c4809073dfaacb3b5f7ab277eb7",
+      "bspatch.c": "d67ad00cc629267bdd6772aee64a8249c4bf76953f94ce0e6c9e46f1d4f79708",
+      "bsdiff.1": "d975b08047cd7a05209d1f76dd0c196792cd9376aeb8742be533cdcb3c4260f1",
+      "bspatch.1": "20956d9f7d243ea47d03510459a27fa2d819ab911665fbabdfa00ed8c263e860",
+      "Makefile": "bc29809ce4995e5ee3e517ce93051064f5cbfedaf1dfc17de1a95eb6a6429170"
+    }
+  },
+  "bzip2": {
+    "version": "1.0.8",
+    "urls": [
+      "https://sourceware.org/pub/bzip2/bzip2-1.0.8.tar.gz"
+    ],
+    "archive": "bzip2-1.0.8.tar.gz",
+    "size": 810029,
+    "sha256": "ab5a03176ee106d3f0fa90e381da478ddae405918153cca248e682cd0c4a2269"
+  },
+  "compiler": "gcc",
+  "cflags": [
+    "-O2",
+    "-D_DEFAULT_SOURCE"
+  ],
+  "adaptations": []
+}

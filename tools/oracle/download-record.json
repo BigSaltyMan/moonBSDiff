@@ -1,0 +1,10 @@
+[
+  {
+    "url": "https://www.daemonology.net/bsdiff/bsdiff-4.3.tar.gz",
+    "result": "HTTP Error 403: Forbidden"
+  },
+  {
+    "url": "https://deb.debian.org/debian/pool/main/b/bsdiff/bsdiff_4.3.orig.tar.gz",
+    "result": "verified"
+  }
+]

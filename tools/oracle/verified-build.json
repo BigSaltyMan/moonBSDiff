@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "lock_sha256": "5309cae0d696dabaf51f6bf3770189ef022a03b66579a3415acc3e6ac28a6dca",
+  "os": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+  "architecture": "x86_64",
+  "compiler": "gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0\nCopyright (C) 2023 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.",
+  "bzip2_library_sha256": "4cb30405033c3113ccaead5ceffb783a32625dcd8defa8bbae0c0a002edf8d6b",
+  "bzip2_runtime": "1.0.8, 13-Jul-2019",
+  "sources": {
+    "bsdiff": "reverified cache",
+    "bzip2": "reverified cache"
+  },
+  "commands": [
+    [
+      "make",
+      "-C",
+      "_build/oracle/bzip2-1.0.8",
+      "-B",
+      "libbz2.a",
+      "CC=gcc",
+      "CFLAGS=-O2 -Wall -D_FILE_OFFSET_BITS=64"
+    ],
+    [
+      "gcc",
+      "-O2",
+      "-D_DEFAULT_SOURCE",
+      "-I_build/oracle/bzip2-1.0.8",
+      "_build/oracle/bsdiff-4.3/bsdiff.c",
+      "_build/oracle/bzip2-1.0.8/libbz2.a",
+      "-o",
+      "_build/oracle/bsdiff"
+    ],
+    [
+      "gcc",
+      "-O2",
+      "-D_DEFAULT_SOURCE",
+      "-I_build/oracle/bzip2-1.0.8",
+      "_build/oracle/bsdiff-4.3/bspatch.c",
+      "_build/oracle/bzip2-1.0.8/libbz2.a",
+      "-o",
+      "_build/oracle/bspatch"
+    ]
+  ],
+  "adaptations": [],
+  "products": {
+    "bsdiff": "6c53a0ce59f2e249d9ba512512ec4cedf04dd846c9900c5075680f2133bf2ec8",
+    "bspatch": "d37b7c4ec800b4ec8aed6d581cc1ca704a4f51717334915f5e72d495e5976fd4"
+  }
+}

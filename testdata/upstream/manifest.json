@@ -1,0 +1,256 @@
+{
+  "schema_version": 1,
+  "reference": {
+    "version": "4.3",
+    "lock_sha256": "5309cae0d696dabaf51f6bf3770189ef022a03b66579a3415acc3e6ac28a6dca"
+  },
+  "cases": [
+    {
+      "id": "both-empty",
+      "method": "empty literals",
+      "old": {
+        "path": "both-empty/old.bin",
+        "size": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "new": {
+        "path": "both-empty/new.bin",
+        "size": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "patch": {
+        "path": "both-empty/patch.bin",
+        "size": 74,
+        "sha256": "82d27a0bd77c668d2ab2c3ca96aeffae567bd4c8313786c610704410bf2dc42e"
+      }
+    },
+    {
+      "id": "old-empty",
+      "method": "empty to binary literal",
+      "old": {
+        "path": "old-empty/old.bin",
+        "size": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "new": {
+        "path": "old-empty/new.bin",
+        "size": 5,
+        "sha256": "3454c7ec1e02edce0fe7f4efe362651fbb457bc6d62fdd7a2f8001611bf23cf0"
+      },
+      "patch": {
+        "path": "old-empty/patch.bin",
+        "size": 133,
+        "sha256": "8ff6ff724280ef7806814b01b6b3e299e578cdfe00e176fe5f8733d7a1ee104b"
+      }
+    },
+    {
+      "id": "new-empty",
+      "method": "literal to empty",
+      "old": {
+        "path": "new-empty/old.bin",
+        "size": 20,
+        "sha256": "6bc14bdc4517a7a682c6910de2e2946eb8e1ecd04090728fef6d092a7ceb62c5"
+      },
+      "new": {
+        "path": "new-empty/new.bin",
+        "size": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "patch": {
+        "path": "new-empty/patch.bin",
+        "size": 74,
+        "sha256": "82d27a0bd77c668d2ab2c3ca96aeffae567bd4c8313786c610704410bf2dc42e"
+      }
+    },
+    {
+      "id": "identical",
+      "method": "same literal",
+      "old": {
+        "path": "identical/old.bin",
+        "size": 20,
+        "sha256": "6bc14bdc4517a7a682c6910de2e2946eb8e1ecd04090728fef6d092a7ceb62c5"
+      },
+      "new": {
+        "path": "identical/new.bin",
+        "size": 20,
+        "sha256": "6bc14bdc4517a7a682c6910de2e2946eb8e1ecd04090728fef6d092a7ceb62c5"
+      },
+      "patch": {
+        "path": "identical/patch.bin",
+        "size": 130,
+        "sha256": "319172215bbb04c6c91106a168c2dd2912dccb7525cd1b1e9f9ea894bbd831e8"
+      }
+    },
+    {
+      "id": "replace",
+      "method": "replace bytes 6..8",
+      "old": {
+        "path": "replace/old.bin",
+        "size": 20,
+        "sha256": "6bc14bdc4517a7a682c6910de2e2946eb8e1ecd04090728fef6d092a7ceb62c5"
+      },
+      "new": {
+        "path": "replace/new.bin",
+        "size": 20,
+        "sha256": "5719410b795aeecf690587cb18dfa92f4bc7c7c9c46662343faaa6dee218fa79"
+      },
+      "patch": {
+        "path": "replace/patch.bin",
+        "size": 134,
+        "sha256": "cd22b7f1c8031af0f84f610b967771311791007e33914b64d8ef81cfd58a7c6b"
+      }
+    },
+    {
+      "id": "insert",
+      "method": "insert at offset 6",
+      "old": {
+        "path": "insert/old.bin",
+        "size": 20,
+        "sha256": "6bc14bdc4517a7a682c6910de2e2946eb8e1ecd04090728fef6d092a7ceb62c5"
+      },
+      "new": {
+        "path": "insert/new.bin",
+        "size": 26,
+        "sha256": "c113e1e46bfafc9685a8ed02623f9293695e89d453b5e3b3e5b2459e3bbadc36"
+      },
+      "patch": {
+        "path": "insert/patch.bin",
+        "size": 160,
+        "sha256": "8dbcab7dfff3fdfbef1bdab6e07acf6c158682bb70a4f4fa9e6742bda839cd1f"
+      }
+    },
+    {
+      "id": "delete",
+      "method": "delete bytes 6..8",
+      "old": {
+        "path": "delete/old.bin",
+        "size": 20,
+        "sha256": "6bc14bdc4517a7a682c6910de2e2946eb8e1ecd04090728fef6d092a7ceb62c5"
+      },
+      "new": {
+        "path": "delete/new.bin",
+        "size": 17,
+        "sha256": "ac461b883ccc91b73aa2c89c5bf02c20d35accbb0ffdb9e7c8cfe9537483a196"
+      },
+      "patch": {
+        "path": "delete/patch.bin",
+        "size": 129,
+        "sha256": "4ebad7cdabae57ae455e00962f888be3159371890fe18e70a7dd438d6af05255"
+      }
+    },
+    {
+      "id": "prepend",
+      "method": "prepend literal",
+      "old": {
+        "path": "prepend/old.bin",
+        "size": 20,
+        "sha256": "6bc14bdc4517a7a682c6910de2e2946eb8e1ecd04090728fef6d092a7ceb62c5"
+      },
+      "new": {
+        "path": "prepend/new.bin",
+        "size": 26,
+        "sha256": "56a5c83a71a41d14e3a1f1c7dca9315a1361318e6d8877a7ad04d3fb3ccbb663"
+      },
+      "patch": {
+        "path": "prepend/patch.bin",
+        "size": 161,
+        "sha256": "dd013587bb034497071b9710428aa657c4afa30159adde603df58908341cae8e"
+      }
+    },
+    {
+      "id": "append",
+      "method": "append literal",
+      "old": {
+        "path": "append/old.bin",
+        "size": 20,
+        "sha256": "6bc14bdc4517a7a682c6910de2e2946eb8e1ecd04090728fef6d092a7ceb62c5"
+      },
+      "new": {
+        "path": "append/new.bin",
+        "size": 26,
+        "sha256": "48cb942b30d9a5fbd8461bd975d3ff8c799e7573029f5845ddf50f06ea484d9e"
+      },
+      "patch": {
+        "path": "append/patch.bin",
+        "size": 161,
+        "sha256": "57a7b250dca6589f1ac784dad87627bbd911db14f5eb348f8fefd6f447e4af36"
+      }
+    },
+    {
+      "id": "all-bytes",
+      "method": "all byte values reversed, then 00 ff",
+      "old": {
+        "path": "all-bytes/old.bin",
+        "size": 256,
+        "sha256": "40aff2e9d2d8922e47afd4648e6967497158785fbd1da870e7110266bf944880"
+      },
+      "new": {
+        "path": "all-bytes/new.bin",
+        "size": 258,
+        "sha256": "14025cad98e1fe9dd06ca112f9d69fe9f7f53f61c097d86f259f28f452b32154"
+      },
+      "patch": {
+        "path": "all-bytes/patch.bin",
+        "size": 517,
+        "sha256": "3bae2a0fab6c0f7f4cbb1575aea7240141690cf543370b95a714f66865d8899f"
+      }
+    },
+    {
+      "id": "periodic",
+      "method": "periodic literal with insertion",
+      "old": {
+        "path": "periodic/old.bin",
+        "size": 1500,
+        "sha256": "c932bc6640bc000b14e0735018f19fa8739a62ef5b70df92bf3af8c234afaf74"
+      },
+      "new": {
+        "path": "periodic/new.bin",
+        "size": 1501,
+        "sha256": "b2f3ef47b023f59acd86772d8a7cad91b9b549bb9a54a8a4914709af8a269647"
+      },
+      "patch": {
+        "path": "periodic/patch.bin",
+        "size": 180,
+        "sha256": "c31c566b3208aee59fdedfc809679294daeb60dfb2b031487b22ee17f7d003ee"
+      }
+    },
+    {
+      "id": "block-move",
+      "method": "move final block to front",
+      "old": {
+        "path": "block-move/old.bin",
+        "size": 1200,
+        "sha256": "a0d19f4883007a07bd84a50c8ec7b5a243235773aa074011fba4132af8b71278"
+      },
+      "new": {
+        "path": "block-move/new.bin",
+        "size": 1200,
+        "sha256": "47855f9752d0e2ebe6157ddeafe32f8ec407da9cc7ed8eae969b46e4a0388a80"
+      },
+      "patch": {
+        "path": "block-move/patch.bin",
+        "size": 174,
+        "sha256": "d61311bc8a2b13dd717b554519e5fa7848c1fc2c783957e356566ef99f00bca6"
+      }
+    },
+    {
+      "id": "seeded-random",
+      "method": "Python random.Random(20261106), randbytes(2048), replace [700:731] with next randbytes(31)",
+      "old": {
+        "path": "seeded-random/old.bin",
+        "size": 2048,
+        "sha256": "3f1dc5983729c3316f87f580ef435e68507120b7bde1a52f15dbbc93169751d8"
+      },
+      "new": {
+        "path": "seeded-random/new.bin",
+        "size": 2048,
+        "sha256": "ec7c875b594819312410388bd93805e989e4dba1cc68f793ece69352bfe8d6f5"
+      },
+      "patch": {
+        "path": "seeded-random/patch.bin",
+        "size": 204,
+        "sha256": "b48d5bd790a5a37b507603284b501f21a6c15c110e96c6cabecd1867f705927b"
+      }
+    }
+  ]
+}

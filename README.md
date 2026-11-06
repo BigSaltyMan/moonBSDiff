@@ -22,3 +22,5 @@ git diff --check
 ```
 
 The initial CI runs these checks and compares the generated interface; remote CI has not yet run. [Dependency probe](testdata/dependency-probe/README.md) explains historical and repeatable bzip2 tests and their limits. The project tests cover configuration, error data, integer encoding and envelope boundaries; no patch application, interoperability or general runtime resource protection is claimed. See [format details](docs/format.md). [Licenses and upstream](docs/upstream.md).
+
+[Fixed BSDiff 4.3 reference tools](tools/oracle/README.md) and [13 offline upstream fixtures](testdata/upstream/README.md) are available for future interoperability tests. Run `python scripts/generate_reference.py` for offline integrity verification. The upstream self-check does not establish MoonBSDiff patch interoperability.

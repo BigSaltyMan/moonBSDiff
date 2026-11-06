@@ -1,0 +1,4 @@
+tools/oracle/* text eol=lf
+scripts/*.py text eol=lf
+testdata/upstream/manifest.json text eol=lf
+testdata/upstream/**/*.bin binary

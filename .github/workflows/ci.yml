@@ -17,6 +17,8 @@ jobs:
       - run: moon check --target native --deny-warn
       - run: moon build --target native
       - run: python3 scripts/check_format_vectors.py
+      - run: python3 scripts/generate_reference.py
+      - run: python3 -m unittest discover -s scripts -p test_reference.py
       - name: Run nonempty tests
         shell: bash
         run: |
