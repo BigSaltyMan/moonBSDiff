@@ -16,6 +16,7 @@ jobs:
           test -z "$(git status --porcelain -- '*.mbti')"
       - run: moon check --target native --deny-warn
       - run: moon build --target native
+      - run: python3 scripts/check_format_vectors.py
       - name: Run nonempty tests
         shell: bash
         run: |

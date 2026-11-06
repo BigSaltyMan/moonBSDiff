@@ -1,0 +1,11 @@
+# BSDIFF40 encoding and envelope
+
+The source baseline is BSDiff 4.3: `bsdiff.c` function `offtout`, and `bspatch.c` function `offtin` and its file-format comment, in the archive identified in [upstream.md](upstream.md). The latter describes the three compressed blocks; these checks do not copy the reference program's unsafe arithmetic.
+
+An integer is exactly eight bytes, little-endian sign magnitude. Bit 7 of byte 7 is the sign, the remaining 63 bits the magnitude. The range is -9223372036854775807 through 9223372036854775807. Negative zero decodes to zero; encoding zero uses positive zero. Int64 minimum cannot be encoded. A read requires a nonnegative offset and eight available bytes.
+
+The header is 32 bytes: bytes 0..7 are `BSDIFF40`, 8..15 are the compressed control length, 16..23 the compressed diff length and 24..31 the restored size. All three decoded fields must be nonnegative; negative zero is zero. The control interval is [32, 32 + control length), the diff interval follows for diff length bytes, and extra occupies the remaining bytes. Empty output and zero-length intervals are structurally accepted, but do not imply valid compressed streams. Other magic is unsupported.
+
+The parser validates Limits first, checks the actual patch size against its limit, checks header and magic, then fields, checked Int64 additions, physical bounds, and restored-size limit. It converts endpoints to Int only after their nonnegative values are proven within the actual Bytes length. It returns ranges, never allocates from a declared length or slices unchecked data. Error offsets identify the start of a bad field, or the first mismatching magic byte; a short header reports the actual available length. Invalid configuration, unsupported format, truncation, negative fields, overflow and resource limits remain distinguishable.
+
+Current scope is integer encoding and envelope ranges only. The planned policy is one complete bzip2 stream per block, with no concatenated stream or trailing bytes and bounded decompression. Commit 4 must establish stream ending, complete consumption and decompression constraints. Later application work must validate control instructions and consumption of decoded data. No compressed content, BSDiff interoperability or patch application is verified by this parser.
