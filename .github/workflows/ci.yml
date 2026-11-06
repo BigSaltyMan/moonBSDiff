@@ -48,3 +48,12 @@ jobs:
             moon test apply_test.mbt apply_vectors_test.mbt apply_boundaries_test.mbt apply_resources_test.mbt --target "$target" --deny-warn | tee "apply-$target.log"
             grep -E 'Total tests: [1-9][0-9]*, passed: [1-9][0-9]*, failed: 0' "apply-$target.log"
           done
+
+      - name: Compact suffix-index correctness on JS and Wasm-GC
+        shell: bash
+        run: |
+          set -o pipefail
+          for target in js wasm-gc; do
+            moon test suffix_array_wbtest.mbt --filter 'suffix-compact*' --target "$target" --deny-warn | tee "suffix-$target.log"
+            grep -E 'Total tests: [1-9][0-9]*, passed: [1-9][0-9]*, failed: 0' "suffix-$target.log"
+          done
