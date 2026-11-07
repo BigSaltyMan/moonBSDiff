@@ -10,6 +10,8 @@ jobs:
           version: 0.10.19+bee578715
           core-version: 0.10.19+bee578715
       - run: moon version --all
+      - name: Initialize dependency registry on a fresh runner
+        run: moon update
       - run: moon fmt --check
       - run: |
           moon info
