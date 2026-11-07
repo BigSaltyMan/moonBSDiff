@@ -17,6 +17,7 @@ jobs:
       - run: moon check --target native --deny-warn
       - run: moon build --target native
       - run: python3 scripts/check_format_vectors.py
+      - run: python3 scripts/check_matching_vectors.py
       - run: python3 scripts/check_apply.py
       - run: python3 scripts/check_apply_boundaries.py
       - run: python3 scripts/measure_apply.py --verify-report
@@ -56,4 +57,13 @@ jobs:
           for target in js wasm-gc; do
             moon test suffix_array_wbtest.mbt --filter 'suffix-compact*' --target "$target" --deny-warn | tee "suffix-$target.log"
             grep -E 'Total tests: [1-9][0-9]*, passed: [1-9][0-9]*, failed: 0' "suffix-$target.log"
+          done
+
+      - name: Compact matching correctness on JS and Wasm-GC
+        shell: bash
+        run: |
+          set -o pipefail
+          for target in js wasm-gc; do
+            moon test matching_wbtest.mbt matching_vectors_wbtest.mbt --filter 'matching-compact*' --target "$target" --deny-warn | tee "matching-$target.log"
+            grep -E 'Total tests: [1-9][0-9]*, passed: [1-9][0-9]*, failed: 0' "matching-$target.log"
           done

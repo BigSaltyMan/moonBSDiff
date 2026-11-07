@@ -65,4 +65,6 @@ let result = @moonbsdiff.apply(old_bytes, patch_bytes, limits)
 
 Explicit caller-selected Limits continue to work. The three targets each passed the final 73-test application-stage collection; the independent upstream case count remains 13.
 
-An internal [binary suffix-array index](docs/suffix-array.md) is now implemented using prefix doubling and counting sort, including the empty suffix and unsigned binary-byte ordering. It has no public API; matching scan, diff generation and CLI remain future steps. Application defaults are unchanged and must not be used as generation defaults.
+An internal [binary suffix-array index](docs/suffix-array.md) is now implemented using prefix doubling and counting sort, including the empty suffix and unsigned binary-byte ordering. It has no public API; diff generation and CLI remain future steps; matching integration is described below. Application defaults are unchanged and must not be used as generation defaults.
+
+Internal [suffix matching and segment planning](docs/matching.md) now provide longest-match queries, offset scoring, forward/backward selection and overlap adjustment. Matching scans reuse the existing suffix index and can produce old-data reuse with nonzero residuals. These components remain private; residual encoding, patch assembly, public diff and CLI are still pending.

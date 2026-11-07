@@ -47,3 +47,7 @@ The copied files retain Copyright 2026 Leo Cheng and Apache-2.0 notices. Their A
 ## Commit 7 indexing route
 
 The local locked `qsufsort`/`split` source was read and its bsdiff.c hash reverified. The internal index uses a documented original prefix-doubling/counting-sort implementation instead of translating split. It preserves the complete suffix-array result convention, including the empty suffix. [Algorithm and source mapping](suffix-array.md) explains the replacement, invariants, memory/work arithmetic and verification. No external implementation code or additional license dependency was introduced. Matching and generation algorithms remain pending; this index alone is not a BSDiff generator.
+
+## Commit 8 matching and scan adaptation
+
+The new private matching.mbt/diff.mbt adapt BSDiff 4.3 matchlen/search and the main scan's offset scoring, forward/backward span selection and overlap adjustment. Both derived files retain the full Colin Percival BSD notice. [Matching algorithm notes](matching.md) document the deliberate length-aware search correction, deterministic candidate ties, complete segment coverage, numeric bounds and independent test evidence. The suffix-array implementation remains unchanged. No C reference program was rebuilt, and no compression/patch-assembly code or public diff API is added in this stage.

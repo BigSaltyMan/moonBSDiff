@@ -1,0 +1,65 @@
+[
+  {
+    "id": "overlap",
+    "old": "ABBCBCAABBAAACABBCACBACBCAAABABCBCAABACB",
+    "new": "ABBCBCAABBACCCABCBCAABACB",
+    "segments": [
+      [
+        0,
+        0,
+        14,
+        0,
+        15
+      ],
+      [
+        14,
+        29,
+        11,
+        0,
+        -9
+      ]
+    ]
+  },
+  {
+    "id": "block-move",
+    "old": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
+    "new": "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    "segments": [
+      [
+        0,
+        0,
+        0,
+        0,
+        32
+      ],
+      [
+        0,
+        32,
+        32,
+        0,
+        -64
+      ],
+      [
+        32,
+        0,
+        32,
+        0,
+        -32
+      ]
+    ]
+  },
+  {
+    "id": "unmatched",
+    "old": "AAAA",
+    "new": "zzzz",
+    "segments": [
+      [
+        0,
+        0,
+        0,
+        4,
+        0
+      ]
+    ]
+  }
+]

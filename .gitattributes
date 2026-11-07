@@ -10,3 +10,4 @@ testdata/compression/manifest.json text eol=lf
 testdata/apply/manifest.json text eol=lf
 testdata/apply/boundaries.json text eol=lf
 testdata/apply/resource-measurements.json text eol=lf
+testdata/matching/segments.json text eol=lf
