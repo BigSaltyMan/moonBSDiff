@@ -65,3 +65,14 @@ If the cached product is absent, use the existing locked tools/oracle/build.py r
 moon info, moon fmt, moon fmt --check, native check --deny-warn/build, and git diff --check passed. Root .mbti adds only the actual diff function. Internal changes to prior components only remove unused annotations/comments now that generation consumes them; their algorithms and apply defaults are unchanged. CI adds the offline test map/parser checks, verifier tests and compact JS/Wasm-GC generation; the existing native full suite includes new tests and its log is independently parsed. Remote CI has not run, and no automatic oracle rebuild/download was added.
 
 Skipped: historical probes, large compression boundary samples, apply resource measurements, full apply matrix and unrelated exhaustive suites. This is the generator's first 13-case native -> upstream application evidence; complete bidirectional random regression/comparator acceptance remains Commit 10. CLI and measured generation defaults remain unimplemented. BSDIFF40 has no old-file identity hash: applications must verify expected old/new hashes externally.
+
+
+## Subsequent bidirectional/random acceptance
+
+Commit 10 changes test infrastructure only. Its [compatibility report](compatibility.md)
+records actual two-way external execution on 31 independent pairs: native 31 per
+direction, JS/Wasm-GC 19 per direction, with full byte comparison and strict
+comparator negative tests. That later evidence supersedes the native-only scope
+of the initial Commit 9 external result above. The 13 original fixtures and
+`native-results.json` remain unchanged historical evidence. Generator defaults
+and whole-call resource guarantees remain Commit 11.

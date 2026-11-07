@@ -2,3 +2,4 @@ _build/
 .mooncakes/
 __pycache__/
 _apply_measure/
+conformance_generated_test.mbt

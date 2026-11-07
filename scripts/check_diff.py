@@ -68,14 +68,9 @@ def parse(patch,old,new):
     return dict(patch_size=len(patch),patch_sha256=sha(patch),control_count=len(triples),diff_bytes=dp,extra_bytes=ep,equal_old_bytes=equal,reused_old_bytes=reuse,nonzero_residual_bytes=residuals,controls=triples)
 
 def oracle_record(path):
-    lock_path=ROOT/'tools/oracle/upstream.lock.json'
-    lock=json.loads(lock_path.read_text());record=json.loads(path.read_text())
-    assert lock['bsdiff']['version']=='4.3' and record['lock_sha256']==sha(lock_path.read_bytes())
-    for name,digest in lock['bsdiff']['files'].items():
-        assert sha((ROOT/'_build/oracle/bsdiff-4.3'/name).read_bytes())==digest
-    binary=ROOT/'_build/oracle/bspatch'
-    assert sha(binary.read_bytes())==record['products']['bspatch'],'oracle binary hash mismatch'
-    return binary,record['products']['bspatch']
+    from oracle_identity import verified_tools
+    tools,record=verified_tools(path,required=('bspatch',))
+    return tools['bspatch'],record['products']['bspatch']
 
 def verify_log(path,use_oracle=False,record_path=None):
     expected=inputs();rows={}

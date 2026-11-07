@@ -12,3 +12,4 @@ testdata/apply/boundaries.json text eol=lf
 testdata/apply/resource-measurements.json text eol=lf
 testdata/matching/segments.json text eol=lf
 testdata/generation/native-results.json text eol=lf
+testdata/conformance/*.json text eol=lf

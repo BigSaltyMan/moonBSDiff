@@ -36,7 +36,7 @@ POSSIBILITY OF SUCH DAMAGE.
 
 The fixed BSDiff 4.3 archive was downloaded again on 2026-11-06: 5740 bytes, SHA-256 `18821588b2dc5bf159aa37d3bcb7b885d85ffd1e19f23a0c57a58723fea85f48`. The official URL returned HTTP 403, and the Debian original-source mirror matched the lock. Principal `.c`, manual and Makefile content hashes are in [upstream.lock.json](../tools/oracle/upstream.lock.json); the `bspatch.c` format comment and both manuals are the format references. Source-built bzip2 1.0.8 is locked there separately and is used only by the C test tools, not as a new MoonBit dependency.
 
-[Oracle build instructions and evidence](../tools/oracle/README.md) include the actual Linux/WSL environment, source acquisition, exact compile commands, unchanged-source status, copyright notices, and produced binary hashes. No platform patches were necessary. [Offline fixture documentation](../testdata/upstream/README.md) describes the 13 original-input cases and single manifest. Their upstream generation/application, same-environment reproduction and offline integrity checks passed. The core library never invokes Python or a C executable. The application stage has recorded all 13 upstream patches restored by MoonBSDiff; see [application acceptance](apply-acceptance.md). Upstream application of MoonBSDiff-generated patches remains a later acceptance gate.
+[Oracle build instructions and evidence](../tools/oracle/README.md) include the actual Linux/WSL environment, source acquisition, exact compile commands, unchanged-source status, copyright notices, and produced binary hashes. No platform patches were necessary. [Offline fixture documentation](../testdata/upstream/README.md) describes the 13 original-input cases and single manifest. Their upstream generation/application, same-environment reproduction and offline integrity checks passed. The core library never invokes Python or a C executable. The application stage has recorded all 13 upstream patches restored by MoonBSDiff; see [application acceptance](apply-acceptance.md). The later generator and bidirectional acceptance are recorded separately below.
 
 ## Commit 4 decoder adaptation
 
@@ -55,3 +55,26 @@ The new private matching.mbt/diff.mbt adapt BSDiff 4.3 matchlen/search and the m
 ## Commit 9 generated patch evidence
 
 The public generator now connects indexing, matching, canonical controls, residual/extra bytes and fixed level-9 compression. The 13 existing old/new pairs were used to produce new MoonBSDiff patches. Independent Python parsing and the cached, hash-verified BSDiff 4.3 bspatch restored every original new file. No C build or upstream-patch regeneration was repeated. [Generation notes](generation.md) and testdata/generation/native-results.json scope this native-only external result and record actual controls/reuse. Complete randomized bidirectional acceptance is still Commit 10; generation defaults/resource measurement and CLI remain later work.
+
+
+## Commit 10 bidirectional acceptance
+
+The cached 4.3 sources and both C executables were reverified against the unchanged
+lock/build record using the shared `scripts/oracle_identity.py` check. No oracle
+rebuild/download or regeneration of the historical 13 patches occurred. Eighteen
+additional, deterministic LCG32 edit inputs were generated independently of
+MoonBSDiff, then real bsdiff generated their patches once. Native restored all
+31 upstream patches, and real bspatch restored all 31 native exports. JS and
+Wasm-GC each executed both external directions on the predeclared 19-pair compact
+matrix. All 138 restorations matched original new bytes completely. The core
+algorithms and root public interface are unchanged.
+
+[Compatibility report](compatibility.md) is the current matrix/evidence definition;
+its manifest references the unchanged upstream manifest rather than duplicating
+or replacing the original fixture provenance. It records input, patch and tool
+identities, strict result parsing, failure/replay behavior and 22 comparator/process
+tests. No new upstream code or license dependency was adopted. C tools remain
+test-only, and legal-input interoperability is distinct from hostile-input safety.
+The earlier Commit 7/8/9 sections describe those stages' historical scope; their
+pending compatibility statements are superseded by this bounded result, not by a
+claim of arbitrary-input or resource-complete acceptance.

@@ -20,6 +20,10 @@ jobs:
       - run: python3 scripts/check_matching_vectors.py
       - run: python3 scripts/check_diff.py
       - run: python3 -m unittest discover -s scripts -p test_diff_verifier.py
+      - name: Offline interoperability inventory and strict comparator contracts
+        run: |
+          python3 scripts/run_conformance.py
+          python3 -m unittest discover -s scripts -p test_conformance.py
       - run: python3 scripts/check_apply.py
       - run: python3 scripts/check_apply_boundaries.py
       - run: python3 scripts/measure_apply.py --verify-report

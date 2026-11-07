@@ -23,7 +23,7 @@ python scripts/check_apply.py
 git diff --check
 ```
 
-The initial CI runs these checks and compares the generated interface; remote CI has not yet run. [Dependency probe](testdata/dependency-probe/README.md) explains historical and repeatable bzip2 tests and their limits. The project tests cover configuration, error data, integer encoding and envelope boundaries; apply is verified against the 13 fixed upstream patches; complete bidirectional/random acceptance and whole-process resource guarantees remain pending; first native generator-to-upstream evidence is described below. See [compression contracts and verification](docs/compression.md). See [format details](docs/format.md). [Licenses and upstream](docs/upstream.md).
+The initial CI runs these checks and compares the generated interface; remote CI has not yet run. [Dependency probe](testdata/dependency-probe/README.md) explains historical and repeatable bzip2 tests and their limits. The project tests cover configuration, error data, integer encoding and envelope boundaries; the fixed 31-input interoperability inventory now has actual bidirectional acceptance: native 31 pairs per direction, JS/Wasm-GC 19 each. Whole-process generation resource guarantees remain pending. See [compatibility evidence and replay](docs/compatibility.md). See [compression contracts and verification](docs/compression.md). See [format details](docs/format.md). [Licenses and upstream](docs/upstream.md).
 
 [Fixed BSDiff 4.3 reference tools](tools/oracle/README.md) and [13 offline upstream fixtures](testdata/upstream/README.md) provide the fixed upstream patches used by the apply tests. Run `python scripts/generate_reference.py` for offline integrity verification. The upstream self-check is separate from the apply results above.
 
@@ -95,4 +95,4 @@ test "diff-memory-example" {
 }
 ```
 
-[Generation behavior and verification](docs/generation.md) describes the 13-case native -> upstream bspatch result, independent parsing, and remaining resource boundaries. JS/Wasm-GC generation and complete-byte self-roundtrips also passed. BSDIFF40 does not authenticate the old file; verify expected hashes externally.
+[Generation behavior and verification](docs/generation.md) describes the initial native generator result and resource boundaries. [Bidirectional compatibility](docs/compatibility.md) now records 31 independent input pairs (13 fixed upstream plus 18 deterministic random-edit pairs), with actual upstream generation -> MoonBSDiff apply and MoonBSDiff diff -> upstream bspatch: native 31 per direction, JS/Wasm-GC 19 per direction. Every executed restoration matched the original new bytes. Run `python scripts/run_conformance.py` for offline inventory checks, and explicitly add `--run` for the external matrix with verified reference tools. CI runs the offline inventory and strict comparator tests; remote CI remains unverified. BSDIFF40 does not authenticate the old file; verify expected hashes externally.

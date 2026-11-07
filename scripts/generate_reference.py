@@ -64,12 +64,9 @@ def verify(directory=DATA):
     return manifest
 
 def generate():
-    report = json.loads((ROOT/"_build/oracle/build.json").read_text())
-    assert report["lock_sha256"] == sha(LOCK.read_bytes())
-    for name, digest in report["products"].items():
-        assert sha((ROOT/"_build/oracle"/name).read_bytes()) == digest
-    bsdiff = ROOT/"_build/oracle/bsdiff"
-    bspatch = ROOT/"_build/oracle/bspatch"
+    from oracle_identity import verified_tools
+    tools,_ = verified_tools(ROOT/"_build/oracle/build.json")
+    bsdiff,bspatch = tools['bsdiff'],tools['bspatch']
     with tempfile.TemporaryDirectory() as temp:
         work = pathlib.Path(temp)
         rows = []
