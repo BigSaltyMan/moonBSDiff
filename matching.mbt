@@ -54,28 +54,40 @@ fn matching_budget(limit : Int64) -> Result[MatchBudget, BsdiffError] {
 }
 
 ///|
-fn MatchBudget::tick(self : MatchBudget) -> Unit raise MatchingFault {
-  if self.remaining < 0L {
-    raise Stop(
+fn MatchBudget::reserve(
+  self : MatchBudget,
+  amount : Int64,
+) -> Result[Unit, BsdiffError] {
+  if amount < 0L || self.remaining < 0L {
+    return Err(
       matching_error(
         InvalidConfiguration,
-        "match_remaining",
+        "match_reservation",
+        Some(amount),
         Some(self.remaining),
-        None,
       ),
     )
   }
-  if self.remaining == 0L {
-    raise Stop(
+  if amount > self.remaining {
+    return Err(
       matching_error(
         ResourceLimitExceeded,
         "match_remaining",
-        Some(1L),
-        Some(0L),
+        Some(amount),
+        Some(self.remaining),
       ),
     )
   }
-  self.remaining = self.remaining - 1L
+  self.remaining = self.remaining - amount
+  Ok(())
+}
+
+///|
+fn MatchBudget::tick(self : MatchBudget) -> Unit raise MatchingFault {
+  match self.reserve(1L) {
+    Ok(_) => ()
+    Err(e) => raise Stop(e)
+  }
 }
 
 ///|

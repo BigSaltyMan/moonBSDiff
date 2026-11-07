@@ -160,10 +160,10 @@ test "suffix-compact-preflight-and-work-budget" {
     }
   }
   assert_eq(preflight_budget.remaining, 17L)
-  let exact = suffix_test_budget(1040L)
+  let exact = suffix_test_budget(1303L)
   assert_eq(build_suffix_array(b"A", 2L, exact), Ok([1, 0]))
   assert_eq(exact.remaining, 0L)
-  let short = suffix_test_budget(1039L)
+  let short = suffix_test_budget(1302L)
   for budget in [exact, short, suffix_test_budget(0L)] {
     match build_suffix_array(b"A", 2L, budget) {
       Ok(_) => abort("work budget bypassed")
@@ -179,7 +179,7 @@ test "suffix-compact-preflight-and-work-budget" {
     Ok(_) => abort("negative budget accepted")
     Err(e) => assert_eq(e.kind, InvalidConfiguration)
   }
-  assert_eq(build_suffix_array(b"A", 2L, suffix_test_budget(1040L)), Ok([1, 0]))
+  assert_eq(build_suffix_array(b"A", 2L, suffix_test_budget(1303L)), Ok([1, 0]))
 }
 
 ///|

@@ -39,6 +39,7 @@ fn scan_segments(
   sa : Array[Int32],
   max_segments : Int64,
   budget : MatchBudget,
+  raw_limit : Int64,
 ) -> Array[DiffSegment] raise MatchingFault {
   match_shape(old, new, sa, 0)
   if max_segments < 0L || max_segments > 2147483647L {
@@ -117,6 +118,18 @@ fn scan_segments(
           ),
         )
       }
+      // Every complete plan has exactly new.length() payload bytes. Check the
+      // next control triple before the segment array grows, not after scanning.
+      match
+        raw_control_size(
+          segments.length().to_int64() + 1L,
+          new.length().to_int64(),
+          0L,
+          raw_limit,
+        ) {
+        Ok(_) => ()
+        Err(e) => raise Stop(e)
+      }
       budget.tick()
       let target = pos - back
       segments.push({
@@ -151,8 +164,9 @@ fn select_segments(
   sa : Array[Int32],
   max_segments : Int64,
   budget : MatchBudget,
+  raw_limit~ : Int64 = 9223372036854775807L,
 ) -> Result[Array[DiffSegment], BsdiffError] {
-  Ok(scan_segments(old, new, sa, max_segments, budget)) catch {
+  Ok(scan_segments(old, new, sa, max_segments, budget, raw_limit)) catch {
     Stop(e) => Err(e)
   }
 }
@@ -228,7 +242,12 @@ fn encode_plan(
   new : Bytes,
   plan : Array[DiffSegment],
   limits : Limits,
+  budget : MatchBudget,
 ) -> Result[RawPatchBlocks, BsdiffError] {
+  match budget.reserve(plan.length().to_int64()) {
+    Err(e) => return Err(e)
+    Ok(_) => ()
+  }
   let mut covered = 0
   let mut old_cursor = 0L
   let mut differences = 0L
@@ -324,7 +343,15 @@ fn encode_plan(
     Err(e) => return Err(e)
     Ok(v) => v
   }
-  let control : Array[Byte] = []
+  // Four byte-visits per raw byte cover zeroing, encoding, conversion/copies
+  // and the small integer-encoding temporaries. Plus one visit per segment.
+  let raw_bytes = control_size.to_int64() + differences + extras
+  match budget.reserve(4L * raw_bytes + plan.length().to_int64()) {
+    Err(e) => return Err(e)
+    Ok(_) => ()
+  }
+  let control = Array::make(control_size, b'\x00')
+  let mut control_pos = 0
   let difference = Array::make(differences.to_int(), b'\x00')
   let extra = Array::make(extras.to_int(), b'\x00')
   let mut diff_pos = 0
@@ -341,7 +368,8 @@ fn encode_plan(
         Ok(v) => v
       }
       for byte in encoded {
-        control.push(byte)
+        control[control_pos] = byte
+        control_pos = control_pos + 1
       }
     }
     for i in 0..<segment.diff_length {
@@ -358,7 +386,7 @@ fn encode_plan(
     }
     extra_pos = extra_pos + segment.extra_length
   }
-  if control.length() != control_size ||
+  if control_pos != control_size ||
     diff_pos.to_int64() != differences ||
     extra_pos.to_int64() != extras {
     return Err(
@@ -416,10 +444,12 @@ fn generated_patch_size(
 
 ///|
 /// Generate a standard BSDIFF40 patch with explicit generation limits.
-pub fn diff(
+fn generate_patch(
   old_bytes : Bytes,
   new_bytes : Bytes,
   limits : Limits,
+  sort_budget : SortBudget,
+  match_budget : MatchBudget,
 ) -> Result[Bytes, BsdiffError] {
   match limits.validate() {
     Err(e) => return Err(e)
@@ -442,35 +472,70 @@ pub fn diff(
       )
     }
   }
-  let sort_budget = match sorting_budget(limits.max_sort_work) {
+
+  // Even before indexing, the full payload and (for nonempty targets) at
+  // least one control triple are unavoidable. Exact plan growth is checked
+  // separately before every push.
+  match
+    raw_control_size(
+      if new_bytes.length() == 0 {
+        0L
+      } else {
+        1L
+      },
+      new_bytes.length().to_int64(),
+      0L,
+      limits.max_decompressed_bytes,
+    ) {
     Err(e) => return Err(e)
-    Ok(v) => v
+    Ok(_) => ()
   }
   let sa = match build_suffix_array(old_bytes, 2147483647L, sort_budget) {
     Err(e) => return Err(e)
     Ok(v) => v
   }
-  let match_budget = match matching_budget(limits.max_match_work) {
-    Err(e) => return Err(e)
-    Ok(v) => v
-  }
+
   let segment_cap = if limits.max_control_instructions < 2147483647L / 24L {
     limits.max_control_instructions
   } else {
     2147483647L / 24L
   }
   let plan = match
-    select_segments(old_bytes, new_bytes, sa, segment_cap, match_budget) {
+    select_segments(
+      old_bytes,
+      new_bytes,
+      sa,
+      segment_cap,
+      match_budget,
+      raw_limit=limits.max_decompressed_bytes,
+    ) {
     Err(e) => return Err(e)
     Ok(v) => v
   }
-  let raw = match encode_plan(old_bytes, new_bytes, plan, limits) {
+  let raw = match
+    encode_plan(old_bytes, new_bytes, plan, limits, match_budget) {
     Err(e) => return Err(e)
     Ok(v) => v
   }
-  let control = compress_block(raw.control)
-  let difference = compress_block(raw.difference)
-  let extra = compress_block(raw.extra)
+  let compressed_budget = PatchBudget::{
+    used: 32L,
+    limit: limits.max_patch_bytes,
+  }
+  let control = match
+    compress_generation_block(raw.control, compressed_budget, match_budget) {
+    Err(e) => return Err(e)
+    Ok(v) => v
+  }
+  let difference = match
+    compress_generation_block(raw.difference, compressed_budget, match_budget) {
+    Err(e) => return Err(e)
+    Ok(v) => v
+  }
+  let extra = match
+    compress_generation_block(raw.extra, compressed_budget, match_budget) {
+    Err(e) => return Err(e)
+    Ok(v) => v
+  }
   let size = match
     generated_patch_size(
       control.length().to_int64(),
@@ -493,6 +558,11 @@ pub fn diff(
     Err(e) => return Err(e)
     Ok(v) => v
   }
+  // The final array, write pass and immutable result copy share the same quota.
+  match match_budget.reserve(3L * size.to_int64()) {
+    Err(e) => return Err(e)
+    Ok(_) => ()
+  }
   let patch = Array::make(size, b'\x00')
   let mut at = 0
   for
@@ -505,4 +575,26 @@ pub fn diff(
     }
   }
   Ok(Bytes::from_array(patch))
+}
+
+///|
+/// Generate a standard BSDIFF40 patch; every invocation owns fresh budgets.
+pub fn diff(
+  old_bytes : Bytes,
+  new_bytes : Bytes,
+  limits : Limits,
+) -> Result[Bytes, BsdiffError] {
+  match limits.validate() {
+    Err(e) => return Err(e)
+    Ok(_) => ()
+  }
+  let sort = match sorting_budget(limits.max_sort_work) {
+    Err(e) => return Err(e)
+    Ok(v) => v
+  }
+  let work = match matching_budget(limits.max_match_work) {
+    Err(e) => return Err(e)
+    Ok(v) => v
+  }
+  generate_patch(old_bytes, new_bytes, limits, sort, work)
 }

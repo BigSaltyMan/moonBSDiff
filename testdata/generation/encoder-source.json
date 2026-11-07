@@ -1,0 +1,15 @@
+{
+  "module": "moonbitstack/moonzip",
+  "version": "0.3.5",
+  "license": "Apache-2.0",
+  "route": "public Writer, unchanged installed source",
+  "files": {
+    "stream.mbt": "c54969748676396e5b0b98869f9d55314924599d14d243161cabea60096bd441",
+    "encode.mbt": "8dfb6e8968e975159067996846dccf99a58c10ec4306db6415fb21c127bd314a",
+    "bwt.mbt": "88fe89d1ce03992bfe32a3b82c6144b3b1df6afa2234790807883294a1d31980",
+    "bits.mbt": "135fc305e898a0b5deecc6678768dcff0bfb02183668545cf5b8ef80187bd19d",
+    "crc.mbt": "baff55ebf8723ee27ad3b7a773eafb0f4e31ab8cbf90c220135bd9a32bae5ef4",
+    "decode.mbt": "84fedd8d62d259798d9a88a2315f1523a964d30ace1becd55b524c56cc20f649",
+    "bzip2.mbt": "ad9601ca50d02fee238924f8ab0a7c5e0c06e2534d4d4877f1c92f995599a830"
+  }
+}

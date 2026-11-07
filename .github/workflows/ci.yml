@@ -19,6 +19,7 @@ jobs:
       - run: python3 scripts/check_format_vectors.py
       - run: python3 scripts/check_matching_vectors.py
       - run: python3 scripts/check_diff.py
+      - run: python3 scripts/measure_diff.py --verify-report
       - run: python3 -m unittest discover -s scripts -p test_diff_verifier.py
       - name: Offline interoperability inventory and strict comparator contracts
         run: |
@@ -38,6 +39,7 @@ jobs:
           grep -E 'Total tests: [1-9][0-9]*, passed: [1-9][0-9]*, failed: 0' test.log
       - run: python3 scripts/check_compression.py --log test.log --large
       - run: python3 scripts/check_diff.py --log test.log
+      - run: python3 scripts/measure_diff.py --stream-log test.log
       - name: Compact compression contracts on JS and Wasm-GC
         shell: bash
         run: |
@@ -82,4 +84,13 @@ jobs:
           for target in js wasm-gc; do
             moon test diff_test.mbt diff_vectors_test.mbt diff_wbtest.mbt --target "$target" --deny-warn | tee "diff-$target.log"
             grep -E 'Total tests: [1-9][0-9]*, passed: [1-9][0-9]*, failed: 0' "diff-$target.log"
+          done
+
+      - name: Compact generation resource contracts on JS and Wasm-GC
+        shell: bash
+        run: |
+          set -o pipefail
+          for target in js wasm-gc; do
+            moon test diff_resources_test.mbt diff_resources_wbtest.mbt --filter 'diff-resource-compact*' --target "$target" --deny-warn | tee "diff-resource-$target.log"
+            grep -E 'Total tests: [1-9][0-9]*, passed: [1-9][0-9]*, failed: 0' "diff-resource-$target.log"
           done

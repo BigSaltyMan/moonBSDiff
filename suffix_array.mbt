@@ -64,6 +64,11 @@ fn SortBudget::reserve(
   self : SortBudget,
   amount : Int64,
 ) -> Result[Unit, BsdiffError] {
+  if amount < 0L {
+    return Err(
+      sorting_error(InvalidConfiguration, "sort_reservation", amount, Some(0L)),
+    )
+  }
   if self.remaining < 0L {
     return Err(
       sorting_error(
@@ -145,7 +150,13 @@ fn build_suffix_array(
     Err(e) => return Err(e)
     Ok(v) => v
   }
-  match budget.reserve(size.to_int64()) {
+  // Initialization visits: four N-element arrays and the count buckets.
+  let initial = if size == 1 {
+    1L
+  } else {
+    4L * size.to_int64() + buckets.to_int64()
+  }
+  match budget.reserve(initial) {
     Err(e) => return Err(e)
     Ok(_) => ()
   }

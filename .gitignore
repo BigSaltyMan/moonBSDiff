@@ -3,3 +3,4 @@ _build/
 __pycache__/
 _apply_measure/
 conformance_generated_test.mbt
+diff_measure_generated_wbtest.mbt

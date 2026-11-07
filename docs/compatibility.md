@@ -210,3 +210,24 @@ Legal-input interoperability is not a proof of safety for all hostile inputs; th
 old C program is used only on legal generated patches. BSDIFF40 does not authenticate
 the old file. Whole-generation resource protection and measured defaults remain
 Commit 11; product CLI, publication and registry-consumer verification are pending.
+
+
+## Commit 11 final resource implementation acceptance
+
+The original Commit 10 snapshot above remains unchanged historical evidence.
+After resource changes stabilized, the same 31-input manifest, seeds and compact
+lists ran once in full. Run ID: `713b4a8c0abe484eb45d2303192c45ac`.
+[Resource-stage summary](../testdata/conformance/generation-resources-run.json)
+records that final library/configuration state and every patch/result identity.
+Native passed both directions 31/31, JS and Wasm-GC both 19/19: 138 complete byte
+matches, no failures or missing required executions. Compact targets still exclude
+the same 12 larger random pairs. The strict comparator and C identity checks were
+reused without weakening. No C build/download or historical 13-patch regeneration
+occurred; the 18 recipe-based C patches are generated once per explicit matrix run
+and shared by targets. Conformance uses explicit test limits, separately from the
+new measured default policy.
+
+[Resource acceptance](generation-resources.md) records the new contracts/defaults.
+This is not a full engine CPU/process-memory safety proof, CLI acceptance or package
+publication. Remote upload and CI state are reported for the eventual final SHA,
+not prefilled as success in this snapshot.

@@ -18,7 +18,7 @@ Core code neither compares whole suffixes nor allocates suffix copies. Calls own
 
 Both key ranges fit the bucket array: initial keys are 0..256 and later keys 0..classes-1. Counting-prefix totals never exceed N; scatter cursors address an element before their last increment reaches at most N. The second-rank lookup tests h <= n-position before adding. Classes and traversal indices stay within N. Doubling is performed only after h < N-h proves 2h < N, so Int arithmetic does not overflow. Work-charge arithmetic uses Int64; with N/K bounded by Int32 maximum, 5N+4K is representable.
 
-An explicit internal SortBudget carries remaining Int64 work across calls, independent of Limits::for_apply. A negative budget is invalid and zero is exhausted, never unlimited. The builder reserves N logical setup units before allocation; it then reserves 5N+4K units before each whole round (two count/prefix/scatter passes plus reranking, where K is the current key count). These are defined algorithmic visit charges, not a count of every machine operation: allocator zeroing, branch/key lookups and runtime overhead are not separately metered. Failed reservations do not deduct that reservation; already completed stages stay charged. Size rejection does not consume the budget. This interface permits future generator-wide accumulation but does not establish full generation protection or a generation default. Caller-selected practical entry limits remain necessary; an arithmetic-valid request may still exceed available memory.
+An explicit internal SortBudget carries remaining Int64 work across calls, independent of Limits::for_apply. A negative budget is invalid and zero is exhausted, never unlimited. As of Commit 11, the builder reserves 4N+B initialization visits before allocation (empty input costs one); it then reserves 5N+4K units before each whole round (two count/prefix/scatter passes plus reranking, where K is the current key count). These are defined algorithmic visit charges, not a count of every machine operation: initial array zeroing is charged by logical element visits; branch/key lookups and runtime overhead are not separately metered. Failed reservations do not deduct that reservation; already completed stages stay charged. Size rejection does not consume the budget. This interface permits future generator-wide accumulation but does not establish full generation protection or a generation default. Caller-selected practical entry limits remain necessary; an arithmetic-valid request may still exceed available memory.
 
 Time is O(n log n), from at most logarithmically many O(N+K) rounds, with O(n+256) auxiliary space. Neither peak memory nor performance relative to upstream has been measured.
 
@@ -48,3 +48,10 @@ Native command: `moon test suffix_array_wbtest.mbt --target native --deny-warn`.
 moon info, moon fmt, moon fmt --check, native check --deny-warn, native build, and git diff --check passed. Root pkg.generated.mbti remains byte-for-byte unchanged. CI's existing native full suite discovers the seven new tests, and an explicit compact JS/Wasm-GC step checks nonzero results. Remote CI has not run.
 
 No peak-memory or speed benchmark was run. Maximum actually sorted size was 16384 bytes; integer-limit preflight tests did not allocate arrays near those integer limits. Apply defaults, runtime and compression code were not changed, so their full matrices and historical measurements were not repeated. The remaining generation-wide quotas and defaults are reserved for Commit 11; this step does not deliver matching, diff or a CLI.
+
+
+Commit 11 updates the single-byte work boundary to 1303 exact / 1302 one-short
+(initialization 4*2+257, round 5*2+4*257). Earlier 1040-unit figures are historical
+Commit 7 evidence. [Generation resources](generation-resources.md) documents the
+current cumulative quota and measured defaults; the suffix ordering algorithm is
+unchanged.

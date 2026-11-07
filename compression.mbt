@@ -14,8 +14,89 @@ fn decompression_budget(
 
 ///|
 // Standard generator encoding is fixed at bzip2 level 9.
+#warnings("-unused_value")
 fn compress_block(data : Bytes) -> Bytes {
   @bzip2.bzip2(data[:], level=9)
+}
+
+///|
+priv struct PatchBudget {
+  mut used : Int64
+  limit : Int64
+}
+
+///|
+fn append_compressed(
+  out : Array[Byte],
+  part : Bytes,
+  quota : PatchBudget,
+  work : MatchBudget,
+) -> Result[Unit, BsdiffError] {
+  // used <= limit <= Int max; a Writer emission is bounded independently.
+  let value = quota.used + part.length().to_int64()
+  if value > quota.limit {
+    return Err(
+      generation_error(
+        ResourceLimitExceeded,
+        Header,
+        "max_patch_bytes",
+        value,
+        Some(quota.limit),
+      ),
+    )
+  }
+  match work.reserve(2L * part.length().to_int64()) {
+    Err(e) => return Err(e)
+    Ok(_) => ()
+  }
+  quota.used = value
+  for byte in part {
+    out.push(byte)
+  }
+  Ok(())
+}
+
+///|
+// One 32768-byte feed can emit at most one level-9 block (RLE <= 5/4
+// expansion). The fixed Writer retains <=900004 RLE bytes; finish emits
+// at most one block. Each returned emission is <3 MB, independently of input
+// size. See docs/generation-resources.md for the bit and workspace bounds.
+// The quota is shared by all three streams; no whole-input output is built
+// before checking its size. No copied encoder source or engine change.
+fn compress_generation_block(
+  data : Bytes,
+  quota : PatchBudget,
+  work : MatchBudget,
+) -> Result[Bytes, BsdiffError] {
+  let writer = @bzip2.Writer::new(level=9)
+  let out : Array[Byte] = []
+  let mut at = 0
+  while at < data.length() {
+    match work.reserve(1L) {
+      Err(e) => return Err(e)
+      Ok(_) => ()
+    }
+    let count = if data.length() - at < 32768 {
+      data.length() - at
+    } else {
+      32768
+    }
+    let part = writer.push(data[at:at + count])
+    match append_compressed(out, part, quota, work) {
+      Err(e) => return Err(e)
+      Ok(_) => ()
+    }
+    at = at + count
+  }
+  match work.reserve(1L) {
+    Err(e) => return Err(e)
+    Ok(_) => ()
+  }
+  match append_compressed(out, writer.finish(), quota, work) {
+    Err(e) => return Err(e)
+    Ok(_) => ()
+  }
+  Ok(Bytes::from_array(out))
 }
 
 ///|

@@ -46,6 +46,7 @@ test "diff-residual-modulo-and-plan-validation" {
         },
       ],
       limits,
+      matching_test_budget(1000000L),
     ) {
     Ok(v) => v
     Err(_) => abort("valid plan rejected")
@@ -65,7 +66,8 @@ test "diff-residual-modulo-and-plan-validation" {
         seek: 9223372036854775807L,
       },
     ] {
-    match encode_plan(old, new, [segment], limits) {
+    match
+      encode_plan(old, new, [segment], limits, matching_test_budget(1000000L)) {
       Ok(_) => abort("bad plan accepted")
       Err(e) => assert_eq(e.stage, Control)
     }

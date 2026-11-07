@@ -78,3 +78,15 @@ test-only, and legal-input interoperability is distinct from hostile-input safet
 The earlier Commit 7/8/9 sections describe those stages' historical scope; their
 pending compatibility statements are superseded by this bounded result, not by a
 claim of arbitrary-input or resource-complete acceptance.
+
+
+## Commit 11 encoder boundary review
+
+Encoding now uses the unchanged public `Writer` in moonzip 0.3.5 with bounded
+feeds and shared output accounting. No encoder source was copied or patched;
+the decoder's source lock, adapted hashes and patch are unchanged. The exact
+installed engine/Writer file hashes are recorded in
+`testdata/generation/encoder-source.json`, with the source-derived emission,
+workspace and copy bounds in [generation resources](generation-resources.md).
+Apache-2.0 dependency attribution remains in force. No C oracle build or
+historical fixture regeneration was performed.

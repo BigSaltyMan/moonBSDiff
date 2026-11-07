@@ -8,15 +8,22 @@ Every segment supplies (x=diff_length,y=extra_length,z=seek), encoded by the sha
 
 Each raw block goes through the existing fixed level-9 encoder. Empty blocks are real 14-byte empty bzip2 streams. The header is BSDIFF40 followed by actual compressed control length, actual compressed diff length and original new size. The checked final size is 32+three compressed lengths; only after it fits Int indexing and max_patch_bytes is the final patch array allocated. The smallest complete patch is 74 bytes. Integers are not written as two's complement, and no new compression parameters or format variants are introduced.
 
-## Implemented limits and remaining resource boundaries
+## Current resource model (Commit 11)
 
-Limits::validate runs first. Actual old/new input sizes, restored-size max_output_bytes and the 74-byte minimum patch capacity are checked before indexing. The existing suffix-size helper checks n+1 and the platform index bound before its buffers. One SortBudget uses max_sort_work cumulatively across sorting rounds; one MatchBudget uses max_match_work across the entire scan and all queries. These separate field quotas are not reset within their respective phases. No apply-default sorting/matching placeholder is promoted into a generation default.
+The initial generator's input/index/raw/final-size checks are retained and extended.
+One sorting quota covers all array initialization and index rounds. One matching /
+generation quota covers scanning, every query, raw encoding, compression-wrapper
+copies and final assembly. The raw-byte cap is checked before indexing when its
+minimum is known and before every segment push. Control output is exactly allocated.
+Compression now uses the fixed dependency's public level-9 Writer with bounded feeds,
+a shared three-stream patch-output cap, and bounded per-emission overshoot instead
+of accumulating an entire compressed stream before its first check.
 
-Segment count is capped at min(max_control_instructions, floor(Int maximum/24)) before each planner push. Before raw block arrays are allocated, control-count multiplication is guarded, each raw block length must fit Int, and actual control+diff+extra bytes must fit max_decompressed_bytes. This reuses the existing expanded-data constraint to keep generated blocks within the same caller-selected application budget. The three raw lengths total at most three Int-bounded blocks, so the sum is safe in Int64. Restore coverage bounds total diff/extra copies by the new length. Old/new buffer access occurs only after span validation; seek arithmetic uses checked Int64 additions.
-
-These checks are not complete generation-wide resource protection. The segment plan and index may already exist before exact raw-byte validation. Encoding/copy loops are bounded by validated byte sizes but not charged as matching comparisons. The dependency encoder is not budget-aware: it can allocate its own workspace and compressed outputs before the final patch-size rejection. Raw arrays, raw Bytes, encoder buffers, compressed blocks, final array and final Bytes can overlap in memory; runtime allocation overhead/GC and process CPU/peak memory are not capped. Generation defaults and broader measured policies remain Commit 11. Explicit practical Limits are required; an arithmetic-valid huge configuration is not a promise of available memory.
-
-Generation errors reuse the existing model: input/final size checks use Header fields such as max_old_bytes/max_patch_bytes with offset None (these are observed inputs, not patch-file positions); index and matching failures retain Sorting/Matching stages; plan/expanded-byte failures use Control, and cursor errors retain the shared checked-arithmetic fields. No public error/type structure was added.
+[Generation resources](generation-resources.md) specifies units, checked arithmetic,
+error metadata, the <3 MB emission proof, workspace/copy lifetimes, 16 native release
+measurements, measured `Limits::for_diff()` policy and regression results. This is
+logical resource protection, not a process peak-memory or complete bzip2 CPU limit.
+Explicit limits remain available and for_apply's work placeholders are unchanged.
 
 ## Independent parsing and external reference
 
@@ -76,3 +83,12 @@ comparator negative tests. That later evidence supersedes the native-only scope
 of the initial Commit 9 external result above. The 13 original fixtures and
 `native-results.json` remain unchanged historical evidence. Generator defaults
 and whole-call resource guarantees remain Commit 11.
+
+
+## Commit 11
+
+The earlier "Commit 11 remains" statements above describe historical stage scope.
+Generation defaults and cumulative logical quotas are now implemented; see
+[generation resource acceptance](generation-resources.md). No new diff/apply
+signature or public diagnostic API was added; the interface adds only for_diff.
+The final unchanged-input bidirectional matrix is recorded in compatibility.md.

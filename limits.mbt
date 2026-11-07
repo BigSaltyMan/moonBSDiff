@@ -72,3 +72,20 @@ pub fn Limits::for_apply() -> Limits {
     max_match_work: 1L,
   }
 }
+
+///|
+/// Small in-memory generation policy, measured through 64 KiB inputs.
+/// Independent caps can reject otherwise size-compliant inputs. See
+/// docs/generation-resources.md; work quotas exclude bzip2's internal CPU work.
+pub fn Limits::for_diff() -> Limits {
+  {
+    max_old_bytes: 65536L,
+    max_new_bytes: 65536L,
+    max_patch_bytes: 131072L,
+    max_output_bytes: 65536L,
+    max_decompressed_bytes: 262144L,
+    max_control_instructions: 4096L,
+    max_sort_work: 8388608L,
+    max_match_work: 8388608L,
+  }
+}

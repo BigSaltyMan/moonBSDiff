@@ -20,3 +20,8 @@ has been rerun for a later source state. Raw outputs/logs remain under ignored
 New recipes and infrastructure use the project's BSD-2-Clause license. Historical
 fixture provenance and BSDiff's Colin Percival notice remain in
 `../upstream/README.md` and `docs/upstream.md`; reference executables are not shipped.
+
+
+`generation-resources-run.json` records Commit 11's full run after resource changes,
+retaining a separate source-state identity instead of overwriting Commit 10's
+historical snapshot. Both use the same authoritative manifest.

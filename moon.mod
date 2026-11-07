@@ -4,7 +4,7 @@ version = "0.1.0"
 
 readme = "README.md"
 
-repository = ""
+repository = "https://github.com/BigSaltyMan/moonBSDiff"
 
 license = "BSD-2-Clause"
 
