@@ -1,0 +1,303 @@
+{
+  "direction": "MoonBSDiff diff -> Python independent parser -> BSDiff 4.3 bspatch",
+  "exported_target": "native",
+  "oracle_sha256": "d37b7c4ec800b4ec8aed6d581cc1ca704a4f51717334915f5e72d495e5976fd4",
+  "environment": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+  "cases": [
+    {
+      "id": "both-empty",
+      "old_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "new_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "patch_size": 74,
+      "patch_sha256": "82d27a0bd77c668d2ab2c3ca96aeffae567bd4c8313786c610704410bf2dc42e",
+      "control_count": 0,
+      "diff_bytes": 0,
+      "extra_bytes": 0,
+      "equal_old_bytes": 0,
+      "reused_old_bytes": 0,
+      "nonzero_residual_bytes": 0,
+      "controls": []
+    },
+    {
+      "id": "old-empty",
+      "old_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "new_sha256": "3454c7ec1e02edce0fe7f4efe362651fbb457bc6d62fdd7a2f8001611bf23cf0",
+      "patch_size": 132,
+      "patch_sha256": "0fa4b707a5a7345bac9c90ea22da9fb9b2aa70222fa6c4f5797664f5b5c40f6f",
+      "control_count": 1,
+      "diff_bytes": 0,
+      "extra_bytes": 5,
+      "equal_old_bytes": 0,
+      "reused_old_bytes": 0,
+      "nonzero_residual_bytes": 0,
+      "controls": [
+        {
+          "old_start": 0,
+          "x": 0,
+          "y": 5,
+          "z": 0
+        }
+      ]
+    },
+    {
+      "id": "new-empty",
+      "old_sha256": "6bc14bdc4517a7a682c6910de2e2946eb8e1ecd04090728fef6d092a7ceb62c5",
+      "new_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "patch_size": 74,
+      "patch_sha256": "82d27a0bd77c668d2ab2c3ca96aeffae567bd4c8313786c610704410bf2dc42e",
+      "control_count": 0,
+      "diff_bytes": 0,
+      "extra_bytes": 0,
+      "equal_old_bytes": 0,
+      "reused_old_bytes": 0,
+      "nonzero_residual_bytes": 0,
+      "controls": []
+    },
+    {
+      "id": "identical",
+      "old_sha256": "6bc14bdc4517a7a682c6910de2e2946eb8e1ecd04090728fef6d092a7ceb62c5",
+      "new_sha256": "6bc14bdc4517a7a682c6910de2e2946eb8e1ecd04090728fef6d092a7ceb62c5",
+      "patch_size": 130,
+      "patch_sha256": "34a47f2d53baea177d471f233e52f7a77eee21d82fb33dc96e72e695bdc5a92e",
+      "control_count": 1,
+      "diff_bytes": 20,
+      "extra_bytes": 0,
+      "equal_old_bytes": 20,
+      "reused_old_bytes": 20,
+      "nonzero_residual_bytes": 0,
+      "controls": [
+        {
+          "old_start": 0,
+          "x": 20,
+          "y": 0,
+          "z": -20
+        }
+      ]
+    },
+    {
+      "id": "replace",
+      "old_sha256": "6bc14bdc4517a7a682c6910de2e2946eb8e1ecd04090728fef6d092a7ceb62c5",
+      "new_sha256": "5719410b795aeecf690587cb18dfa92f4bc7c7c9c46662343faaa6dee218fa79",
+      "patch_size": 134,
+      "patch_sha256": "62a400b3d5ee169dffad7461e91f5691e2a7b5012e1a14ce33b8fe8a2053cf7b",
+      "control_count": 1,
+      "diff_bytes": 20,
+      "extra_bytes": 0,
+      "equal_old_bytes": 17,
+      "reused_old_bytes": 20,
+      "nonzero_residual_bytes": 3,
+      "controls": [
+        {
+          "old_start": 0,
+          "x": 20,
+          "y": 0,
+          "z": -11
+        }
+      ]
+    },
+    {
+      "id": "insert",
+      "old_sha256": "6bc14bdc4517a7a682c6910de2e2946eb8e1ecd04090728fef6d092a7ceb62c5",
+      "new_sha256": "c113e1e46bfafc9685a8ed02623f9293695e89d453b5e3b3e5b2459e3bbadc36",
+      "patch_size": 159,
+      "patch_sha256": "e2baabd0248054e82c7bd8c917b50b204224da38045e91ce0877e5cf4146b548",
+      "control_count": 2,
+      "diff_bytes": 20,
+      "extra_bytes": 6,
+      "equal_old_bytes": 20,
+      "reused_old_bytes": 20,
+      "nonzero_residual_bytes": 0,
+      "controls": [
+        {
+          "old_start": 0,
+          "x": 6,
+          "y": 6,
+          "z": 0
+        },
+        {
+          "old_start": 6,
+          "x": 14,
+          "y": 0,
+          "z": -14
+        }
+      ]
+    },
+    {
+      "id": "delete",
+      "old_sha256": "6bc14bdc4517a7a682c6910de2e2946eb8e1ecd04090728fef6d092a7ceb62c5",
+      "new_sha256": "ac461b883ccc91b73aa2c89c5bf02c20d35accbb0ffdb9e7c8cfe9537483a196",
+      "patch_size": 129,
+      "patch_sha256": "4ebad7cdabae57ae455e00962f888be3159371890fe18e70a7dd438d6af05255",
+      "control_count": 2,
+      "diff_bytes": 17,
+      "extra_bytes": 0,
+      "equal_old_bytes": 17,
+      "reused_old_bytes": 17,
+      "nonzero_residual_bytes": 0,
+      "controls": [
+        {
+          "old_start": 0,
+          "x": 6,
+          "y": 0,
+          "z": 3
+        },
+        {
+          "old_start": 9,
+          "x": 11,
+          "y": 0,
+          "z": -11
+        }
+      ]
+    },
+    {
+      "id": "prepend",
+      "old_sha256": "6bc14bdc4517a7a682c6910de2e2946eb8e1ecd04090728fef6d092a7ceb62c5",
+      "new_sha256": "56a5c83a71a41d14e3a1f1c7dca9315a1361318e6d8877a7ad04d3fb3ccbb663",
+      "patch_size": 161,
+      "patch_sha256": "c80ae5f332b4034a6824b9a14c8986fcb336829292db2a9bf1d665f4c6caabec",
+      "control_count": 2,
+      "diff_bytes": 20,
+      "extra_bytes": 6,
+      "equal_old_bytes": 20,
+      "reused_old_bytes": 20,
+      "nonzero_residual_bytes": 0,
+      "controls": [
+        {
+          "old_start": 0,
+          "x": 0,
+          "y": 6,
+          "z": 0
+        },
+        {
+          "old_start": 0,
+          "x": 20,
+          "y": 0,
+          "z": -20
+        }
+      ]
+    },
+    {
+      "id": "append",
+      "old_sha256": "6bc14bdc4517a7a682c6910de2e2946eb8e1ecd04090728fef6d092a7ceb62c5",
+      "new_sha256": "48cb942b30d9a5fbd8461bd975d3ff8c799e7573029f5845ddf50f06ea484d9e",
+      "patch_size": 161,
+      "patch_sha256": "ba8a38b14b4cce3570144dad9ba6c2406c37097d5fcf3e6160ebb2334d984312",
+      "control_count": 1,
+      "diff_bytes": 20,
+      "extra_bytes": 6,
+      "equal_old_bytes": 20,
+      "reused_old_bytes": 20,
+      "nonzero_residual_bytes": 0,
+      "controls": [
+        {
+          "old_start": 0,
+          "x": 20,
+          "y": 6,
+          "z": -1
+        }
+      ]
+    },
+    {
+      "id": "all-bytes",
+      "old_sha256": "40aff2e9d2d8922e47afd4648e6967497158785fbd1da870e7110266bf944880",
+      "new_sha256": "14025cad98e1fe9dd06ca112f9d69fe9f7f53f61c097d86f259f28f452b32154",
+      "patch_size": 514,
+      "patch_sha256": "60fa74472008e01e91e04bb6b772afca608917a3a38f96f99577593bf0c63442",
+      "control_count": 1,
+      "diff_bytes": 0,
+      "extra_bytes": 258,
+      "equal_old_bytes": 0,
+      "reused_old_bytes": 0,
+      "nonzero_residual_bytes": 0,
+      "controls": [
+        {
+          "old_start": 0,
+          "x": 0,
+          "y": 258,
+          "z": 255
+        }
+      ]
+    },
+    {
+      "id": "periodic",
+      "old_sha256": "c932bc6640bc000b14e0735018f19fa8739a62ef5b70df92bf3af8c234afaf74",
+      "new_sha256": "b2f3ef47b023f59acd86772d8a7cad91b9b549bb9a54a8a4914709af8a269647",
+      "patch_size": 167,
+      "patch_sha256": "cd4308a298d5df7daa4448f3de4c549e6fcb9f938dabbd18f5d1c6079d8d092d",
+      "control_count": 2,
+      "diff_bytes": 1500,
+      "extra_bytes": 1,
+      "equal_old_bytes": 1500,
+      "reused_old_bytes": 1500,
+      "nonzero_residual_bytes": 0,
+      "controls": [
+        {
+          "old_start": 0,
+          "x": 700,
+          "y": 1,
+          "z": 0
+        },
+        {
+          "old_start": 700,
+          "x": 800,
+          "y": 0,
+          "z": -800
+        }
+      ]
+    },
+    {
+      "id": "block-move",
+      "old_sha256": "a0d19f4883007a07bd84a50c8ec7b5a243235773aa074011fba4132af8b71278",
+      "new_sha256": "47855f9752d0e2ebe6157ddeafe32f8ec407da9cc7ed8eae969b46e4a0388a80",
+      "patch_size": 151,
+      "patch_sha256": "c0ff5a516a676e1169e8573bd3786e8d05bf41a0a118c86afac0864ed3df21c8",
+      "control_count": 3,
+      "diff_bytes": 1200,
+      "extra_bytes": 0,
+      "equal_old_bytes": 1200,
+      "reused_old_bytes": 1200,
+      "nonzero_residual_bytes": 0,
+      "controls": [
+        {
+          "old_start": 0,
+          "x": 0,
+          "y": 0,
+          "z": 800
+        },
+        {
+          "old_start": 800,
+          "x": 400,
+          "y": 0,
+          "z": -1200
+        },
+        {
+          "old_start": 0,
+          "x": 800,
+          "y": 0,
+          "z": -800
+        }
+      ]
+    },
+    {
+      "id": "seeded-random",
+      "old_sha256": "3f1dc5983729c3316f87f580ef435e68507120b7bde1a52f15dbbc93169751d8",
+      "new_sha256": "ec7c875b594819312410388bd93805e989e4dba1cc68f793ece69352bfe8d6f5",
+      "patch_size": 200,
+      "patch_sha256": "2bccb2f5daaa9da169822e290792a2ae9d5895bd453abca47f49ee9ce02a6210",
+      "control_count": 1,
+      "diff_bytes": 2048,
+      "extra_bytes": 0,
+      "equal_old_bytes": 2017,
+      "reused_old_bytes": 2048,
+      "nonzero_residual_bytes": 31,
+      "controls": [
+        {
+          "old_start": 0,
+          "x": 2048,
+          "y": 0,
+          "z": -1317
+        }
+      ]
+    }
+  ]
+}

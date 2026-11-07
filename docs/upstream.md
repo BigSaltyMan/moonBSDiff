@@ -51,3 +51,7 @@ The local locked `qsufsort`/`split` source was read and its bsdiff.c hash reveri
 ## Commit 8 matching and scan adaptation
 
 The new private matching.mbt/diff.mbt adapt BSDiff 4.3 matchlen/search and the main scan's offset scoring, forward/backward span selection and overlap adjustment. Both derived files retain the full Colin Percival BSD notice. [Matching algorithm notes](matching.md) document the deliberate length-aware search correction, deterministic candidate ties, complete segment coverage, numeric bounds and independent test evidence. The suffix-array implementation remains unchanged. No C reference program was rebuilt, and no compression/patch-assembly code or public diff API is added in this stage.
+
+## Commit 9 generated patch evidence
+
+The public generator now connects indexing, matching, canonical controls, residual/extra bytes and fixed level-9 compression. The 13 existing old/new pairs were used to produce new MoonBSDiff patches. Independent Python parsing and the cached, hash-verified BSDiff 4.3 bspatch restored every original new file. No C build or upstream-patch regeneration was repeated. [Generation notes](generation.md) and testdata/generation/native-results.json scope this native-only external result and record actual controls/reuse. Complete randomized bidirectional acceptance is still Commit 10; generation defaults/resource measurement and CLI remain later work.

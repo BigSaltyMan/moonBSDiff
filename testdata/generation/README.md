@@ -1,0 +1,5 @@
+# Native generation evidence
+
+`native-results.json` records the actual 2026-11-07 native-export -> independent Python parse -> fixed BSDiff 4.3 bspatch run. Its 13 original input IDs/hashes are associated with the existing testdata/upstream/manifest.json. These are reused inputs, not 13 additional new datasets. Every patch in the record was newly produced by MoonBSDiff diff, not read from the existing upstream patch fixtures. All outputs matched the original new bytes completely. Generated patches/logs stay in ignored _build; the source repository retains only this small provenance/structure record.
+
+Reproduce with the commands in [generation.md](../../docs/generation.md). The offline script's default validates the input mapping, while --log validates actual newly emitted patches. Historical external results are scoped to native exports and the recorded Linux oracle hash. They are not remote CI results, other-target oracle results or a full random/bidirectional matrix. Input/data license is the root BSD-2-Clause; upstream notices remain under tools/oracle.

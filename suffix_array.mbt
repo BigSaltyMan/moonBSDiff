@@ -7,7 +7,6 @@ priv struct SortBudget {
 }
 
 ///|
-#warnings("-unused_value")
 fn sorting_budget(limit : Int64) -> Result[SortBudget, BsdiffError] {
   if limit < 0L {
     Err(sorting_error(InvalidConfiguration, "sort_remaining", limit, None))
@@ -135,8 +134,7 @@ fn suffix_radix_pass(
 }
 
 ///|
-// Internal until the generator integrates indexing. No generation defaults here.
-#warnings("-unused_value")
+// Internal index construction; generation supplies explicit entry/work limits.
 fn build_suffix_array(
   data : Bytes,
   max_entries : Int64,

@@ -13,8 +13,7 @@ fn decompression_budget(
 }
 
 ///|
-// Integrated by the later application/generation steps.
-#warnings("-unused_value")
+// Standard generator encoding is fixed at bzip2 level 9.
 fn compress_block(data : Bytes) -> Bytes {
   @bzip2.bzip2(data[:], level=9)
 }

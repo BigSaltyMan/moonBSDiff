@@ -1,6 +1,6 @@
 # MoonBSDiff
 
-MoonBSDiff is a planned MoonBit reference port of BSDiff 4.3 for binary diffs and patches. The current stage implements structured errors, `Limits::validate`, internal BSDIFF40 integer/envelope parsing, and a private bounded bzip2 adapter. The public apply API now restores strict BSDIFF40 patches. Patch generation and a native CLI remain planned. Compression uses moonzip 0.3.5 at level 9; strict bounded decoding uses its attributed, adapted sources under `internal/bzip2/`.
+MoonBSDiff is a MoonBit reference port of BSDiff 4.3 under development for binary diffs and patches. The current stage implements structured errors, `Limits::validate`, internal BSDIFF40 integer/envelope parsing, and a private bounded bzip2 adapter. Public diff and apply APIs now generate and restore strict BSDIFF40 patches. A product CLI remains planned. Compression uses moonzip 0.3.5 at level 9; strict bounded decoding uses its attributed, adapted sources under `internal/bzip2/`.
 
 The `Limits` fields for old, new, patch and output buffer sizes are byte counts in 1..2147483647, bounded for Int indexing. `max_decompressed_bytes` is an aggregate byte count, `max_control_instructions` counts instructions, and `max_sort_work` / `max_match_work` count algorithm-defined work units; each is a positive Int64. The work unit definitions and actual enforcement will be established with the algorithms. Limits::for_apply() supplies conservative application defaults: old/new/output 1 MiB each, patch 64 KiB, total decompression 2 MiB and 16384 instructions. Sorting/matching fields are unused positive placeholders, not generation defaults; those remain for Commit 11. Validation means only that a configuration is legal, not that a complete patch operation has runtime resource protection. The private decoder now enforces per-call and shared decompression budgets. No cross-field relationships are imposed.
 
@@ -23,7 +23,7 @@ python scripts/check_apply.py
 git diff --check
 ```
 
-The initial CI runs these checks and compares the generated interface; remote CI has not yet run. [Dependency probe](testdata/dependency-probe/README.md) explains historical and repeatable bzip2 tests and their limits. The project tests cover configuration, error data, integer encoding and envelope boundaries; apply is verified against the 13 fixed upstream patches; bidirectional BSDiff interoperability and whole-process resource guarantees remain unverified. See [compression contracts and verification](docs/compression.md). See [format details](docs/format.md). [Licenses and upstream](docs/upstream.md).
+The initial CI runs these checks and compares the generated interface; remote CI has not yet run. [Dependency probe](testdata/dependency-probe/README.md) explains historical and repeatable bzip2 tests and their limits. The project tests cover configuration, error data, integer encoding and envelope boundaries; apply is verified against the 13 fixed upstream patches; complete bidirectional/random acceptance and whole-process resource guarantees remain pending; first native generator-to-upstream evidence is described below. See [compression contracts and verification](docs/compression.md). See [format details](docs/format.md). [Licenses and upstream](docs/upstream.md).
 
 [Fixed BSDiff 4.3 reference tools](tools/oracle/README.md) and [13 offline upstream fixtures](testdata/upstream/README.md) provide the fixed upstream patches used by the apply tests. Run `python scripts/generate_reference.py` for offline integrity verification. The upstream self-check is separate from the apply results above.
 
@@ -65,6 +65,34 @@ let result = @moonbsdiff.apply(old_bytes, patch_bytes, limits)
 
 Explicit caller-selected Limits continue to work. The three targets each passed the final 73-test application-stage collection; the independent upstream case count remains 13.
 
-An internal [binary suffix-array index](docs/suffix-array.md) is now implemented using prefix doubling and counting sort, including the empty suffix and unsigned binary-byte ordering. It has no public API; diff generation and CLI remain future steps; matching integration is described below. Application defaults are unchanged and must not be used as generation defaults.
+An internal [binary suffix-array index](docs/suffix-array.md) is now implemented using prefix doubling and counting sort, including the empty suffix and unsigned binary-byte ordering. It has no public API; it supports the generator described below; a product CLI remains future work. Application defaults are unchanged and must not be used as generation defaults.
 
-Internal [suffix matching and segment planning](docs/matching.md) now provide longest-match queries, offset scoring, forward/backward selection and overlap adjustment. Matching scans reuse the existing suffix index and can produce old-data reuse with nonzero residuals. These components remain private; residual encoding, patch assembly, public diff and CLI are still pending.
+Internal [suffix matching and segment planning](docs/matching.md) now provide longest-match queries, offset scoring, forward/backward selection and overlap adjustment. Matching scans reuse the existing suffix index and can produce old-data reuse with nonzero residuals. These components remain private and now feed residual encoding and patch assembly through public diff. A product CLI remains pending.
+
+## Generate and apply in memory
+
+The following test is executed in diff_test.mbt. These explicit limits are illustrative for this small input, not measured generation defaults. Limits::for_apply() has sorting/matching placeholders and must not be treated as a generation default.
+
+```moonbit
+test "diff-memory-example" {
+  let limits : @moonbsdiff.Limits = {
+    max_old_bytes: 4096L,
+    max_new_bytes: 4096L,
+    max_patch_bytes: 8192L,
+    max_output_bytes: 4096L,
+    max_decompressed_bytes: 16384L,
+    max_control_instructions: 256L,
+    max_sort_work: 1000000L,
+    max_match_work: 1000000L,
+  }
+  let old = b"MoonBSDiff example version 1"
+  let new = b"MoonBSDiff example version 2!"
+  let patch = match @moonbsdiff.diff(old, new, limits) {
+    Ok(b) => b
+    Err(_) => abort("diff failed")
+  }
+  assert_eq(@moonbsdiff.apply(old, patch, limits), Ok(new))
+}
+```
+
+[Generation behavior and verification](docs/generation.md) describes the 13-case native -> upstream bspatch result, independent parsing, and remaining resource boundaries. JS/Wasm-GC generation and complete-byte self-roundtrips also passed. BSDIFF40 does not authenticate the old file; verify expected hashes externally.

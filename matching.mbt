@@ -43,7 +43,6 @@ fn matching_error(
 }
 
 ///|
-#warnings("-unused_value")
 fn matching_budget(limit : Int64) -> Result[MatchBudget, BsdiffError] {
   if limit < 0L {
     Err(

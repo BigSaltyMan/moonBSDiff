@@ -8,6 +8,8 @@ import {
 // Values
 pub fn apply(Bytes, Bytes, Limits) -> Result[Bytes, BsdiffError]
 
+pub fn diff(Bytes, Bytes, Limits) -> Result[Bytes, BsdiffError]
+
 // Errors
 
 // Types and methods

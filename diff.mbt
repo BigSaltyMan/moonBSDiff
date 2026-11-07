@@ -23,8 +23,7 @@
 // POSSIBILITY OF SUCH DAMAGE.
 
 ///|
-// A future encoder consumes these ranges; no payload bytes are produced here.
-#warnings("-unused_field")
+// Ranges selected by the scan and consumed by the block encoder.
 priv struct DiffSegment {
   new_start : Int32
   old_start : Int32
@@ -146,7 +145,6 @@ fn scan_segments(
 }
 
 ///|
-#warnings("-unused_value")
 fn select_segments(
   old : Bytes,
   new : Bytes,
@@ -157,4 +155,354 @@ fn select_segments(
   Ok(scan_segments(old, new, sa, max_segments, budget)) catch {
     Stop(e) => Err(e)
   }
+}
+
+///|
+priv struct RawPatchBlocks {
+  control : Bytes
+  difference : Bytes
+  extra : Bytes
+}
+
+///|
+fn generation_error(
+  kind : ErrorKind,
+  stage : ErrorStage,
+  field : String,
+  value : Int64,
+  limit : Int64?,
+) -> BsdiffError {
+  format_error(kind, stage, None, None, Some(field), Some(value), limit)
+}
+
+///|
+fn raw_control_size(
+  count : Int64,
+  difference : Int64,
+  extra : Int64,
+  total_limit : Int64,
+) -> Result[Int32, BsdiffError] {
+  if count < 0L || count > 2147483647L / 24L {
+    return Err(
+      generation_error(
+        IntegerOverflow,
+        Control,
+        "control_bytes",
+        count,
+        Some(2147483647L / 24L),
+      ),
+    )
+  }
+  for value in [difference, extra] {
+    if value < 0L || value > 2147483647L {
+      return Err(
+        generation_error(
+          IntegerOverflow,
+          Output,
+          "raw_block_bytes",
+          value,
+          Some(2147483647L),
+        ),
+      )
+    }
+  }
+  let control = count * 24L
+  let total = control + difference + extra
+  if total > total_limit {
+    return Err(
+      generation_error(
+        ResourceLimitExceeded,
+        Control,
+        "max_decompressed_bytes",
+        total,
+        Some(total_limit),
+      ),
+    )
+  }
+  Ok(control.to_int())
+}
+
+///|
+fn encode_plan(
+  old : Bytes,
+  new : Bytes,
+  plan : Array[DiffSegment],
+  limits : Limits,
+) -> Result[RawPatchBlocks, BsdiffError] {
+  let mut covered = 0
+  let mut old_cursor = 0L
+  let mut differences = 0L
+  let mut extras = 0L
+  for segment in plan {
+    if segment.new_start != covered ||
+      segment.old_start.to_int64() != old_cursor ||
+      segment.old_start < 0 ||
+      segment.old_start > old.length() ||
+      segment.diff_length < 0 ||
+      segment.extra_length < 0 {
+      return Err(
+        generation_error(
+          InvalidField,
+          Control,
+          "segment_ranges",
+          covered.to_int64(),
+          None,
+        ),
+      )
+    }
+    if segment.diff_length > old.length() - segment.old_start ||
+      segment.diff_length > new.length() - covered ||
+      segment.extra_length > new.length() - covered - segment.diff_length {
+      return Err(
+        generation_error(
+          InvalidField,
+          Control,
+          "segment_lengths",
+          covered.to_int64(),
+          None,
+        ),
+      )
+    }
+    let advanced = match
+      cursor_add(
+        old_cursor,
+        segment.diff_length.to_int64(),
+        "generation_old_plus_x",
+      ) {
+      Err(e) => return Err(e)
+      Ok(v) => v
+    }
+    old_cursor = match
+      cursor_add(advanced, segment.seek, "generation_old_plus_z") {
+      Err(e) => return Err(e)
+      Ok(v) => v
+    }
+    if old_cursor < 0L || old_cursor > old.length().to_int64() {
+      return Err(
+        generation_error(
+          InvalidField,
+          Control,
+          "segment_old_cursor",
+          old_cursor,
+          Some(old.length().to_int64()),
+        ),
+      )
+    }
+    covered = covered + segment.diff_length + segment.extra_length
+    differences = differences + segment.diff_length.to_int64()
+    extras = extras + segment.extra_length.to_int64()
+  }
+  if covered != new.length() {
+    return Err(
+      generation_error(
+        InvalidField,
+        Control,
+        "segment_coverage",
+        covered.to_int64(),
+        Some(new.length().to_int64()),
+      ),
+    )
+  }
+  if plan.length().to_int64() > limits.max_control_instructions {
+    return Err(
+      generation_error(
+        ResourceLimitExceeded,
+        Control,
+        "max_control_instructions",
+        plan.length().to_int64(),
+        Some(limits.max_control_instructions),
+      ),
+    )
+  }
+  let control_size = match
+    raw_control_size(
+      plan.length().to_int64(),
+      differences,
+      extras,
+      limits.max_decompressed_bytes,
+    ) {
+    Err(e) => return Err(e)
+    Ok(v) => v
+  }
+  let control : Array[Byte] = []
+  let difference = Array::make(differences.to_int(), b'\x00')
+  let extra = Array::make(extras.to_int(), b'\x00')
+  let mut diff_pos = 0
+  let mut extra_pos = 0
+  for segment in plan {
+    for
+      value in [
+        segment.diff_length.to_int64(),
+        segment.extra_length.to_int64(),
+        segment.seek,
+      ] {
+      let encoded = match encode_int(value) {
+        Err(e) => return Err(e)
+        Ok(v) => v
+      }
+      for byte in encoded {
+        control.push(byte)
+      }
+    }
+    for i in 0..<segment.diff_length {
+      difference[diff_pos + i] = ((
+        new[segment.new_start + i].to_int() -
+        old[segment.old_start + i].to_int() +
+        256
+      ) %
+      256).to_byte()
+    }
+    diff_pos = diff_pos + segment.diff_length
+    for i in 0..<segment.extra_length {
+      extra[extra_pos + i] = new[segment.new_start + segment.diff_length + i]
+    }
+    extra_pos = extra_pos + segment.extra_length
+  }
+  if control.length() != control_size ||
+    diff_pos.to_int64() != differences ||
+    extra_pos.to_int64() != extras {
+    return Err(
+      generation_error(
+        InvalidField,
+        Control,
+        "encoded_plan_lengths",
+        control.length().to_int64(),
+        Some(control_size.to_int64()),
+      ),
+    )
+  }
+  Ok({
+    control: Bytes::from_array(control),
+    difference: Bytes::from_array(difference),
+    extra: Bytes::from_array(extra),
+  })
+}
+
+///|
+fn generated_patch_size(
+  control : Int64,
+  difference : Int64,
+  extra : Int64,
+  cap : Int64,
+) -> Result[Int32, BsdiffError] {
+  let mut total = 32L
+  for length in [control, difference, extra] {
+    if length < 0L || length > 2147483647L - total {
+      return Err(
+        generation_error(
+          IntegerOverflow,
+          Header,
+          "patch_bytes",
+          length,
+          Some(2147483647L - total),
+        ),
+      )
+    }
+    total = total + length
+  }
+  if total > cap {
+    return Err(
+      generation_error(
+        ResourceLimitExceeded,
+        Header,
+        "max_patch_bytes",
+        total,
+        Some(cap),
+      ),
+    )
+  }
+  Ok(total.to_int())
+}
+
+///|
+/// Generate a standard BSDIFF40 patch with explicit generation limits.
+pub fn diff(
+  old_bytes : Bytes,
+  new_bytes : Bytes,
+  limits : Limits,
+) -> Result[Bytes, BsdiffError] {
+  match limits.validate() {
+    Err(e) => return Err(e)
+    Ok(_) => ()
+  }
+  for
+    (field, value, cap) in [
+      ("max_old_bytes", old_bytes.length().to_int64(), limits.max_old_bytes),
+      ("max_new_bytes", new_bytes.length().to_int64(), limits.max_new_bytes),
+      (
+        "max_output_bytes",
+        new_bytes.length().to_int64(),
+        limits.max_output_bytes,
+      ),
+      ("max_patch_bytes", 74L, limits.max_patch_bytes),
+    ] {
+    if value > cap {
+      return Err(
+        generation_error(ResourceLimitExceeded, Header, field, value, Some(cap)),
+      )
+    }
+  }
+  let sort_budget = match sorting_budget(limits.max_sort_work) {
+    Err(e) => return Err(e)
+    Ok(v) => v
+  }
+  let sa = match build_suffix_array(old_bytes, 2147483647L, sort_budget) {
+    Err(e) => return Err(e)
+    Ok(v) => v
+  }
+  let match_budget = match matching_budget(limits.max_match_work) {
+    Err(e) => return Err(e)
+    Ok(v) => v
+  }
+  let segment_cap = if limits.max_control_instructions < 2147483647L / 24L {
+    limits.max_control_instructions
+  } else {
+    2147483647L / 24L
+  }
+  let plan = match
+    select_segments(old_bytes, new_bytes, sa, segment_cap, match_budget) {
+    Err(e) => return Err(e)
+    Ok(v) => v
+  }
+  let raw = match encode_plan(old_bytes, new_bytes, plan, limits) {
+    Err(e) => return Err(e)
+    Ok(v) => v
+  }
+  let control = compress_block(raw.control)
+  let difference = compress_block(raw.difference)
+  let extra = compress_block(raw.extra)
+  let size = match
+    generated_patch_size(
+      control.length().to_int64(),
+      difference.length().to_int64(),
+      extra.length().to_int64(),
+      limits.max_patch_bytes,
+    ) {
+    Err(e) => return Err(e)
+    Ok(v) => v
+  }
+  let control_len = match encode_int(control.length().to_int64()) {
+    Err(e) => return Err(e)
+    Ok(v) => v
+  }
+  let diff_len = match encode_int(difference.length().to_int64()) {
+    Err(e) => return Err(e)
+    Ok(v) => v
+  }
+  let new_len = match encode_int(new_bytes.length().to_int64()) {
+    Err(e) => return Err(e)
+    Ok(v) => v
+  }
+  let patch = Array::make(size, b'\x00')
+  let mut at = 0
+  for
+    bytes in [
+      b"BSDIFF40", control_len, diff_len, new_len, control, difference, extra,
+    ] {
+    for byte in bytes {
+      patch[at] = byte
+      at = at + 1
+    }
+  }
+  Ok(Bytes::from_array(patch))
 }

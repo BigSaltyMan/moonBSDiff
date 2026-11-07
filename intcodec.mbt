@@ -42,8 +42,7 @@ fn decode_int(
 }
 
 ///|
-// Used by the later patch generator.
-#warnings("-unused_value")
+// Canonical sign-magnitude integers shared by header/control generation.
 fn encode_int(value : Int64) -> Result[Bytes, BsdiffError] {
   if value == -9223372036854775807L - 1L {
     return Err(
