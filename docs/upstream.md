@@ -100,3 +100,12 @@ Mooncakes dependency was adopted. Compression and decoder adaptation are unchang
 Core/env and encoding are from the existing 0.10.19+bee578715 core (Apache-2.0).
 See [CLI contracts](cli.md) for the checked capability/route decision and actual
 platform/Unicode/file-delivery evidence. Python remains test/build-only.
+
+## Commit 15 benchmark reuse
+
+The [benchmark record](benchmarks.md) reuses the hash-verified BSDiff 4.3 tools
+and existing bzip2 build recorded by tools/oracle/verified-build.json; no oracle
+rebuild, new upstream import or license change occurred. Each implementation
+applies its own patch for timing validity. Existing bidirectional evidence remains
+separate; the benchmark is not an additional interoperability or malicious-input
+safety claim.

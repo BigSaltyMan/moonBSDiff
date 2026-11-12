@@ -23,7 +23,7 @@ python scripts/check_apply.py
 git diff --check
 ```
 
-The initial CI runs these checks and compares the generated interface; remote CI has not yet run. [Dependency probe](testdata/dependency-probe/README.md) explains historical and repeatable bzip2 tests and their limits. The project tests cover configuration, error data, integer encoding and envelope boundaries; the fixed 31-input interoperability inventory now has actual bidirectional acceptance: native 31 pairs per direction, JS/Wasm-GC 19 each. Generation now enforces cumulative logical quotas and bounded encoder emissions; these are not whole-process CPU or peak-memory guarantees. See [compatibility evidence and replay](docs/compatibility.md). See [compression contracts and verification](docs/compression.md). See [format details](docs/format.md). [Licenses and upstream](docs/upstream.md).
+The [CI workflow](https://github.com/BigSaltyMan/moonBSDiff/actions/workflows/ci.yml) runs source checks and compares the generated interface; results must be matched to their checkout SHA. [Dependency probe](testdata/dependency-probe/README.md) explains historical and repeatable bzip2 tests and their limits. The project tests cover configuration, error data, integer encoding and envelope boundaries; the fixed 31-input interoperability inventory now has actual bidirectional acceptance: native 31 pairs per direction, JS/Wasm-GC 19 each. Generation now enforces cumulative logical quotas and bounded encoder emissions; these are not whole-process CPU or peak-memory guarantees. See [compatibility evidence and replay](docs/compatibility.md). See [compression contracts and verification](docs/compression.md). See [format details](docs/format.md). [Licenses and upstream](docs/upstream.md).
 
 [Fixed BSDiff 4.3 reference tools](tools/oracle/README.md) and [13 offline upstream fixtures](testdata/upstream/README.md) provide the fixed upstream patches used by the apply tests. Run `python scripts/generate_reference.py` for offline integrity verification. The upstream self-check is separate from the apply results above.
 
@@ -95,7 +95,7 @@ test "diff-memory-example" {
 }
 ```
 
-[Generation behavior and verification](docs/generation.md) describes the initial native generator result and resource boundaries. [Bidirectional compatibility](docs/compatibility.md) now records 31 independent input pairs (13 fixed upstream plus 18 deterministic random-edit pairs), with actual upstream generation -> MoonBSDiff apply and MoonBSDiff diff -> upstream bspatch: native 31 per direction, JS/Wasm-GC 19 per direction. Every executed restoration matched the original new bytes. Run `python scripts/run_conformance.py` for offline inventory checks, and explicitly add `--run` for the external matrix with verified reference tools. CI runs the offline inventory and strict comparator tests; remote CI remains unverified. BSDIFF40 does not authenticate the old file; verify expected hashes externally.
+[Generation behavior and verification](docs/generation.md) describes the initial native generator result and resource boundaries. [Bidirectional compatibility](docs/compatibility.md) now records 31 independent input pairs (13 fixed upstream plus 18 deterministic random-edit pairs), with actual upstream generation -> MoonBSDiff apply and MoonBSDiff diff -> upstream bspatch: native 31 per direction, JS/Wasm-GC 19 per direction. Every executed restoration matched the original new bytes. Run `python scripts/run_conformance.py` for offline inventory checks, and explicitly add `--run` for the external matrix with verified reference tools. CI runs offline inventory/comparator checks and a separate real-reference job; consult the matching SHA for current results. BSDIFF40 does not authenticate the old file; verify expected hashes externally.
 
 
 ## Generation defaults and development status
@@ -189,3 +189,14 @@ C compiler; Windows uses an MSVC developer shell. Every run has a fresh ignored
 A failure exits nonzero. [Wasm update instructions](examples/wasm-update/README.md)
 include CLI reuse and exact flags. These are demonstrations, not a benchmark,
 registry-consumer result or package release. Small-data patches can be larger.
+
+## Benchmark and first-release scope
+
+[Five fixed native-release process benchmarks](docs/benchmarks.md) record raw timings,
+input hashes, patch sizes and a same-input BSDiff 4.3 comparison. These include
+startup and file IO; core API time and reliable peak memory were not measured.
+Validate the retained record offline with `python scripts/benchmark.py --verify`.
+The 0.1.0 feature scope is frozen; see [CHANGELOG](CHANGELOG.md) and the
+[development plan](docs/development-plan.md). Package audit, final validation,
+Mooncakes publication and independent registry consumption remain pending.
+No registry installation or release download is claimed available.

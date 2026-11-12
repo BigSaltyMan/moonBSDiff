@@ -1,0 +1,325 @@
+{
+  "case_ids": [
+    "same-4096",
+    "sparse-4096",
+    "periodic-4096",
+    "random-4096",
+    "wasm-update"
+  ],
+  "warmups": 1,
+  "repeats": 3,
+  "scales": [
+    4096,
+    3962
+  ],
+  "method": "subprocess elapsed perf_counter, startup + CLI file IO + operation + close/delivery; excludes compile and Python full-byte/hash comparison; core API latency not measured",
+  "platform": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+  "architecture": "x86_64",
+  "cpu": "AMD Ryzen 9 8940HX with Radeon Graphics",
+  "toolchain": "moon 0.1.20261102 (ea07287 2026-11-02)\nmoonc v0.10.19+bee578715 (2026-11-02)\nmoonrun 0.1.20261102 (ea07287 2026-11-02)",
+  "python": "3.12.3",
+  "mode": "native release, scripts/build_cli.py --release, default compiler flags",
+  "compiler": "gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0",
+  "cli_sha256": "8cfbe2a05e3466fde8015f18280cae37c8db82f68b746b51966b0e5000714ff8",
+  "oracle": {
+    "schema_version": 1,
+    "lock_sha256": "5309cae0d696dabaf51f6bf3770189ef022a03b66579a3415acc3e6ac28a6dca",
+    "os": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+    "architecture": "x86_64",
+    "compiler": "gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0\nCopyright (C) 2023 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.",
+    "bzip2_library_sha256": "4cb30405033c3113ccaead5ceffb783a32625dcd8defa8bbae0c0a002edf8d6b",
+    "bzip2_runtime": "1.0.8, 13-Jul-2019",
+    "sources": {
+      "bsdiff": "reverified cache",
+      "bzip2": "reverified cache"
+    },
+    "commands": [
+      [
+        "make",
+        "-C",
+        "_build/oracle/bzip2-1.0.8",
+        "-B",
+        "libbz2.a",
+        "CC=gcc",
+        "CFLAGS=-O2 -Wall -D_FILE_OFFSET_BITS=64"
+      ],
+      [
+        "gcc",
+        "-O2",
+        "-D_DEFAULT_SOURCE",
+        "-I_build/oracle/bzip2-1.0.8",
+        "_build/oracle/bsdiff-4.3/bsdiff.c",
+        "_build/oracle/bzip2-1.0.8/libbz2.a",
+        "-o",
+        "_build/oracle/bsdiff"
+      ],
+      [
+        "gcc",
+        "-O2",
+        "-D_DEFAULT_SOURCE",
+        "-I_build/oracle/bzip2-1.0.8",
+        "_build/oracle/bsdiff-4.3/bspatch.c",
+        "_build/oracle/bzip2-1.0.8/libbz2.a",
+        "-o",
+        "_build/oracle/bspatch"
+      ]
+    ],
+    "adaptations": [],
+    "products": {
+      "bsdiff": "6c53a0ce59f2e249d9ba512512ec4cedf04dd846c9900c5075680f2133bf2ec8",
+      "bspatch": "d37b7c4ec800b4ec8aed6d581cc1ca704a4f51717334915f5e72d495e5976fd4"
+    }
+  },
+  "limits": {
+    "diff": "Limits::for_diff()",
+    "patch": "Limits::for_apply(), only max_patch_bytes=131072",
+    "old_new_output_bytes": 65536,
+    "patch_bytes": 131072,
+    "raw_bytes": 262144,
+    "instructions": 4096,
+    "sort_work": 8388608,
+    "match_work": 8388608
+  },
+  "output_filesystem": "/tmp on WSL Linux filesystem, same paths for both tools; not Windows-mounted DrvFS",
+  "peak_memory": "not measured",
+  "sampled_rss": "not measured",
+  "core_api_time": "not measured",
+  "cases": [
+    {
+      "input": {
+        "id": "same-4096",
+        "old_size": 4096,
+        "new_size": 4096,
+        "old_sha256": "8e819251ee326663a3ad24d6843d139b924827fec997a011bcb75c3bafdcd950",
+        "new_sha256": "8e819251ee326663a3ad24d6843d139b924827fec997a011bcb75c3bafdcd950"
+      },
+      "implementations": {
+        "moon": {
+          "patch_size": 137,
+          "patch_sha256": "8f8e5d51ee829c44fe1eccde4eb19acd42abc41e482a0f2fb22a7731380c983b",
+          "restored_sha256": "8e819251ee326663a3ad24d6843d139b924827fec997a011bcb75c3bafdcd950",
+          "byte_equal": true,
+          "generate_seconds": [
+            0.0076686519999924485,
+            0.00794257799999798,
+            0.008010957000010421
+          ],
+          "apply_seconds": [
+            0.008509642000007034,
+            0.008203113000007534,
+            0.007954431000001705
+          ],
+          "generate_median_seconds": 0.00794257799999798,
+          "apply_median_seconds": 0.008203113000007534
+        },
+        "upstream": {
+          "patch_size": 137,
+          "patch_sha256": "01170cefc5e96cf9652c4aa1074838e20201e1aa7bb250b2aa8ecafc0c1134ed",
+          "restored_sha256": "8e819251ee326663a3ad24d6843d139b924827fec997a011bcb75c3bafdcd950",
+          "byte_equal": true,
+          "generate_seconds": [
+            0.004903240000004416,
+            0.004742450999998482,
+            0.004508222999987765
+          ],
+          "apply_seconds": [
+            0.004669993999996791,
+            0.004884020999995187,
+            0.0048024540000000115
+          ],
+          "generate_median_seconds": 0.004742450999998482,
+          "apply_median_seconds": 0.0048024540000000115
+        }
+      }
+    },
+    {
+      "input": {
+        "id": "sparse-4096",
+        "old_size": 4096,
+        "new_size": 4096,
+        "old_sha256": "8e819251ee326663a3ad24d6843d139b924827fec997a011bcb75c3bafdcd950",
+        "new_sha256": "909e5ffb899c5ff0e08cc75ec4865056dbf51de8a793bf00f6c3e2de1db1d243"
+      },
+      "implementations": {
+        "moon": {
+          "patch_size": 181,
+          "patch_sha256": "cd6d8dfbc684f14ce696bc24973560191e2461303a9032ff50ce4f2dbe1df8f0",
+          "restored_sha256": "909e5ffb899c5ff0e08cc75ec4865056dbf51de8a793bf00f6c3e2de1db1d243",
+          "byte_equal": true,
+          "generate_seconds": [
+            0.007758178000003113,
+            0.008143969999991896,
+            0.007584167000004527
+          ],
+          "apply_seconds": [
+            0.007365802999999005,
+            0.00843060999999068,
+            0.008354834000002143
+          ],
+          "generate_median_seconds": 0.007758178000003113,
+          "apply_median_seconds": 0.008354834000002143
+        },
+        "upstream": {
+          "patch_size": 181,
+          "patch_sha256": "9712ca7532e8b393efa282d3d55358a9ae4a99e5eb40a880ca74679ae7ced076",
+          "restored_sha256": "909e5ffb899c5ff0e08cc75ec4865056dbf51de8a793bf00f6c3e2de1db1d243",
+          "byte_equal": true,
+          "generate_seconds": [
+            0.005015829000001304,
+            0.005044272999995769,
+            0.004502072999997608
+          ],
+          "apply_seconds": [
+            0.005063262000007285,
+            0.004511778999997773,
+            0.00454795900000704
+          ],
+          "generate_median_seconds": 0.005015829000001304,
+          "apply_median_seconds": 0.00454795900000704
+        }
+      }
+    },
+    {
+      "input": {
+        "id": "periodic-4096",
+        "old_size": 4096,
+        "new_size": 4096,
+        "old_sha256": "3490ab066ab504caa8b47a2097829e1ce7f520406ca8c1056c4f9f29280259db",
+        "new_sha256": "42050eab9ceb15b3715cc6f6493100be54a0f9794abcbc79ddb2ea767fbf6377"
+      },
+      "implementations": {
+        "moon": {
+          "patch_size": 164,
+          "patch_sha256": "027e02e11f43fc5bcd14dd10ebc3938834d3b1e79983ffce344940eda367b67c",
+          "restored_sha256": "42050eab9ceb15b3715cc6f6493100be54a0f9794abcbc79ddb2ea767fbf6377",
+          "byte_equal": true,
+          "generate_seconds": [
+            0.008755469000007565,
+            0.008888779000002955,
+            0.008372467000000938
+          ],
+          "apply_seconds": [
+            0.008071572999995169,
+            0.007759773000003634,
+            0.008114855999991732
+          ],
+          "generate_median_seconds": 0.008755469000007565,
+          "apply_median_seconds": 0.008071572999995169
+        },
+        "upstream": {
+          "patch_size": 147,
+          "patch_sha256": "00eb7fcbaeb083652ab7d0beac4fecf3032a02ea7f99b5f903ebcc00023a54db",
+          "restored_sha256": "42050eab9ceb15b3715cc6f6493100be54a0f9794abcbc79ddb2ea767fbf6377",
+          "byte_equal": true,
+          "generate_seconds": [
+            0.005630396000000815,
+            0.005265252000000942,
+            0.005580944000001864
+          ],
+          "apply_seconds": [
+            0.004093560000001162,
+            0.004155432000004566,
+            0.004449733999990713
+          ],
+          "generate_median_seconds": 0.005580944000001864,
+          "apply_median_seconds": 0.004155432000004566
+        }
+      }
+    },
+    {
+      "input": {
+        "id": "random-4096",
+        "old_size": 4096,
+        "new_size": 4096,
+        "old_sha256": "8e819251ee326663a3ad24d6843d139b924827fec997a011bcb75c3bafdcd950",
+        "new_sha256": "f4e61b8b3b65e03482d39d0bc0e6d694d940ee592a9ac28f1ffb1513b9164199"
+      },
+      "implementations": {
+        "moon": {
+          "patch_size": 4692,
+          "patch_sha256": "7a4162771f311fba18f80c91b37fdb2fee46b0cf75e9ce7e0d83401a8b4307a5",
+          "restored_sha256": "f4e61b8b3b65e03482d39d0bc0e6d694d940ee592a9ac28f1ffb1513b9164199",
+          "byte_equal": true,
+          "generate_seconds": [
+            0.010455620000001886,
+            0.010745237000008956,
+            0.010652314999987311
+          ],
+          "apply_seconds": [
+            0.008186449999996626,
+            0.007954967000003421,
+            0.008586479000001646
+          ],
+          "generate_median_seconds": 0.010652314999987311,
+          "apply_median_seconds": 0.008186449999996626
+        },
+        "upstream": {
+          "patch_size": 4693,
+          "patch_sha256": "729b44b0666e029c8c14762ccd6996159f5ebba34c32ec86a6be14377db62e3f",
+          "restored_sha256": "f4e61b8b3b65e03482d39d0bc0e6d694d940ee592a9ac28f1ffb1513b9164199",
+          "byte_equal": true,
+          "generate_seconds": [
+            0.005225132000006738,
+            0.005641476000008083,
+            0.0056422169999876814
+          ],
+          "apply_seconds": [
+            0.004349215000004847,
+            0.004252766999996993,
+            0.004842838999991272
+          ],
+          "generate_median_seconds": 0.005641476000008083,
+          "apply_median_seconds": 0.004349215000004847
+        }
+      }
+    },
+    {
+      "input": {
+        "id": "wasm-update",
+        "old_size": 3962,
+        "new_size": 3962,
+        "old_sha256": "8370502fe3589a72155618c507042401c463bce58f1f78c47e6361d9be5429ee",
+        "new_sha256": "3be4c97eef6dc8f5fc487451239cedcc521fa7b2b2f909dcb0ca07af5e3c01a0"
+      },
+      "implementations": {
+        "moon": {
+          "patch_size": 146,
+          "patch_sha256": "f0b4965d07fdb705a0603dfc228b0bf9e587198712d779398606706b2da0f349",
+          "restored_sha256": "3be4c97eef6dc8f5fc487451239cedcc521fa7b2b2f909dcb0ca07af5e3c01a0",
+          "byte_equal": true,
+          "generate_seconds": [
+            0.008491774999995982,
+            0.007778866999998968,
+            0.007688153000003695
+          ],
+          "apply_seconds": [
+            0.007463268999998718,
+            0.0073602140000019745,
+            0.00757880599999794
+          ],
+          "generate_median_seconds": 0.007778866999998968,
+          "apply_median_seconds": 0.007463268999998718
+        },
+        "upstream": {
+          "patch_size": 147,
+          "patch_sha256": "1c0f069bee4ba091a830c0ff6421636473de6cf24b98abd8ee1bb64b66237494",
+          "restored_sha256": "3be4c97eef6dc8f5fc487451239cedcc521fa7b2b2f909dcb0ca07af5e3c01a0",
+          "byte_equal": true,
+          "generate_seconds": [
+            0.004657085000005168,
+            0.004631247000006056,
+            0.004530418000001646
+          ],
+          "apply_seconds": [
+            0.004194885000003978,
+            0.005204621000004295,
+            0.00546335900000372
+          ],
+          "generate_median_seconds": 0.004631247000006056,
+          "apply_median_seconds": 0.005204621000004295
+        }
+      }
+    }
+  ],
+  "library_source_sha": "1feee0c04f857fa95ebda0d04646d7952a624d3e"
+}

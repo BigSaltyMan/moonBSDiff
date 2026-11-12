@@ -28,6 +28,8 @@ jobs:
       - run: python3 scripts/check_format_vectors.py
       - run: python3 scripts/check_matching_vectors.py
       - run: python3 scripts/check_diff.py
+      - name: Offline benchmark record integrity (no timing on push)
+        run: python3 scripts/benchmark.py --verify
       - run: python3 scripts/measure_diff.py --verify-report
       - run: python3 -m unittest discover -s scripts -p test_diff_verifier.py
       - name: Offline interoperability inventory and strict comparator contracts

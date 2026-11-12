@@ -92,3 +92,11 @@ Generation defaults and cumulative logical quotas are now implemented; see
 [generation resource acceptance](generation-resources.md). No new diff/apply
 signature or public diagnostic API was added; the interface adds only for_diff.
 The final unchanged-input bidirectional matrix is recorded in compatibility.md.
+
+## Frozen first-release scope
+
+Commit 15 adds [five small process benchmarks](benchmarks.md) using the existing
+release CLI and default limits, without changing generation code or quotas.
+These process timings include IO/startup and do not measure core API latency.
+The API, strict format and resource contract are frozen for 0.1.0; remaining work
+is necessary fixes and Commit 16 audit/publication/consumer verification.

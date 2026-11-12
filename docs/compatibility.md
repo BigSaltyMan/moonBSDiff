@@ -272,5 +272,8 @@ cases, workflow parsing/static scope checks, and diff checks. No old functional,
 CLI, random, resource or compression matrix is rerun locally. Remote evidence
 must be read from the final SHA's actual CI; success is not prefilled here.
 Linux CLI still requires O_TMPFILE and /proc, with no durability guarantee.
-Logical resource caps are not whole-process memory/CPU guarantees. Examples,
-benchmarks, package audit, publication and registry consumption remain Commit 14-16.
+Logical resource caps are not whole-process memory/CPU guarantees. That Commit 13
+record predates the implemented [examples](../examples/basic/README.md) and
+[Commit 15 benchmarks](benchmarks.md). This documentation step does not rerun the
+historical matrix locally. Package audit, publication and registry consumption
+remain Commit 16; first-release feature scope is now frozen.

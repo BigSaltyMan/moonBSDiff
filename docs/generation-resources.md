@@ -199,6 +199,8 @@ independent verifier fails if missing or duplicated. JS/Wasm-GC skip this scale 
 Final bidirectional acceptance uses the unchanged Commit 10 input matrix (31
 independent pairs, native 31 per direction and JS/Wasm-GC 19 each), with strict
 results and actual upstream execution; see [compatibility](compatibility.md).
-CLI, packaging/publication, complete CI platform policy and performance benchmarks
-remain Commit 12-16. No claim about all malicious inputs follows from legal-input
+Native CLI, cross-target CI and examples are implemented in Commits 12-14.
+[Small process benchmarks](benchmarks.md) are recorded in Commit 15 without changing
+these resource guarantees. Package audit, publication and independent registry
+consumption remain Commit 16. No claim about all malicious inputs follows from legal-input
 interoperability. BSDIFF40 still does not identify or authenticate the old file.
