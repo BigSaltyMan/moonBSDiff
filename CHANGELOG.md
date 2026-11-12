@@ -2,6 +2,12 @@
 
 ## 0.2.0 — Unreleased
 
+- Header-only CLI inspect with text/schema-versioned JSON, bounded patch reads,
+  exact decimal-string byte fields and explicit unperformed checks. No decoder,
+  restoration, deep mode or manifest verification runs.
+- Minimal read-only inspect_header/PatchInfo API shares the existing structural
+  parser while leaving application output policy and defaults unchanged.
+
 - CLI diff/patch accept explicit resource caps with checked decimal and B/KiB/MiB
   byte parsing; work/control counts use positive decimals without units.
 - --show-limits displays effective configuration without file IO; patch rejects

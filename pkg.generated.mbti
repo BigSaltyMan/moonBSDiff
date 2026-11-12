@@ -10,6 +10,8 @@ pub fn apply(Bytes, Bytes, Limits) -> Result[Bytes, BsdiffError]
 
 pub fn diff(Bytes, Bytes, Limits) -> Result[Bytes, BsdiffError]
 
+pub fn inspect_header(Bytes, Int64) -> Result[PatchInfo, BsdiffError]
+
 // Errors
 
 // Types and methods
@@ -74,6 +76,17 @@ pub fn Limits::for_diff() -> Self
 pub fn Limits::not_equal(Self, Self) -> Bool
 pub fn Limits::to_repr(Self) -> @debug.Repr
 pub fn Limits::validate(Self) -> Result[Unit, BsdiffError]
+
+pub struct PatchInfo {
+  patch_bytes : Int64
+  new_bytes : Int64
+  control_start : Int64
+  control_length : Int64
+  diff_start : Int64
+  diff_length : Int64
+  extra_start : Int64
+  extra_length : Int64
+}
 
 // Type aliases
 

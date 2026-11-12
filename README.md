@@ -160,6 +160,21 @@ the same validated configuration; raising one cap leaves every other cap intact.
 See the [full CLI option table](docs/cli.md#cli-overrides-unreleased-target-020).
 This does not expand measured size or memory/CPU guarantees.
 
+**Header-only inspection (also Unreleased, target 0.2.0):**
+
+```sh
+./_build/bin/linux/moonbsdiff inspect testdata/upstream/replace/patch.bin
+./_build/bin/linux/moonbsdiff inspect --json --max-patch-bytes 256KiB testdata/upstream/replace/patch.bin
+```
+
+Reports format, patch/declared-target sizes and compressed intervals. It reads a
+bounded patch (default 128 KiB), creates no output and does not decompress or
+restore. `header-only` and all unperformed checks are explicit; JSON byte counts
+and offsets are decimal strings with no Int64 precision loss. See [real output
+and schema](docs/inspect.md). Manifest/identity/deep verification is not provided.
+The minimal library `inspect_header`/read-only `PatchInfo` API is new in this
+unreleased source and leaves diff/apply/defaults unchanged.
+
 Paths containing Chinese characters or spaces must be quoted similarly.
 Our order is `patch OLD PATCH OUTPUT`; upstream is `bspatch OLD NEW PATCH`.
 Exit codes are 0 success, 2 arguments/configuration, 1 operation failure; errors go to stderr.

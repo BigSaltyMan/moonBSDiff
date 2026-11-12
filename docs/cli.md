@@ -50,12 +50,32 @@ Linux equivalents:
 The executable reports `moonbsdiff 0.1.0` from generated module metadata.
 CI checks generated source and actual --version against moon.mod to catch drift.
 Our order is **patch OLD PATCH OUTPUT**, different from upstream
-**bspatch OLD NEW PATCH**. Operations require exactly three file arguments; --show-limits takes none. Exit codes:
+**bspatch OLD NEW PATCH**. Diff/patch operations require exactly three file arguments; inspect takes one, and --show-limits takes none. Exit codes:
 0 success, 2 invalid command/arguments/configuration, 1 operation failure. Help/version use stdout;
 operation errors use stderr, with operation, relevant paths and core kind/stage/
 field/value/limit metadata where available. Successful diff/patch are silent.
 No overwrite switch, stdin protocol, network update or directory synchronization
 is provided.
+
+## Patch inspection (Unreleased, target 0.2.0)
+
+```sh
+./_build/bin/linux/moonbsdiff inspect testdata/upstream/replace/patch.bin
+./_build/bin/linux/moonbsdiff inspect --json testdata/upstream/replace/patch.bin
+./_build/bin/linux/moonbsdiff inspect --max-patch-bytes 256KiB testdata/upstream/replace/patch.bin
+```
+
+Only --json and --max-patch-bytes are supported for inspect, with the same
+options-before-path and -- rules as Commit 17. The default read cap is 128 KiB;
+byte parsing/ranges are unchanged. The single file is bounded before parsing.
+Text/JSON go to stdout only on success; errors use stderr and exit 2 (arguments)
+or 1 (read/format). No output file or temporary delivery file is created.
+Inspection validates only the header and physical ranges, not streams/CRC,
+controls, restoration or identity. Declared output sizes are reported without
+allocation or apply policy. [Inspection schema and real outputs](inspect.md)
+describe decimal-string byte fields, lossless Int64 and JSON escaping. This is
+not --deep, manifest validation or a full patch-verification command. The feature
+is not in published 0.1.0; generated CLI version remains module metadata.
 
 ## Dependencies and native isolation
 

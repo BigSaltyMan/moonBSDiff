@@ -11,3 +11,15 @@ The parser validates Limits first, checks the actual patch size against its limi
 The parser itself covers integer encoding and envelope ranges. The private compression adapter now enforces one complete CRC-checked bzip2 stream per selected interval, with no concatenated stream or trailing complete byte and with pre-expansion decompression budgets. Its logical end position excludes the final byte's alignment bits; no extra zero-padding restriction is imposed. See [compression.md](compression.md). Public apply validates control instructions and complete decoded consumption. Both legal-input interoperability directions are recorded in [compatibility.md](compatibility.md); this is not a proof covering every malformed input.
 
 The public apply API now integrates these ranges with strict decoding, checked control execution and exact decoded consumption. See [application behavior](apply.md) for implemented limits and error locations.
+
+## Header-only inspection (0.2.0 Unreleased)
+
+The new inspect_header metadata API and CLI inspect share the original structural
+checks with apply. The apply wrapper retains validated Limits and its output-size
+cap; inspect uses only a positive Int-indexable patch byte cap. It reports the
+nonnegative declared Int64 target even when larger than apply/platform output
+policies, without allocating target bytes. A successful header-only result proves
+only magic, integer and physical-range structure. It does not check bzip2 streams,
+CRC, controls, full consumption, restoration or identity; zero-length compressed
+ranges are still merely structural. See [schema and examples](inspect.md). This
+is not included in the published 0.1.0 API and does not change BSDIFF40.

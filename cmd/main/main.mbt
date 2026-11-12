@@ -64,6 +64,10 @@ fn print_help() -> Unit {
   println("moonbsdiff diff OLD_FILE NEW_FILE PATCH_FILE")
   println("moonbsdiff patch OLD_FILE PATCH_FILE OUTPUT_FILE")
   println("moonbsdiff --help | --version")
+  println("moonbsdiff inspect [--json] [--max-patch-bytes VALUE] PATCH_FILE")
+  println(
+    "inspect is header-only: streams/CRC, controls, restoration and identity are not checked.",
+  )
   println("With options: moonbsdiff diff|patch [OPTIONS] FILE FILE FILE")
   println(
     "Display only: moonbsdiff diff|patch [OPTIONS] --show-limits (no files)",
@@ -72,13 +76,13 @@ fn print_help() -> Unit {
     "Options precede all paths; -- ends options and allows leading '-' paths.",
   )
   println(
-    "Byte options (both commands): --max-old-bytes, --max-new-bytes, --max-output-bytes, --max-patch-bytes, --max-expanded-bytes VALUE",
+    "Byte options (diff/patch): --max-old-bytes, --max-new-bytes, --max-output-bytes, --max-patch-bytes, --max-expanded-bytes VALUE",
   )
   println(
     "Bytes: positive ASCII decimal with optional case-sensitive B, KiB or MiB; no spaces or signs.",
   )
   println(
-    "Count (both): --max-controls VALUE. Diff only: --max-sort-work, --max-match-work VALUE.",
+    "Count (diff/patch): --max-controls VALUE. Diff only: --max-sort-work, --max-match-work VALUE.",
   )
   println(
     "Counts/work: positive decimal integers, no units. Each option occurs at most once; use separate values, not '='.",
@@ -161,6 +165,7 @@ struct CliConfig {
   operation : String
   limits : @moonbsdiff.Limits
   show : Bool
+  json : Bool
   files : Array[String]
 }
 
@@ -172,9 +177,10 @@ fn leading_dash(text : String) -> Bool {
 
 ///|
 fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
-  if args.length() < 2 || (args[1] != "diff" && args[1] != "patch") {
+  if args.length() < 2 ||
+    (args[1] != "diff" && args[1] != "patch" && args[1] != "inspect") {
     return Err(
-      "expected diff OLD NEW PATCH or patch OLD PATCH OUTPUT; use --help",
+      "expected diff OLD NEW PATCH, patch OLD PATCH OUTPUT, or inspect PATCH; use --help",
     )
   }
   let operation = args[1]
@@ -188,6 +194,7 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
   }
   let seen : Array[String] = []
   let mut show = false
+  let mut json = false
   let mut escaped = false
   let mut i = 2
   while i < args.length() {
@@ -200,7 +207,18 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
     if !leading_dash(option) {
       break
     }
+    if operation == "inspect" &&
+      option != "--json" &&
+      option != "--max-patch-bytes" {
+      return Err(option + " is not applicable to inspect")
+    }
     let bytes = match option {
+      "--json" => {
+        if operation != "inspect" {
+          return Err("--json is only applicable to inspect")
+        }
+        false
+      }
       "--show-limits" => false
       "--max-old-bytes"
       | "--max-new-bytes"
@@ -220,6 +238,11 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
       return Err("duplicate option: " + option)
     }
     seen.push(option)
+    if option == "--json" {
+      json = true
+      i = i + 1
+      continue
+    }
     if option == "--show-limits" {
       show = true
       i = i + 1
@@ -260,14 +283,15 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
       "--show-limits accepts no file arguments and never executes an operation",
     )
   }
-  if !show && files.length() != 3 {
-    return Err("expected exactly three file arguments; use --help")
+  let expected = if operation == "inspect" { 1 } else { 3 }
+  if !show && files.length() != expected {
+    return Err("expected exactly \{expected} file arguments; use --help")
   }
   match limits.validate() {
     Ok(_) => ()
     Err(e) => return Err(@debug.to_string(e))
   }
-  Ok({ operation, limits, show, files, })
+  Ok({ operation, limits, show, json, files, })
 }
 
 ///|
@@ -324,6 +348,10 @@ fn main {
   if config.show {
     show_limits(config)
     @env.exit(0)
+  }
+  if config.operation == "inspect" {
+    inspect_command(config)
+    return
   }
   let operation = config.operation
   let limits = config.limits

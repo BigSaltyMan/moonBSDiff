@@ -16,8 +16,35 @@ fn parse_header(
     Err(e) => return Err(e)
     Ok(_) => ()
   }
+  let ranges = match parse_envelope(data, limits.max_patch_bytes) {
+    Ok(value) => value
+    Err(e) => return Err(e)
+  }
+  let output = ranges.new_size
+  if output > limits.max_output_bytes {
+    return Err(
+      format_error(
+        ResourceLimitExceeded,
+        Header,
+        None,
+        Some(24L),
+        Some("max_output_bytes"),
+        Some(output),
+        Some(limits.max_output_bytes),
+      ),
+    )
+  }
+  Ok(ranges)
+}
+
+///|
+// Shared structural checks. No decoding and no restored-buffer size policy.
+fn parse_envelope(
+  data : Bytes,
+  max_patch_bytes : Int64,
+) -> Result[PatchRanges, BsdiffError] {
   let total = data.length().to_int64()
-  if total > limits.max_patch_bytes {
+  if total > max_patch_bytes {
     return Err(
       format_error(
         ResourceLimitExceeded,
@@ -26,7 +53,7 @@ fn parse_header(
         None,
         Some("max_patch_bytes"),
         Some(total),
-        Some(limits.max_patch_bytes),
+        Some(max_patch_bytes),
       ),
     )
   }
@@ -146,24 +173,60 @@ fn parse_header(
       ),
     )
   }
-  if output > limits.max_output_bytes {
-    return Err(
-      format_error(
-        ResourceLimitExceeded,
-        Header,
-        None,
-        Some(24L),
-        Some("max_output_bytes"),
-        Some(output),
-        Some(limits.max_output_bytes),
-      ),
-    )
-  }
   Ok({
     control_start: 32,
     control_end: control_end.to_int(),
     diff_end: diff_end.to_int(),
     extra_end: data.length(),
     new_size: output,
+  })
+}
+
+///|
+/// Read-only envelope metadata; it makes no claim about compressed/control data.
+pub struct PatchInfo {
+  patch_bytes : Int64
+  new_bytes : Int64
+  control_start : Int64
+  control_length : Int64
+  diff_start : Int64
+  diff_length : Int64
+  extra_start : Int64
+  extra_length : Int64
+}
+
+///|
+/// Check BSDIFF40 header/ranges only. The positive Int-indexable patch cap is
+/// independent of apply defaults. Never decompresses or allocates restored bytes.
+pub fn inspect_header(
+  data : Bytes,
+  max_patch_bytes : Int64,
+) -> Result[PatchInfo, BsdiffError] {
+  if max_patch_bytes <= 0L || max_patch_bytes > 2147483647L {
+    return Err(
+      format_error(
+        InvalidConfiguration,
+        Configuration,
+        None,
+        None,
+        Some("max_patch_bytes"),
+        Some(max_patch_bytes),
+        Some(2147483647L),
+      ),
+    )
+  }
+  let ranges = match parse_envelope(data, max_patch_bytes) {
+    Ok(value) => value
+    Err(e) => return Err(e)
+  }
+  Ok({
+    patch_bytes: data.length().to_int64(),
+    new_bytes: ranges.new_size,
+    control_start: ranges.control_start.to_int64(),
+    control_length: (ranges.control_end - ranges.control_start).to_int64(),
+    diff_start: ranges.control_end.to_int64(),
+    diff_length: (ranges.diff_end - ranges.control_end).to_int64(),
+    extra_start: ranges.diff_end.to_int64(),
+    extra_length: (ranges.extra_end - ranges.diff_end).to_int64(),
   })
 }

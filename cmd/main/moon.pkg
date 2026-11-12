@@ -3,6 +3,7 @@ import {
   "moonbitlang/core/env",
   "moonbitlang/core/encoding/utf8",
   "moonbitlang/core/debug",
+  "moonbitlang/core/json",
 }
 
 supported_targets = "-all+native"
