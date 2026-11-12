@@ -5,7 +5,7 @@ ROOT=pathlib.Path(__file__).resolve().parents[1]
 def main():
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('--candidate',type=pathlib.Path);p.add_argument('--audit',required=True,type=pathlib.Path);p.add_argument('--targets',nargs='+',choices=['native','js','wasm-gc'],default=['js','wasm-gc']);a=p.parse_args()
     audit=json.loads(a.audit.read_text(encoding='utf8'));folder=pathlib.Path(tempfile.mkdtemp(prefix='moonbsdiff-consumer-'));sdk=folder/'sdk';sdk.mkdir()
-    original=pathlib.Path(os.environ['MOON_HOME']).resolve()
+    original=pathlib.Path(os.environ['MOON_HOME']).resolve() if os.environ.get('MOON_HOME') else pathlib.Path(shutil.which('moon')).resolve().parent.parent
     for name in ['bin','include','lib','share']:shutil.copytree(original/name,sdk/name)
     env=dict(os.environ,MOON_HOME=str(sdk),PATH=str(sdk/'bin')+os.pathsep+os.environ['PATH']);project=folder/'consumer';project.mkdir()
     commands=[]
