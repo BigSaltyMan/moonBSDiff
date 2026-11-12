@@ -1,12 +1,12 @@
 # MoonBSDiff
 
-MoonBSDiff is a MoonBit reference port of BSDiff 4.3 under development for binary diffs and patches. The current stage implements structured errors, `Limits::validate`, internal BSDIFF40 integer/envelope parsing, and a private bounded bzip2 adapter. Public diff and apply APIs now generate and restore strict BSDIFF40 patches. A native Windows/Linux CLI is available; see [CLI build and file contracts](docs/cli.md). Compression uses moonzip 0.3.5 at level 9; strict bounded decoding uses its attributed, adapted sources under `internal/bzip2/`.
+MoonBSDiff is a MoonBit reference port of BSDiff 4.3 for binary diffs and patches. The current stage implements structured errors, `Limits::validate`, internal BSDIFF40 integer/envelope parsing, and a private bounded bzip2 adapter. Public diff and apply APIs now generate and restore strict BSDIFF40 patches. A native Windows/Linux CLI is available; see [CLI build and file contracts](docs/cli.md). Compression uses moonzip 0.3.5 at level 9; strict bounded decoding uses its attributed, adapted sources under `internal/bzip2/`.
 
 The `Limits` fields for old, new, patch and output buffer sizes are byte counts in 1..2147483647, bounded for Int indexing. `max_decompressed_bytes` is an aggregate byte count, `max_control_instructions` counts instructions, and `max_sort_work` / `max_match_work` count algorithm-defined work units; each is a positive Int64. Sorting visits accumulate across index rounds; matching/generation visits accumulate across scan, raw encoding, compression-wrapper copies and final assembly; see [generation resources](docs/generation-resources.md). Limits::for_apply() supplies conservative application defaults: old/new/output 1 MiB each, patch 64 KiB, total decompression 2 MiB and 16384 instructions. Sorting/matching fields are unused positive placeholders, not generation defaults; use the separate measured Limits::for_diff() policy for generation. Validation means only that a configuration is legal, not that a complete patch operation has runtime resource protection. The private decoder now enforces per-call and shared decompression budgets. No cross-field relationships are imposed.
 
 Errors provide a kind, stage, and optional block, offset, field, value and limit. Missing details are `None`. See the generated interface for exact types.
 
-The verified local baseline is moon 0.1.20261102 and moonc 0.10.19+bee578715; the PATH default 0.10.13 is older and was not used for final validation. `moon.mod` declares moonzip 0.3.5; `moon tree` reports the resolved transitive versions in [sources](docs/upstream.md). No version lockfile was generated: `.mooncakes/.moon-lock` is an empty synchronization file, not a dependency lock. The resolved tree is a snapshot and should be rechecked; the transitive versions are not reproducibly locked by this repository. The module name is not a publication or namespace availability guarantee. The source repository is [BigSaltyMan/moonBSDiff](https://github.com/BigSaltyMan/moonBSDiff).
+The verified local baseline is moon 0.1.20261102 and moonc 0.10.19+bee578715; the PATH default 0.10.13 is older and was not used for final validation. `moon.mod` declares moonzip 0.3.5; `moon tree` reports the resolved transitive versions in [sources](docs/upstream.md). No version lockfile was generated: `.mooncakes/.moon-lock` is an empty synchronization file, not a dependency lock. The resolved tree is a snapshot and should be rechecked; the transitive versions are not reproducibly locked by this repository. Version 0.1.0 is published as BigSaltyMan/moonbsdiff; [publication evidence](docs/release-0.1.0.md) distinguishes uploaded source, package and later documentation. The source repository is [BigSaltyMan/moonBSDiff](https://github.com/BigSaltyMan/moonBSDiff).
 
 From a configured native toolchain, run:
 
@@ -115,9 +115,9 @@ let result = @moonbsdiff.diff(old_bytes, new_bytes, limits)
 ```
 
 The [repository development plan](docs/development-plan.md) preserves the source
-plan dated 2026-11-04 and distinguishes completed stages from Commit 12-16.
-The native CLI is implemented. Release/package audit and registry-consumer verification remain
-planned. No tag, Mooncakes publication or GitHub Release is part of this stage.
+plan dated 2026-11-04 and records the completed 16-stage first-release scope.
+The native CLI is implemented, and 0.1.0 package audit, publication and independent
+registry consumption are recorded separately. No tag or GitHub Release was created.
 
 
 ## Native CLI
@@ -173,7 +173,7 @@ These are source checks, not registry-consumer or release acceptance.
 
 ## Executable examples
 
-From this source checkout (no unpublished Mooncakes install):
+From this source checkout (registry library installation is shown below):
 
 ```sh
 moon run cmd/example --target js
@@ -197,14 +197,29 @@ input hashes, patch sizes and a same-input BSDiff 4.3 comparison. These include
 startup and file IO; core API time and reliable peak memory were not measured.
 Validate the retained record offline with `python scripts/benchmark.py --verify`.
 The 0.1.0 feature scope is frozen; see [CHANGELOG](CHANGELOG.md) and the
-[development plan](docs/development-plan.md). Package audit, final validation,
-Mooncakes publication and independent registry consumption remain pending.
-No registry installation or release download is claimed available.
+[development plan](docs/development-plan.md). Completed package audit, final-source
+CI, Mooncakes publication and independent consumer results are in the
+[0.1.0 publication record](docs/release-0.1.0.md). No prebuilt CLI download is provided.
 
 ## Release acceptance
 
 0.1.0 release preparation and exact source/package/CI identity rules are in
 [acceptance](docs/acceptance.md). The candidate is audited from `git archive`,
 not a mutable working directory. Actual publication and registry installation
-will be documented separately after they succeed; candidate use is not registry
-consumption. There is no prebuilt CLI download or GitHub Release in this step.
+are recorded in [release 0.1.0](docs/release-0.1.0.md); candidate use is separately
+labeled. There is no prebuilt CLI download or GitHub Release in this step.
+
+## Install the published library
+
+In an existing MoonBit module using the verified compiler baseline:
+
+```sh
+moon add BigSaltyMan/moonbsdiff@0.1.0
+```
+
+Add `"BigSaltyMan/moonbsdiff"` to the package's `import` block, then use the
+public API shown above. Fresh-cache external Windows consumption passed
+native, JS and Wasm-GC with full-byte restoration checks. Local Linux registry
+bootstrap encountered a network failure; Linux source/CLI and three-target
+candidate checks passed separately in CI. See the release record for exact
+source/package identities and the distinction from the later docs commit.

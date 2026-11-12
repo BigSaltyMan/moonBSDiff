@@ -1,5 +1,9 @@
 # 0.1.0 source/package acceptance
 
+Post-publication update: [actual release evidence](release-0.1.0.md) now records
+successful source CI, upload and Windows three-target registry consumption.
+The preparation procedure below is retained with its original evidence boundary.
+
 The release source is frozen only after its commit has passed the matching CI.
 This preparation document does not assert a future upload or registry consumer.
 The post-publication record is a separate documentation commit that must identify

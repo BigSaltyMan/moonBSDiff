@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.0 — Unreleased
+## 0.1.0 — 2026-11-12
 
 - In-memory diff/apply with structured errors, validated explicit Limits and
   separate for_diff/for_apply defaults.
@@ -22,10 +22,12 @@ BSDIFF40 has no old-file identity hash. Linux CLI output requires O_TMPFILE and
 not full CPU, wall-clock or process peak-memory budgets. See docs for exact scope.
 
 Feature scope is frozen. No new formats, sync/network/GUI/tuning interfaces or
-broader guarantees will be added for 0.1.0. Compatibility fixes and final audit,
-validation, publication and independent registry consumption remain pending.
-No release date, published package, tag or download asset is claimed here.
+broader guarantees will be added for 0.1.0. The source audit, final-source CI, publication and independent registry
+consumption are complete; [release evidence](docs/release-0.1.0.md) records exact
+identities and remaining network/platform boundaries. No tag or binary download
+asset was created. Compatibility fixes remain possible within this scope.
 
 Release preparation: clean-source package audit, byte-checked external candidate
-consumer and fresh-cache registry consumer entry point. Publication status is
-recorded separately after upload; this source does not prefill release success.
+consumer and fresh-cache registry consumer entry point. Actual publication status is
+recorded separately in the post-publication document; the uploaded preparation
+source did not prefill release success.
