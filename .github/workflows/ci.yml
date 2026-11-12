@@ -145,6 +145,7 @@ jobs:
         run: |
           python3 scripts/build_cli.py
           python3 scripts/test_cli.py --exe _build/bin/linux/moonbsdiff
+          python3 scripts/test_cli_limits.py --exe _build/bin/linux/moonbsdiff
       - name: Memory library and fixed Wasm update examples (once, Linux only)
         if: runner.os == 'Linux'
         run: python3 scripts/run_examples.py --cli _build/bin/linux/moonbsdiff
@@ -158,7 +159,7 @@ jobs:
           $vs = & "${env:ProgramFiles(x86)}/Microsoft Visual Studio/Installer/vswhere.exe" -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
           if (-not $vs) { throw 'MSVC build tools not found' }
           $dev = Join-Path $vs 'VC/Auxiliary/Build/vcvars64.bat'
-          cmd /c "call `"$dev`" >nul && python scripts/build_cli.py && python scripts/test_cli.py --exe _build/bin/windows/moonbsdiff.exe"
+          cmd /c "call `"$dev`" >nul && python scripts/build_cli.py && python scripts/test_cli.py --exe _build/bin/windows/moonbsdiff.exe && python scripts/test_cli_limits.py --exe _build/bin/windows/moonbsdiff.exe"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
   reference:

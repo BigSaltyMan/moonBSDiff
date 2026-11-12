@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.0 — Unreleased
+
+- CLI diff/patch accept explicit resource caps with checked decimal and B/KiB/MiB
+  byte parsing; work/control counts use positive decimals without units.
+- --show-limits displays effective configuration without file IO; patch rejects
+  unused sort/match options, and -- permits leading-hyphen paths.
+- One validated configuration controls input reads and core calls. Defaults,
+  library API, dependencies and no-overwrite delivery remain unchanged.
+- These additions are source-only, not part of published 0.1.0.
+
 ## 0.1.0 — 2026-11-12
 
 - In-memory diff/apply with structured errors, validated explicit Limits and

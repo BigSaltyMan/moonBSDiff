@@ -50,8 +50,8 @@ Linux equivalents:
 The executable reports `moonbsdiff 0.1.0` from generated module metadata.
 CI checks generated source and actual --version against moon.mod to catch drift.
 Our order is **patch OLD PATCH OUTPUT**, different from upstream
-**bspatch OLD NEW PATCH**. Exactly three file arguments are required. Exit codes:
-0 success, 2 invalid command/arguments, 1 operation failure. Help/version use stdout;
+**bspatch OLD NEW PATCH**. Operations require exactly three file arguments; --show-limits takes none. Exit codes:
+0 success, 2 invalid command/arguments/configuration, 1 operation failure. Help/version use stdout;
 operation errors use stderr, with operation, relevant paths and core kind/stage/
 field/value/limit metadata where available. Successful diff/patch are silent.
 No overwrite switch, stdin protocol, network update or directory synchronization
@@ -82,7 +82,7 @@ paths were actually exercised on both platforms.
 
 ## Limits and bounded reads
 
-`diff` uses Limits::for_diff unchanged. `patch` starts from Limits::for_apply and
+Without overrides, `diff` uses Limits::for_diff unchanged. `patch` starts from Limits::for_apply and
 changes **only max_patch_bytes to 131072**, taking the value from for_diff.
 This accepts default generator output without changing either measured library
 factory or relaxing unrelated application limits.
@@ -111,6 +111,86 @@ checks. This is in-memory processing, not a streaming core algorithm.
 Concurrent file mutation is not a consistent snapshot guarantee. BSDIFF40 does
 not contain old-file identity hashes; callers must verify intended old and new
 hashes externally. Input buffers/files are never written by product operations.
+
+## CLI overrides (Unreleased, target 0.2.0)
+
+These source-checkout additions are **not included in published 0.1.0**. The
+module-generated version string is still 0.1.0 until the next release is prepared;
+use the checkout SHA to identify unreleased CLI behavior. No library defaults,
+public signatures, dependencies or native file-delivery mechanisms changed.
+
+```text
+moonbsdiff diff [OPTIONS] OLD NEW PATCH
+moonbsdiff patch [OPTIONS] OLD PATCH OUTPUT
+moonbsdiff diff [OPTIONS] --show-limits
+moonbsdiff patch [OPTIONS] --show-limits
+```
+
+All options precede all three paths. Each option takes a separate value token;
+`--option=value` is rejected. `--` ends option parsing; paths beginning with `-`
+require this separator, e.g. `moonbsdiff diff -- -old -new -patch`. Unknown,
+repeated (even identical) or inapplicable options, missing values, misplaced
+options and wrong path counts exit 2 before file IO. No config file/environment
+overrides or implicit unlimited setting exists.
+
+| Option | Limits field | Applies to | Meaning |
+| --- | --- | --- | --- |
+| --max-old-bytes | max_old_bytes | diff, patch | Old input read and core input cap |
+| --max-new-bytes | max_new_bytes | diff, patch | New file read/target size for diff; declared restored size for patch |
+| --max-output-bytes | max_output_bytes | diff, patch | Target buffer/size cap, independent of max_new_bytes; not compressed patch output |
+| --max-patch-bytes | max_patch_bytes | diff, patch | Generated final patch cap for diff; patch file read/core cap for patch |
+| --max-expanded-bytes | max_decompressed_bytes | diff, patch | Raw control+diff+extra aggregate for diff; cumulative decoded aggregate for patch |
+| --max-controls | max_control_instructions | diff, patch | Control triple count |
+| --max-sort-work | max_sort_work | diff only | Cumulative suffix-index work units |
+| --max-match-work | max_match_work | diff only | Cumulative matching and generation work units |
+
+Byte values are ASCII positive decimals, optionally followed immediately by
+case-sensitive B, KiB (1024) or MiB (1048576), e.g. 256KiB. No signs, whitespace,
+decimal fractions, separators or other units are accepted. Control/work values
+are positive ASCII decimal integers with **no suffix**. Leading zeros are allowed
+but an all-zero value is rejected. Decimal and unit multiplication are checked
+against Int64 maximum before arithmetic; Limits::validate then checks the four
+individual buffer caps in 1..2147483647. Expanded aggregate, controls and work
+are in 1..9223372036854775807. Zero/negative values never mean unlimited.
+
+`--show-limits` takes no value and cannot be combined with file parameters. It
+prints the operation and effective field values after defaults plus overrides,
+with actual byte counts and units, exits 0, and performs no input/output/core
+operation. Invalid configuration exits 2. Patch labels sorting/matching as unused
+rather than exposing the apply factory's placeholder 1 as an effective budget.
+For example, from a built source checkout:
+
+```sh
+./_build/bin/linux/moonbsdiff diff --max-old-bytes 256KiB --show-limits
+./_build/bin/linux/moonbsdiff patch --show-limits
+```
+
+The first displays max_old_bytes: 262144 bytes, while max_new_bytes and
+max_output_bytes remain 65536 bytes and sort/match remain 8388608 work units.
+An explicit small file operation (5-byte old and 6-byte new in the directed test):
+
+```sh
+./_build/bin/linux/moonbsdiff diff --max-old-bytes 5B --max-new-bytes 6 --max-output-bytes 6B --max-patch-bytes 1KiB --max-expanded-bytes 1KiB --max-controls 4 --max-sort-work 4096 --max-match-work 65536 old.bin new.bin update.patch
+```
+
+The parser finishes and validates the complete configuration before the early
+output check or any read. The same validated Limits supplies native read caps
+(old, new or patch), is narrowed only within the proven Int range, and is passed
+to public diff/apply. Read failures name the field and effective byte cap; core
+failures retain kind/stage/field/value/limit. Output/delivery logic is unchanged.
+Raising one cap never raises another; for example raising new alone can still
+fail the output or work quota. Accepting a numeric limit does not establish
+performance/peak-memory acceptance at that size. Linux O_TMPFILE and /proc and
+no-overwrite requirements still apply.
+
+Directed verification: `python scripts/test_cli_limits.py --exe PATH_TO_CLI`.
+This reuses existing file/error helpers but runs only five new CLI contracts
+(38 subprocess calls): display/defaults/units, default and explicit roundtrips,
+reader/core enforcement and failure recovery, 19 invalid-argument table rows,
+and `--` paths. Windows and Linux passed with no skips. Target/output-buffer size limits retain
+the existing Header preflight error stage. Historical 31-file/9-private suites,
+142 library tests, interoperability and resource measurements were not rerun
+locally; existing CI retains them and adds this collection after its CLI build.
 
 ## Identity and no-overwrite delivery
 

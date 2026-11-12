@@ -145,16 +145,31 @@ Python is a build/test tool, not a runtime dependency of the CLI.
 ./_build/bin/linux/moonbsdiff patch 'old file.bin' 'update.patch' 'restored file.bin'
 ```
 
+**Unreleased CLI additions (target 0.2.0, absent from published 0.1.0):**
+
+```sh
+./_build/bin/linux/moonbsdiff diff --max-old-bytes 256KiB --show-limits
+./_build/bin/linux/moonbsdiff patch --show-limits
+```
+
+Eight explicit byte/count/work caps can override the unchanged defaults. Options
+precede paths, `--` permits leading-hyphen paths, and display mode accepts no
+files and performs no IO. Byte units are case-sensitive B/KiB/MiB; count/work
+values have no units. Patch rejects sort/match options. The reader and core use
+the same validated configuration; raising one cap leaves every other cap intact.
+See the [full CLI option table](docs/cli.md#cli-overrides-unreleased-target-020).
+This does not expand measured size or memory/CPU guarantees.
+
 Paths containing Chinese characters or spaces must be quoted similarly.
 Our order is `patch OLD PATCH OUTPUT`; upstream is `bspatch OLD NEW PATCH`.
-Exit codes are 0 success, 2 arguments, 1 operation failure; errors go to stderr.
+Exit codes are 0 success, 2 arguments/configuration, 1 operation failure; errors go to stderr.
 Existing outputs, including links/aliases of inputs, are refused. A target created
 during delivery is also preserved. Linux output requires O_TMPFILE and /proc;
 unsupported filesystems fail closed. There is no overwrite option or durability
 promise. [CLI details](docs/cli.md) explain bounded reads, handle-based cleanup,
 actual platform tests, source/version provenance and filesystem scope.
 
-Generation uses for_diff unchanged. CLI patch keeps for_apply's old/output,
+Without overrides, generation uses for_diff unchanged. CLI patch keeps for_apply's old/output,
 decode and instruction caps but raises only its patch cap from 64 KiB to 128 KiB,
 matching the generator; a real 66279-byte patch roundtrip is tested. The library
 factories are unchanged. BSDIFF40 does not authenticate the old file or result;

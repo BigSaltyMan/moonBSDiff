@@ -60,43 +60,276 @@ fn cli_args() -> Array[String] {
 }
 
 ///|
+fn print_help() -> Unit {
+  println("moonbsdiff diff OLD_FILE NEW_FILE PATCH_FILE")
+  println("moonbsdiff patch OLD_FILE PATCH_FILE OUTPUT_FILE")
+  println("moonbsdiff --help | --version")
+  println("With options: moonbsdiff diff|patch [OPTIONS] FILE FILE FILE")
+  println(
+    "Display only: moonbsdiff diff|patch [OPTIONS] --show-limits (no files)",
+  )
+  println(
+    "Options precede all paths; -- ends options and allows leading '-' paths.",
+  )
+  println(
+    "Byte options (both commands): --max-old-bytes, --max-new-bytes, --max-output-bytes, --max-patch-bytes, --max-expanded-bytes VALUE",
+  )
+  println(
+    "Bytes: positive ASCII decimal with optional case-sensitive B, KiB or MiB; no spaces or signs.",
+  )
+  println(
+    "Count (both): --max-controls VALUE. Diff only: --max-sort-work, --max-match-work VALUE.",
+  )
+  println(
+    "Counts/work: positive decimal integers, no units. Each option occurs at most once; use separate values, not '='.",
+  )
+  println(
+    "Expanded bytes: raw control/diff/extra for diff; cumulative decoded bytes for patch.",
+  )
+  println(
+    "New and output caps constrain the target independently; patch bytes have a separate cap.",
+  )
+  println(
+    "Match work includes generation; increasing one cap does not increase any other.",
+  )
+
+  println(
+    "Binary files only. Existing outputs (including links) are never replaced.",
+  )
+  println(
+    "diff: old/new/output 65536 bytes, patch 131072, raw 262144, 4096 controls; sort/match 8388608 each.",
+  )
+  println(
+    "patch: old/output 1048576 bytes, patch 131072, decoded 2097152, 16384 controls.",
+  )
+  println(
+    "Linux output requires O_TMPFILE and /proc; no unsafe fallback. No durability guarantee.",
+  )
+  println(
+    "Exit codes: 0 success, 2 arguments, 1 operation failure. BSDIFF40 does not identify the old file.",
+  )
+}
+
+///|
+// ASCII-only positive decimals; reserve both decimal and unit arithmetic before use.
+fn parse_limit(text : String, bytes : Bool) -> Result[Int64, String] {
+  let raw = @utf8.encode(text[:])
+  let mut end = raw.length()
+  let mut multiplier = 1L
+  if bytes &&
+    end >= 3 &&
+    raw[end - 2].to_int() == 105 &&
+    raw[end - 1].to_int() == 66 {
+    if raw[end - 3].to_int() == 75 {
+      multiplier = 1024L
+      end = end - 3
+    } else if raw[end - 3].to_int() == 77 {
+      multiplier = 1048576L
+      end = end - 3
+    }
+  } else if bytes && end >= 1 && raw[end - 1].to_int() == 66 {
+    end = end - 1
+  }
+  if end == 0 {
+    return Err("expected a positive decimal value")
+  }
+  let mut value = 0L
+  for i = 0; i < end; i = i + 1 {
+    let digit = raw[i].to_int() - 48
+    if digit < 0 || digit > 9 {
+      return Err(
+        "expected ASCII digits" +
+        (if bytes { " with optional B, KiB or MiB" } else { " without units" }),
+      )
+    }
+    if value > (9223372036854775807L - digit.to_int64()) / 10L {
+      return Err("decimal value overflows Int64")
+    }
+    value = value * 10L + digit.to_int64()
+  }
+  if value == 0L {
+    return Err("value must be positive; zero is not unlimited")
+  }
+  if value > 9223372036854775807L / multiplier {
+    return Err("unit conversion overflows Int64")
+  }
+  Ok(value * multiplier)
+}
+
+///|
+struct CliConfig {
+  operation : String
+  limits : @moonbsdiff.Limits
+  show : Bool
+  files : Array[String]
+}
+
+///|
+fn leading_dash(text : String) -> Bool {
+  let raw = @utf8.encode(text[:])
+  raw.length() > 0 && raw[0].to_int() == 45
+}
+
+///|
+fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
+  if args.length() < 2 || (args[1] != "diff" && args[1] != "patch") {
+    return Err(
+      "expected diff OLD NEW PATCH or patch OLD PATCH OUTPUT; use --help",
+    )
+  }
+  let operation = args[1]
+  let mut limits = if operation == "diff" {
+    @moonbsdiff.Limits::for_diff()
+  } else {
+    {
+      ..@moonbsdiff.Limits::for_apply(),
+      max_patch_bytes: @moonbsdiff.Limits::for_diff().max_patch_bytes,
+    }
+  }
+  let seen : Array[String] = []
+  let mut show = false
+  let mut escaped = false
+  let mut i = 2
+  while i < args.length() {
+    let option = args[i]
+    if option == "--" {
+      escaped = true
+      i = i + 1
+      break
+    }
+    if !leading_dash(option) {
+      break
+    }
+    let bytes = match option {
+      "--show-limits" => false
+      "--max-old-bytes"
+      | "--max-new-bytes"
+      | "--max-output-bytes"
+      | "--max-patch-bytes"
+      | "--max-expanded-bytes" => true
+      "--max-controls" => false
+      "--max-sort-work" | "--max-match-work" => {
+        if operation == "patch" {
+          return Err(option + " is not applicable to patch")
+        }
+        false
+      }
+      _ => return Err("unknown option: " + option)
+    }
+    if seen.contains(option) {
+      return Err("duplicate option: " + option)
+    }
+    seen.push(option)
+    if option == "--show-limits" {
+      show = true
+      i = i + 1
+      continue
+    }
+    if i + 1 >= args.length() {
+      return Err("missing value for " + option)
+    }
+    let value = match parse_limit(args[i + 1], bytes) {
+      Ok(v) => v
+      Err(e) => return Err(option + ": " + e)
+    }
+    limits = match option {
+      "--max-old-bytes" => { ..limits, max_old_bytes: value, }
+      "--max-new-bytes" => { ..limits, max_new_bytes: value, }
+      "--max-output-bytes" => { ..limits, max_output_bytes: value, }
+      "--max-patch-bytes" => { ..limits, max_patch_bytes: value, }
+      "--max-expanded-bytes" => { ..limits, max_decompressed_bytes: value, }
+      "--max-controls" => { ..limits, max_control_instructions: value, }
+      "--max-sort-work" => { ..limits, max_sort_work: value, }
+      "--max-match-work" => { ..limits, max_match_work: value, }
+      _ => limits
+    }
+    i = i + 2
+  }
+  let files : Array[String] = []
+  while i < args.length() {
+    if !escaped && leading_dash(args[i]) {
+      return Err(
+        "options must precede file arguments; use -- before paths starting with '-'",
+      )
+    }
+    files.push(args[i])
+    i = i + 1
+  }
+  if show && files.length() != 0 {
+    return Err(
+      "--show-limits accepts no file arguments and never executes an operation",
+    )
+  }
+  if !show && files.length() != 3 {
+    return Err("expected exactly three file arguments; use --help")
+  }
+  match limits.validate() {
+    Ok(_) => ()
+    Err(e) => return Err(@debug.to_string(e))
+  }
+  Ok({ operation, limits, show, files, })
+}
+
+///|
+fn show_limits(config : CliConfig) -> Unit {
+  let l = config.limits
+  println("operation: \{config.operation}")
+  println("max_old_bytes: \{l.max_old_bytes} bytes")
+  println("max_new_bytes: \{l.max_new_bytes} bytes")
+  println(
+    "max_output_bytes: \{l.max_output_bytes} bytes (target buffer; patch has separate cap)",
+  )
+  println("max_patch_bytes: \{l.max_patch_bytes} bytes")
+  let meaning = if config.operation == "diff" {
+    "raw control + diff + extra"
+  } else {
+    "cumulative decoded control + diff + extra"
+  }
+  println(
+    "max_decompressed_bytes: \{l.max_decompressed_bytes} bytes (\{meaning})",
+  )
+  println(
+    "max_control_instructions: \{l.max_control_instructions} instructions",
+  )
+  if config.operation == "diff" {
+    println("max_sort_work: \{l.max_sort_work} work units")
+    println(
+      "max_match_work: \{l.max_match_work} work units (matching + generation)",
+    )
+  } else {
+    println("max_sort_work: unused by patch (no generation budget)")
+    println("max_match_work: unused by patch (no generation budget)")
+  }
+}
+
+///|
 fn main {
   let args = cli_args()
   if args.length() == 2 && args[1] == "--help" {
-    println("moonbsdiff diff OLD_FILE NEW_FILE PATCH_FILE")
-    println("moonbsdiff patch OLD_FILE PATCH_FILE OUTPUT_FILE")
-    println("moonbsdiff --help | --version")
-    println(
-      "Binary files only. Existing outputs (including links) are never replaced.",
-    )
-    println(
-      "diff: old/new/output 65536 bytes, patch 131072, raw 262144, 4096 controls; sort/match 8388608 each.",
-    )
-    println(
-      "patch: old/output 1048576 bytes, patch 131072, decoded 2097152, 16384 controls.",
-    )
-    println(
-      "Linux output requires O_TMPFILE and /proc; no unsafe fallback. No durability guarantee.",
-    )
-    println(
-      "Exit codes: 0 success, 2 arguments, 1 operation failure. BSDIFF40 does not identify the old file.",
-    )
+    print_help()
     @env.exit(0)
   }
   if args.length() == 2 && args[1] == "--version" {
     println("moonbsdiff \{cli_version}")
     @env.exit(0)
   }
-  if args.length() != 5 || (args[1] != "diff" && args[1] != "patch") {
-    stderr(
-      b"moonbsdiff: expected diff OLD NEW PATCH or patch OLD PATCH OUTPUT; use --help\n",
-    )
-    @env.exit(2)
+  let config = match parse_cli(args) {
+    Ok(v) => v
+    Err(e) => {
+      stderr(@utf8.encode(("moonbsdiff: " + e + "\n")[:]))
+      @env.exit(2)
+      return
+    }
   }
-  let operation = args[1]
-  let first = args[2]
-  let second = args[3]
-  let output = args[4]
+  if config.show {
+    show_limits(config)
+    @env.exit(0)
+  }
+  let operation = config.operation
+  let limits = config.limits
+  let first = config.files[0]
+  let second = config.files[1]
+  let output = config.files[2]
   if io_check(path_bytes(first), path_bytes(second), path_bytes(output)) == 0 {
     failure(
       operation +
@@ -110,17 +343,20 @@ fn main {
       @utf8.decode_lossy(io_error()[:]),
     )
   }
-  let limits = if operation == "diff" {
-    @moonbsdiff.Limits::for_diff()
-  } else {
-    {
-      ..@moonbsdiff.Limits::for_apply(),
-      max_patch_bytes: @moonbsdiff.Limits::for_diff().max_patch_bytes,
-    }
-  }
-  let old = read_input(operation + " read old", first, limits.max_old_bytes)
+  // All native caps were validated as positive Int-indexable bytes before any IO.
+  let old = read_input(
+    operation + " read old (max_old_bytes=\{limits.max_old_bytes} bytes)",
+    first,
+    limits.max_old_bytes,
+  )
   let other = read_input(
-    operation + " read " + (if operation == "diff" { "new" } else { "patch" }),
+    operation +
+    " read " +
+    (if operation == "diff" {
+      "new (max_new_bytes=\{limits.max_new_bytes} bytes)"
+    } else {
+      "patch (max_patch_bytes=\{limits.max_patch_bytes} bytes)"
+    }),
     second,
     if operation == "diff" {
       limits.max_new_bytes
