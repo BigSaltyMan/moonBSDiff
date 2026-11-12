@@ -1,0 +1,29 @@
+{
+  "schema": 1,
+  "toolchain": [
+    "moon 0.1.20261102 (ea07287 2026-11-02)",
+    "moonc v0.10.19+bee578715 (2026-11-02)"
+  ],
+  "target": "wasm-gc",
+  "flags": [
+    "--release",
+    "--strip"
+  ],
+  "source_sha256": {
+    "examples/wasm-update/v1/main.mbt": "f6a6a80afe32b9018c1e38d1a97511f7f1a8de2a0dacffd17d2c6ff2ba461699",
+    "examples/wasm-update/v1/moon.pkg": "c83259193dc267c7f22633bbf94ea886cd52e5961129eca1f8a6b67a9acae83d",
+    "examples/wasm-update/v2/main.mbt": "587a4b59c629bfa286127324ce4b03c23626bac6bf235418a4a70d9cc8a9510d",
+    "examples/wasm-update/v2/moon.pkg": "c83259193dc267c7f22633bbf94ea886cd52e5961129eca1f8a6b67a9acae83d"
+  },
+  "expected": {
+    "v1": {
+      "size": 3962,
+      "sha256": "8370502fe3589a72155618c507042401c463bce58f1f78c47e6361d9be5429ee"
+    },
+    "v2": {
+      "size": 3962,
+      "sha256": "3be4c97eef6dc8f5fc487451239cedcc521fa7b2b2f909dcb0ca07af5e3c01a0"
+    }
+  },
+  "origin": "Independent direct compilation before any diff/apply; Windows AMD64; other hosts must match, never auto-refresh"
+}

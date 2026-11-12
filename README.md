@@ -169,3 +169,23 @@ unchanged 31-input bidirectional matrix. `scripts/check_acceptance.py` rejects
 zero tests, failed children and stale/incomplete reference evidence. Actual CI
 results belong to its checkout SHA; historical reports are not current passes.
 These are source checks, not registry-consumer or release acceptance.
+
+
+## Executable examples
+
+From this source checkout (no unpublished Mooncakes install):
+
+```sh
+moon run cmd/example --target js
+python scripts/run_examples.py
+```
+
+The first command runs the pure [memory example](examples/basic/README.md).
+The second runs both new examples, builds two repository-owned Wasm-GC versions,
+uses the official CLI to generate/apply a patch, and checks full bytes and fixed
+independently compiled hashes. Requires pinned MoonBit, Node, Python 3 and a native
+C compiler; Windows uses an MSVC developer shell. Every run has a fresh ignored
+`_build/examples/run-<nonce>` directory and prints sizes, hashes and `EXAMPLES PASS`.
+A failure exits nonzero. [Wasm update instructions](examples/wasm-update/README.md)
+include CLI reuse and exact flags. These are demonstrations, not a benchmark,
+registry-consumer result or package release. Small-data patches can be larger.

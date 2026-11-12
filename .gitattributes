@@ -19,3 +19,5 @@ docs/development-plan.md text eol=lf
 cmd/main/native_io.c text eol=lf
 testdata/cli/*.json text eol=lf
 *.mbti text eol=lf
+examples/wasm-update/manifest.json text eol=lf
+examples/wasm-update/v*/* text eol=lf

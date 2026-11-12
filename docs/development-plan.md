@@ -4,7 +4,7 @@
 
 来源文件 SHA-256：`6e8b1419eee65adc5a15a4cc3d94de5a024e5753a8fbbd8fefce8c25631390a9`。
 
-以下记录截至本次 Commit 13 检查逻辑实施；原规划中的预计时间、CI、CLI 和发布描述仍是计划。仓库地址为 [BigSaltyMan/moonBSDiff](https://github.com/BigSaltyMan/moonBSDiff)，使用原规划指定的 `github-bigsalty` SSH 别名。GitHub 仓库名大小写不改变归属，模块名继续使用 `BigSaltyMan/moonbsdiff`。
+以下记录截至本次 Commit 14 示例实施；原规划中的预计时间、CI、CLI 和发布描述仍是计划。仓库地址为 [BigSaltyMan/moonBSDiff](https://github.com/BigSaltyMan/moonBSDiff)，使用原规划指定的 `github-bigsalty` SSH 别名。GitHub 仓库名大小写不改变归属，模块名继续使用 `BigSaltyMan/moonbsdiff`。
 
 ## 截至 Commit 10 的真实记录
 
@@ -54,13 +54,17 @@
 
 基线 `34f42433d8477af359bd278a1f700175fd9051b9`。复用现有测试、CLI和31输入清单，补 JS/Wasm-GC check/build、独立真实参考任务、非零测试与源码对应门禁。本地只验证新增检查逻辑和配置，不重跑旧矩阵。最终同一 SHA 的目标、CLI、参考执行交由正式 CI 并在完成报告核对，不预填成功。Commit 14—16继续待实施。
 
+## Commit 14 实施范围
+
+基线 `925087200396bde2d22c06b641fbf164e5c6fcf8`。新增公开 API 纯内存示例及自有两版 Wasm-GC 模块，使用固定工具链 release/strip 编译。清单预期来自独立编译，演示调用正式CLI并比较完整字节与固定哈希。仅验证新示例，不在本地重跑旧矩阵、CLI全集、资源或压缩大样本。CI复用Linux CLI构建，仅增加一次示例运行。干净源码复现与最终SHA的实际CI在完成报告给出，不预填成功。Commit 15—16仍待实施。
+
 ## 后续状态
 
 | 步骤 | 状态 |
 | --- | --- |
 | Commit 12 Native 命令行与文件交付 | 已实现并完成本地 Windows/Linux 文件验证；最终远程 CI 在完成报告核对 |
 | Commit 13 跨目标检查与兼容性报告 | 已整理目标检查、独立参考任务及门禁；最终 SHA 的远程结果在完成报告核对 |
-| Commit 14 最小示例与 Wasm 更新演示 | 待实施 |
+| Commit 14 最小示例与 Wasm 更新演示 | 已提供源码、固定清单及可执行驱动；干净导出与最终 CI 结果在完成报告核对 |
 | Commit 15 基准、文档与范围冻结 | 待实施；本轮测量只服务默认策略 |
 | Commit 16 源码包审计与发布验收 | 待实施；未发布或进行注册表消费验收 |
 
