@@ -18,3 +18,4 @@ testdata/generation/encoder-source.json text eol=lf
 docs/development-plan.md text eol=lf
 cmd/main/native_io.c text eol=lf
 testdata/cli/*.json text eol=lf
+*.mbti text eol=lf
