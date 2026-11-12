@@ -1,0 +1,14 @@
+import {
+  "BigSaltyMan/moonbsdiff",
+  "moonbitlang/core/env",
+  "moonbitlang/core/encoding/utf8",
+  "moonbitlang/core/debug",
+}
+
+supported_targets = "-all+native"
+
+pkgtype(kind: "executable")
+
+options(
+  "native-stub": [ "native_io.c" ],
+)

@@ -1,6 +1,6 @@
 # MoonBSDiff
 
-MoonBSDiff is a MoonBit reference port of BSDiff 4.3 under development for binary diffs and patches. The current stage implements structured errors, `Limits::validate`, internal BSDIFF40 integer/envelope parsing, and a private bounded bzip2 adapter. Public diff and apply APIs now generate and restore strict BSDIFF40 patches. A product CLI remains planned. Compression uses moonzip 0.3.5 at level 9; strict bounded decoding uses its attributed, adapted sources under `internal/bzip2/`.
+MoonBSDiff is a MoonBit reference port of BSDiff 4.3 under development for binary diffs and patches. The current stage implements structured errors, `Limits::validate`, internal BSDIFF40 integer/envelope parsing, and a private bounded bzip2 adapter. Public diff and apply APIs now generate and restore strict BSDIFF40 patches. A native Windows/Linux CLI is available; see [CLI build and file contracts](docs/cli.md). Compression uses moonzip 0.3.5 at level 9; strict bounded decoding uses its attributed, adapted sources under `internal/bzip2/`.
 
 The `Limits` fields for old, new, patch and output buffer sizes are byte counts in 1..2147483647, bounded for Int indexing. `max_decompressed_bytes` is an aggregate byte count, `max_control_instructions` counts instructions, and `max_sort_work` / `max_match_work` count algorithm-defined work units; each is a positive Int64. Sorting visits accumulate across index rounds; matching/generation visits accumulate across scan, raw encoding, compression-wrapper copies and final assembly; see [generation resources](docs/generation-resources.md). Limits::for_apply() supplies conservative application defaults: old/new/output 1 MiB each, patch 64 KiB, total decompression 2 MiB and 16384 instructions. Sorting/matching fields are unused positive placeholders, not generation defaults; use the separate measured Limits::for_diff() policy for generation. Validation means only that a configuration is legal, not that a complete patch operation has runtime resource protection. The private decoder now enforces per-call and shared decompression budgets. No cross-field relationships are imposed.
 
@@ -65,9 +65,9 @@ let result = @moonbsdiff.apply(old_bytes, patch_bytes, limits)
 
 Explicit caller-selected Limits continue to work. The three targets each passed the final 73-test application-stage collection; the independent upstream case count remains 13.
 
-An internal [binary suffix-array index](docs/suffix-array.md) is now implemented using prefix doubling and counting sort, including the empty suffix and unsigned binary-byte ordering. It has no public API; it supports the generator described below; a product CLI remains future work. Application defaults are unchanged and must not be used as generation defaults.
+An internal [binary suffix-array index](docs/suffix-array.md) is now implemented using prefix doubling and counting sort, including the empty suffix and unsigned binary-byte ordering. It has no public API; it supports the generator described below; the native CLI is described below. Application defaults are unchanged and must not be used as generation defaults.
 
-Internal [suffix matching and segment planning](docs/matching.md) now provide longest-match queries, offset scoring, forward/backward selection and overlap adjustment. Matching scans reuse the existing suffix index and can produce old-data reuse with nonzero residuals. These components remain private and now feed residual encoding and patch assembly through public diff. A product CLI remains pending.
+Internal [suffix matching and segment planning](docs/matching.md) now provide longest-match queries, offset scoring, forward/backward selection and overlap adjustment. Matching scans reuse the existing suffix index and can produce old-data reuse with nonzero residuals. These components remain private and now feed residual encoding and patch assembly through public diff. The native CLI is described below.
 
 ## Generate and apply in memory
 
@@ -116,5 +116,46 @@ let result = @moonbsdiff.diff(old_bytes, new_bytes, limits)
 
 The [repository development plan](docs/development-plan.md) preserves the source
 plan dated 2026-11-04 and distinguishes completed stages from Commit 12-16.
-A product CLI, release/package audit and registry-consumer verification remain
+The native CLI is implemented. Release/package audit and registry-consumer verification remain
 planned. No tag, Mooncakes publication or GitHub Release is part of this stage.
+
+
+## Native CLI
+
+With the pinned MoonBit toolchain, Python 3 and a native C compiler configured
+(on Windows, use an MSVC developer shell), run from repository root:
+
+```sh
+python scripts/build_cli.py
+```
+
+No Mooncakes installation is required to run the built executable. The build
+copies it to `_build/bin/windows/moonbsdiff.exe` or `_build/bin/linux/moonbsdiff`.
+Python is a build/test tool, not a runtime dependency of the CLI.
+
+```powershell
+& .\_build\bin\windows\moonbsdiff.exe --help
+& .\_build\bin\windows\moonbsdiff.exe --version
+& .\_build\bin\windows\moonbsdiff.exe diff "old file.bin" "new file.bin" "update.patch"
+& .\_build\bin\windows\moonbsdiff.exe patch "old file.bin" "update.patch" "restored file.bin"
+```
+
+```sh
+./_build/bin/linux/moonbsdiff diff 'old file.bin' 'new file.bin' 'update.patch'
+./_build/bin/linux/moonbsdiff patch 'old file.bin' 'update.patch' 'restored file.bin'
+```
+
+Paths containing Chinese characters or spaces must be quoted similarly.
+Our order is `patch OLD PATCH OUTPUT`; upstream is `bspatch OLD NEW PATCH`.
+Exit codes are 0 success, 2 arguments, 1 operation failure; errors go to stderr.
+Existing outputs, including links/aliases of inputs, are refused. A target created
+during delivery is also preserved. Linux output requires O_TMPFILE and /proc;
+unsupported filesystems fail closed. There is no overwrite option or durability
+promise. [CLI details](docs/cli.md) explain bounded reads, handle-based cleanup,
+actual platform tests, source/version provenance and filesystem scope.
+
+Generation uses for_diff unchanged. CLI patch keeps for_apply's old/output,
+decode and instruction caps but raises only its patch cap from 64 KiB to 128 KiB,
+matching the generator; a real 66279-byte patch roundtrip is tested. The library
+factories are unchanged. BSDIFF40 does not authenticate the old file or result;
+verify expected hashes externally. Version output is generated from moon.mod.

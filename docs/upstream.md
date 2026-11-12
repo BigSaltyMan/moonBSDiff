@@ -90,3 +90,13 @@ installed engine/Writer file hashes are recorded in
 workspace and copy bounds in [generation resources](generation-resources.md).
 Apache-2.0 dependency attribution remains in force. No C oracle build or
 historical fixture regeneration was performed.
+
+
+## Commit 12 native IO
+
+The CLI adds original BSD-2-Clause C adaptation under cmd/main, using the pinned
+toolchain's native ABI and OS APIs. No third-party IO source or additional
+Mooncakes dependency was adopted. Compression and decoder adaptation are unchanged.
+Core/env and encoding are from the existing 0.10.19+bee578715 core (Apache-2.0).
+See [CLI contracts](cli.md) for the checked capability/route decision and actual
+platform/Unicode/file-delivery evidence. Python remains test/build-only.

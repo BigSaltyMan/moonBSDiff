@@ -4,7 +4,7 @@
 
 来源文件 SHA-256：`6e8b1419eee65adc5a15a4cc3d94de5a024e5753a8fbbd8fefce8c25631390a9`。
 
-以下记录截至本次 Commit 11 本地验收；原规划中的预计时间、CI、CLI 和发布描述仍是计划。仓库地址为 [BigSaltyMan/moonBSDiff](https://github.com/BigSaltyMan/moonBSDiff)，使用原规划指定的 `github-bigsalty` SSH 别名。GitHub 仓库名大小写不改变归属，模块名继续使用 `BigSaltyMan/moonbsdiff`。
+以下记录截至本次 Commit 12 本地验收；原规划中的预计时间、CI、CLI 和发布描述仍是计划。仓库地址为 [BigSaltyMan/moonBSDiff](https://github.com/BigSaltyMan/moonBSDiff)，使用原规划指定的 `github-bigsalty` SSH 别名。GitHub 仓库名大小写不改变归属，模块名继续使用 `BigSaltyMan/moonbsdiff`。
 
 ## 截至 Commit 10 的真实记录
 
@@ -35,11 +35,26 @@
 
 本地提交后才执行 GitHub 创建/上传与最终 SHA 的首次 CI，实际远程结果在完成报告中给出，不提前声明通过。该上传不包含 Mooncakes 发布、tag 或 GitHub Release。
 
+## Commit 12 本次实施记录（2026-11-12）
+
+基线：`109c817ad2460b14a99a3558ec981a712c81c11b`，master，起点工作区干净。
+此前 Commit 11 实现为 `5181a29c29b4047310324216793ab5a1da84ec5e`，随后仅追加注册表初始化 CI 修复，已上传 BigSaltyMan/moonBSDiff。
+
+- 提供 native diff、patch、help、version；版本从 moon.mod 生成，退出码 0/2/1，直接调用公开 diff/apply。
+- native 包隔离平台文件操作，无新增 IO 模块依赖，不改变核心算法、压缩依赖或根公开接口。
+- CLI 仅调整应用补丁上限至 128 KiB，66,279 字节补丁在两平台实际往返。
+- 文件大小预检及运行中累计限制；实际身份检查；Windows 独占临时文件和句柄无替换重命名；Linux 匿名临时文件及无替换 linkat。
+- Windows 31 项文件测试中 29 通过、2 项缺少符号链接权限跳过，9 项私有真实文件 IO 契约通过；Linux 31 项及9项全部通过。
+- CI 保留库检查，增加 Windows/Linux CLI 任务。上传后核验最终 SHA 和真实 CI；不提前把本地结果写成远程成功。
+- [CLI 使用与保证范围](cli.md)和[精简证据](../testdata/cli/native-results.json)记录实际行为。Linux 输出要求 O_TMPFILE 文件系统及 /proc，未实现危险回退；未承诺断电持久性。
+
+原规划全文与仓库外原文件保持不变。Commit 13—16 继续待实施；未发布 Mooncakes、tag 或 Release。
+
 ## 后续状态
 
 | 步骤 | 状态 |
 | --- | --- |
-| Commit 12 Native 命令行与文件交付 | 待实施 |
+| Commit 12 Native 命令行与文件交付 | 已实现并完成本地 Windows/Linux 文件验证；最终远程 CI 在完成报告核对 |
 | Commit 13 跨目标检查与兼容性报告 | 待实施；初始 CI 和有界互操作不是完整交付矩阵 |
 | Commit 14 最小示例与 Wasm 更新演示 | 待实施 |
 | Commit 15 基准、文档与范围冻结 | 待实施；本轮测量只服务默认策略 |

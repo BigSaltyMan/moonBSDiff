@@ -16,3 +16,5 @@ testdata/conformance/*.json text eol=lf
 testdata/generation/resource-measurements.json text eol=lf
 testdata/generation/encoder-source.json text eol=lf
 docs/development-plan.md text eol=lf
+cmd/main/native_io.c text eol=lf
+testdata/cli/*.json text eol=lf

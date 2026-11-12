@@ -1,0 +1,73 @@
+{
+  "schema": 1,
+  "date": "2026-11-12",
+  "baseline": "109c817ad2460b14a99a3558ec981a712c81c11b",
+  "toolchain": "moon 0.1.20261102 (ea07287); moonc v0.10.19+bee578715; moonrun 0.1.20261102",
+  "mode": "native debug; platform-separated caches",
+  "sources": {
+    "cmd/main/main.mbt": "8bad0f0e331446f336974af74632a6329d1948cf3c7c9d962708c76287f623ad",
+    "cmd/main/native_io.c": "3701197b141a99e961363f0c5e1ca9b8d25eddba066dec9db90dba4ea990fd13",
+    "cmd/main/moon.pkg": "7e76ff5e714195669aaae037bc3a7b68d3b5dbf599b0e555b717b7901424f3d3",
+    "cmd/main/version.mbt": "7461b82d8a4942a03f212d05d0e89cb4955e34fd7ca39a1271e3b251102996d9",
+    "cmd/main/io_wbtest.mbt": "58127e3ed8af427134ca0796b0eccc81393843e124855a21dafbc7f8b8ae7eaf",
+    "scripts/build_cli.py": "eea1d99421d1b6407de336ecf3e0908c811286c26f777760b28165e6f124c570",
+    "scripts/test_cli.py": "152d7dde5a0a13e66af0dd9912d825654e592611209341cf220bd77742734ef6"
+  },
+  "records": [
+    {
+      "platform": "Windows-11-10.0.26300-SP0",
+      "architecture": "AMD64",
+      "python": "3.14.6 | packaged by Anaconda, Inc. | (main, Jul  9 2026, 14:29:05) [MSC v.1942 64 bit (AMD64)]",
+      "executable": "_build/bin/windows/moonbsdiff.exe",
+      "executable_sha256": "9bd7a5901d6ec234bef7771fcea6a6cafa92e25af7f0756d377da0c1b6af4cc9",
+      "module_version": "0.1.0",
+      "tests": 31,
+      "failed": 0,
+      "skipped": [
+        {
+          "case": "test_dangling_symlink_output (__main__.CliFiles.test_dangling_symlink_output)",
+          "reason": "symlink permission/support unavailable; OS code 1314"
+        },
+        {
+          "case": "test_symlink_output (__main__.CliFiles.test_symlink_output)",
+          "reason": "symlink permission/support unavailable; OS code 1314"
+        }
+      ],
+      "cli_invocations": 50,
+      "private_real_file_io_tests": 9,
+      "over_64k_patch": {
+        "old_bytes": 65536,
+        "new_bytes": 65536,
+        "patch_bytes": 66279,
+        "old_sha256": "eefd5e0609b047a4a17ef8844663f8bc36c8e91825139d7736ba4d2f934a4a1a",
+        "new_sha256": "331a72b0f99cc15eb2535af2b5eb61e0afa926b24b3d6bf8cdb9d75545a6687e",
+        "patch_sha256": "9ad46cba9cd1560c8e386dd32ab730c6fd3bd30194f55376a45e38b100596a96",
+        "recipe": "LCG32 v1 independent old/new, seeds 2026110801+65536 and 2026110803+65536"
+      },
+      "passed": 29
+    },
+    {
+      "platform": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+      "architecture": "x86_64",
+      "python": "3.12.3 (main, Aug 31 2026, 10:18:26) [GCC 13.3.0]",
+      "executable": "_build/bin/linux/moonbsdiff",
+      "executable_sha256": "40df5f811d234521bf12a604ee85051f0848b5b192b0077c570ae0f14a51a79d",
+      "module_version": "0.1.0",
+      "tests": 31,
+      "failed": 0,
+      "skipped": [],
+      "cli_invocations": 52,
+      "private_real_file_io_tests": 9,
+      "over_64k_patch": {
+        "old_bytes": 65536,
+        "new_bytes": 65536,
+        "patch_bytes": 66279,
+        "old_sha256": "eefd5e0609b047a4a17ef8844663f8bc36c8e91825139d7736ba4d2f934a4a1a",
+        "new_sha256": "331a72b0f99cc15eb2535af2b5eb61e0afa926b24b3d6bf8cdb9d75545a6687e",
+        "patch_sha256": "9ad46cba9cd1560c8e386dd32ab730c6fd3bd30194f55376a45e38b100596a96",
+        "recipe": "LCG32 v1 independent old/new, seeds 2026110801+65536 and 2026110803+65536"
+      },
+      "passed": 31
+    }
+  ]
+}
