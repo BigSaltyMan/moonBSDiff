@@ -18,6 +18,13 @@ jobs:
           test -z "$(git status --porcelain -- '*.mbti')"
       - run: moon check --target native --deny-warn
       - run: moon build --target native
+      - name: Core check/build on JS and Wasm-GC (native CLI excluded by package declaration)
+        run: |
+          for target in js wasm-gc; do
+            moon check --target "$target" --deny-warn
+            moon build --target "$target"
+          done
+      - run: python3 -m unittest discover -s scripts -p test_acceptance.py
       - run: python3 scripts/check_format_vectors.py
       - run: python3 scripts/check_matching_vectors.py
       - run: python3 scripts/check_diff.py
@@ -37,7 +44,7 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          moon test --target native --deny-warn | tee test.log
+          python3 scripts/check_acceptance.py --test-log test.log -- moon test --target native --deny-warn
           grep -E 'Total tests: [1-9][0-9]*, passed: [1-9][0-9]*, failed: 0' test.log
       - run: python3 scripts/check_compression.py --log test.log --large
       - run: python3 scripts/check_diff.py --log test.log
@@ -47,7 +54,7 @@ jobs:
         run: |
           set -o pipefail
           for target in js wasm-gc; do
-            moon test compression_wbtest.mbt --filter 'compression-compact*' --target "$target" --deny-warn | tee "compression-$target.log"
+            python3 scripts/check_acceptance.py --test-log "compression-$target.log" -- moon test compression_wbtest.mbt --filter 'compression-compact*' --target "$target" --deny-warn
             grep -E 'Total tests: [1-9][0-9]*, passed: [1-9][0-9]*, failed: 0' "compression-$target.log"
             python3 scripts/check_compression.py --log "compression-$target.log"
           done
@@ -57,7 +64,7 @@ jobs:
         run: |
           set -o pipefail
           for target in js wasm-gc; do
-            moon test apply_test.mbt apply_vectors_test.mbt apply_boundaries_test.mbt apply_resources_test.mbt --target "$target" --deny-warn | tee "apply-$target.log"
+            python3 scripts/check_acceptance.py --test-log "apply-$target.log" -- moon test apply_test.mbt apply_vectors_test.mbt apply_boundaries_test.mbt apply_resources_test.mbt --target "$target" --deny-warn
             grep -E 'Total tests: [1-9][0-9]*, passed: [1-9][0-9]*, failed: 0' "apply-$target.log"
           done
 
@@ -66,7 +73,7 @@ jobs:
         run: |
           set -o pipefail
           for target in js wasm-gc; do
-            moon test suffix_array_wbtest.mbt --filter 'suffix-compact*' --target "$target" --deny-warn | tee "suffix-$target.log"
+            python3 scripts/check_acceptance.py --test-log "suffix-$target.log" -- moon test suffix_array_wbtest.mbt --filter 'suffix-compact*' --target "$target" --deny-warn
             grep -E 'Total tests: [1-9][0-9]*, passed: [1-9][0-9]*, failed: 0' "suffix-$target.log"
           done
 
@@ -75,7 +82,7 @@ jobs:
         run: |
           set -o pipefail
           for target in js wasm-gc; do
-            moon test matching_wbtest.mbt matching_vectors_wbtest.mbt --filter 'matching-compact*' --target "$target" --deny-warn | tee "matching-$target.log"
+            python3 scripts/check_acceptance.py --test-log "matching-$target.log" -- moon test matching_wbtest.mbt matching_vectors_wbtest.mbt --filter 'matching-compact*' --target "$target" --deny-warn
             grep -E 'Total tests: [1-9][0-9]*, passed: [1-9][0-9]*, failed: 0' "matching-$target.log"
           done
 
@@ -84,7 +91,7 @@ jobs:
         run: |
           set -o pipefail
           for target in js wasm-gc; do
-            moon test diff_test.mbt diff_vectors_test.mbt diff_wbtest.mbt --target "$target" --deny-warn | tee "diff-$target.log"
+            python3 scripts/check_acceptance.py --test-log "diff-$target.log" -- moon test diff_test.mbt diff_vectors_test.mbt diff_wbtest.mbt --target "$target" --deny-warn
             grep -E 'Total tests: [1-9][0-9]*, passed: [1-9][0-9]*, failed: 0' "diff-$target.log"
           done
 
@@ -93,7 +100,7 @@ jobs:
         run: |
           set -o pipefail
           for target in js wasm-gc; do
-            moon test diff_resources_test.mbt diff_resources_wbtest.mbt --filter 'diff-resource-compact*' --target "$target" --deny-warn | tee "diff-resource-$target.log"
+            python3 scripts/check_acceptance.py --test-log "diff-resource-$target.log" -- moon test diff_resources_test.mbt diff_resources_wbtest.mbt --filter 'diff-resource-compact*' --target "$target" --deny-warn
             grep -E 'Total tests: [1-9][0-9]*, passed: [1-9][0-9]*, failed: 0' "diff-resource-$target.log"
           done
 
@@ -125,6 +132,9 @@ jobs:
         run: |
           python3 scripts/build_cli.py
           python3 scripts/test_cli.py --exe _build/bin/linux/moonbsdiff
+      - name: Windows native type check
+        if: runner.os == 'Windows'
+        run: moon check --target native --deny-warn
       - name: Windows native CLI file and private IO contracts
         if: runner.os == 'Windows'
         shell: pwsh
@@ -134,3 +144,19 @@ jobs:
           $dev = Join-Path $vs 'VC/Auxiliary/Build/vcvars64.bat'
           cmd /c "call `"$dev`" >nul && python scripts/build_cli.py && python scripts/test_cli.py --exe _build/bin/windows/moonbsdiff.exe"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+  reference:
+    name: Real BSDiff reference interoperability
+    runs-on: ubuntu-latest
+    env:
+      CI_WORKFLOW_SHA: ${{ github.workflow_sha }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: hustcer/setup-moonbit@bdc8c076af1f4c5012a6ac3451a2009ec75bf921 # v1.22
+        with:
+          version: 0.10.19+bee578715
+          core-version: 0.10.19+bee578715
+      - run: moon version --all
+      - run: moon update
+      - name: Build locked oracle once and execute source-bound bidirectional matrix
+        run: python3 scripts/check_acceptance.py --reference

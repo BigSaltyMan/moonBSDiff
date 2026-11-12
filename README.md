@@ -159,3 +159,13 @@ decode and instruction caps but raises only its patch cap from 64 KiB to 128 KiB
 matching the generator; a real 66279-byte patch roundtrip is tested. The library
 factories are unchanged. BSDIFF40 does not authenticate the old file or result;
 verify expected hashes externally. Version output is generated from moon.mod.
+
+
+CI coverage and evidence are detailed in [compatibility](docs/compatibility.md).
+Linux explicitly checks/builds native, JS and Wasm-GC; test selections retain their
+full/compact scopes. Windows/Linux native CLI jobs reuse the file contracts.
+A separate real-reference job builds the locked C tools once and executes the
+unchanged 31-input bidirectional matrix. `scripts/check_acceptance.py` rejects
+zero tests, failed children and stale/incomplete reference evidence. Actual CI
+results belong to its checkout SHA; historical reports are not current passes.
+These are source checks, not registry-consumer or release acceptance.

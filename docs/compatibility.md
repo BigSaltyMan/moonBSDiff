@@ -231,3 +231,46 @@ new measured default policy.
 This is not a full engine CPU/process-memory safety proof, CLI acceptance or package
 publication. Remote upload and CI state are reported for the eventual final SHA,
 not prefilled as success in this snapshot.
+
+
+## Commit 13 CI coverage and evidence contract
+
+The historical snapshots above remain historical, not evidence of this commit.
+Current CI explicitly checks/builds Linux native, JS and Wasm-GC. Native executes
+the complete existing MoonBit collection (including native CLI IO contracts).
+JS/Wasm-GC reuse the existing compact compression/index/matching/resource groups,
+full 73-test apply selection and 20-test generation selection; they do not run
+the native exhaustive/scale tests. Windows explicitly checks native packages, builds the native CLI and its core
+dependencies and executes the existing 31 file tests plus 9 IO contracts; it is
+not a claim of the complete Windows library unit suite. Linux CLI uses the same
+existing file/IO suite. Native-only package declarations exclude C IO from JS/GC.
+
+The separate `reference` job uses tools/oracle/build.py once, rechecking locked
+archives and source hashes (including reused local archive cache). No new cache
+Action is added. It then uses the existing run_conformance.py and build.json,
+which recheck actual executable identities. All targets share the same prepared
+patches and tools. The unchanged matrix is native 31 per direction, JS/Wasm-GC
+19 per direction, 31 independent inputs and 138 complete-byte comparisons.
+Missing tools, download/compile/timeout errors and comparison failures fail the
+job. Ordinary tests/fixture checks are offline after dependency setup; actual C
+reference execution is clearly labeled and isolated. There is no registry consumer.
+
+`scripts/check_acceptance.py --test-log LOG -- COMMAND...` propagates child exit
+failure and requires nonzero, entirely successful summaries. It replaces the
+existing test/tee pipelines, keeping their additional strict parsers and checks.
+`--reference` is the integrated reference entry, not a second protocol or generator.
+It rejects reuse of an old run directory, checks the checkout against GITHUB_SHA,
+rechecks full result identities/sets/bytes with the existing comparator and binds
+the evidence to actual source SHA, workflow SHA, event, run ID and attempt.
+The `REFERENCE ACCEPTANCE` log includes toolchain, manifest/source hashes, oracle
+identity, all generated-patch identities and counts; the job summary identifies
+the source and fresh run. Source changes during execution fail. Missing/stale
+results cannot become acceptance. No source commit pre-fills its own SHA/result.
+
+Local validation is limited to the new gate's success/zero/failure/missing/stale
+cases, workflow parsing/static scope checks, and diff checks. No old functional,
+CLI, random, resource or compression matrix is rerun locally. Remote evidence
+must be read from the final SHA's actual CI; success is not prefilled here.
+Linux CLI still requires O_TMPFILE and /proc, with no durability guarantee.
+Logical resource caps are not whole-process memory/CPU guarantees. Examples,
+benchmarks, package audit, publication and registry consumption remain Commit 14-16.
