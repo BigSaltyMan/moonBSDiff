@@ -24,6 +24,17 @@ jobs:
             moon check --target "$target" --deny-warn
             moon build --target "$target"
           done
+      - name: Clean-source package audit and external candidate consumer
+        run: |
+          python3 -m unittest discover -s scripts -p test_release_audit.py
+          python3 scripts/release_audit.py | tee release-audit.log
+          python3 - <<'PY'
+          import json,pathlib,subprocess,sys
+          rows=[line.removeprefix('RELEASE AUDIT ') for line in pathlib.Path('release-audit.log').read_text().splitlines() if line.startswith('RELEASE AUDIT ')]
+          if len(rows)!=1:raise RuntimeError('missing/duplicate audit result')
+          report=pathlib.Path(json.loads(rows[0])['report']);audit=json.loads(report.read_text())
+          subprocess.run([sys.executable,'scripts/release_consumer.py','--candidate',audit['package_path'],'--audit',str(report),'--targets','native','js','wasm-gc'],check=True,timeout=600)
+          PY
       - run: python3 -m unittest discover -s scripts -p test_acceptance.py
       - run: python3 scripts/check_format_vectors.py
       - run: python3 scripts/check_matching_vectors.py

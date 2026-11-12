@@ -200,3 +200,11 @@ The 0.1.0 feature scope is frozen; see [CHANGELOG](CHANGELOG.md) and the
 [development plan](docs/development-plan.md). Package audit, final validation,
 Mooncakes publication and independent registry consumption remain pending.
 No registry installation or release download is claimed available.
+
+## Release acceptance
+
+0.1.0 release preparation and exact source/package/CI identity rules are in
+[acceptance](docs/acceptance.md). The candidate is audited from `git archive`,
+not a mutable working directory. Actual publication and registry installation
+will be documented separately after they succeed; candidate use is not registry
+consumption. There is no prebuilt CLI download or GitHub Release in this step.

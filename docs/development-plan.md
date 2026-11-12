@@ -4,7 +4,7 @@
 
 来源文件 SHA-256：`6e8b1419eee65adc5a15a4cc3d94de5a024e5753a8fbbd8fefce8c25631390a9`。
 
-以下记录截至本次 Commit 15 基准与范围冻结；原规划中的预计时间、CI、CLI 和发布描述仍是计划。仓库地址为 [BigSaltyMan/moonBSDiff](https://github.com/BigSaltyMan/moonBSDiff)，使用原规划指定的 `github-bigsalty` SSH 别名。GitHub 仓库名大小写不改变归属，模块名继续使用 `BigSaltyMan/moonbsdiff`。
+以下记录截至本次 Commit 16 发布准备；原规划中的预计时间、CI、CLI 和发布描述仍是计划。仓库地址为 [BigSaltyMan/moonBSDiff](https://github.com/BigSaltyMan/moonBSDiff)，使用原规划指定的 `github-bigsalty` SSH 别名。GitHub 仓库名大小写不改变归属，模块名继续使用 `BigSaltyMan/moonbsdiff`。
 
 ## 截至 Commit 10 的真实记录
 
@@ -64,6 +64,10 @@
 
 0.1.0 保持 Unreleased，冻结现有功能：不新增格式、目录同步、网络、GUI、调优参数或扩大平台/资源保证。剩余为兼容性缺陷、必要修复、包审计、最终验证、Mooncakes 发布、独立消费及发布记录。Commit 16 待实施；本步骤不发布、不创建 tag。
 
+## Commit 16 发布准备
+
+基线 `0e67949d73493f0edade3fc6c50833b76dca02b4`，冻结功能范围不变。`scripts/release_audit.py` 从指定 Git SHA 导出干净源码，再执行格式、接口及官方打包并逐成员核验；候选消费从 ZIP 独立解包，注册表消费则使用全新 SDK 缓存和无 workspace 的外部目录。最终源码须取得对应 CI（库、CLI、示例、真实参考及候选消费）成功后才发布。发布后以独立文档提交记录源码 SHA、实际公开包身份、CI 和安装结果；此准备记录不预填发布成功，不创建 tag 或 GitHub Release。见 [验收说明](acceptance.md)。
+
 ## 后续状态
 
 | 步骤 | 状态 |
@@ -72,7 +76,7 @@
 | Commit 13 跨目标检查与兼容性报告 | 已整理目标检查、独立参考任务及门禁；最终 SHA 的远程结果在完成报告核对 |
 | Commit 14 最小示例与 Wasm 更新演示 | 已提供源码、固定清单及可执行驱动；干净导出与最终 CI 结果在完成报告核对 |
 | Commit 15 基准、文档与范围冻结 | 已完成五类固定小输入测量、文档核对、Unreleased CHANGELOG 和范围冻结；最终 SHA CI 在完成报告核对 |
-| Commit 16 源码包审计与发布验收 | 待实施；未发布或进行注册表消费验收 |
+| Commit 16 源码包审计与发布验收 | 已建立干净源码包审计及外部消费入口；发布与注册表消费结果将在独立发布记录提交中据实记录 |
 
 ---
 

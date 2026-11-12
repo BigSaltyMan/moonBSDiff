@@ -8,7 +8,7 @@ repository = "https://github.com/BigSaltyMan/moonBSDiff"
 
 license = "BSD-2-Clause"
 
-description = "Foundations for a BSDiff-compatible binary patch library"
+description = "BSDIFF40 binary diff and patch library with bounded resources and a native CLI"
 
 import {
   "moonbitstack/moonzip@0.3.5",
