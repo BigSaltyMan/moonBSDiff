@@ -12,4 +12,5 @@ description = "BSDIFF40 binary diff and patch library with bounded resources and
 
 import {
   "moonbitstack/moonzip@0.3.5",
+  "moonbitstack/mooncrypt@0.4.7",
 }

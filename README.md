@@ -175,6 +175,20 @@ and schema](docs/inspect.md). Manifest/identity/deep verification is not provide
 The minimal library `inspect_header`/read-only `PatchInfo` API is new in this
 unreleased source and leaves diff/apply/defaults unchanged.
 
+**Optional external manifest (0.2.0 Unreleased):**
+
+```sh
+./_build/bin/linux/moonbsdiff diff --manifest update.json old.bin new.bin update.patch
+```
+
+The separate [SHA-256 manifest](docs/manifest.md) binds the exact buffers used by
+diff and the returned patch, with string byte counts and actual tool metadata.
+The patch remains BSDIFF40. Outputs are checked for conflicts and delivered patch
+first, manifest second, without replacement; partial failure keeps the patch and
+reports manifest incomplete. This is not an atomic pair, a signature or publisher
+authentication. Expected manifests must come from a trusted channel. Verification
+and checked restoration are not implemented yet. Published 0.1.0 is unchanged.
+
 Paths containing Chinese characters or spaces must be quoted similarly.
 Our order is `patch OLD PATCH OUTPUT`; upstream is `bspatch OLD NEW PATCH`.
 Exit codes are 0 success, 2 arguments/configuration, 1 operation failure; errors go to stderr.

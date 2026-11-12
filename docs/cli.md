@@ -77,9 +77,31 @@ describe decimal-string byte fields, lossless Int64 and JSON escaping. This is
 not --deep, manifest validation or a full patch-verification command. The feature
 is not in published 0.1.0; generated CLI version remains module metadata.
 
+## External manifest output (Unreleased, target 0.2.0)
+
+```sh
+./_build/bin/linux/moonbsdiff diff --manifest update.json old.bin new.bin update.patch
+```
+
+Diff alone accepts --manifest PATH, once, before operands. It is incompatible
+with --show-limits. A leading-hyphen manifest value uses ./-name; positional --
+rules are unchanged. The optional JSON binds actual old/new/patch buffers with
+full lowercase SHA-256 and decimal-string sizes. BSDIFF40 bytes are unchanged.
+The tool version is actual generated metadata, not a promised next release.
+
+Both outputs are prechecked for existing/input targets and parent-identity/name
+aliases. All data is prepared before patch then manifest are delivered by the
+existing no-overwrite mechanism. This is not a two-file atomic transaction:
+manifest failure exits 1 with patch-delivered/manifest-incomplete diagnostics,
+keeps the patch and does not roll back by deleting caller paths. Check existing
+outputs before retrying. Success remains silent. [Schema, real manifest, hash
+source, platform details and partial failure](manifest.md) define the contract.
+SHA-256 does not authenticate the publisher; a manifest replaced together with
+its patch cannot supply authenticity. Manifest validation/restoration is pending.
+
 ## Dependencies and native isolation
 
-No new Mooncakes IO dependency is introduced. The pinned toolchain core/env and
+No new Mooncakes IO dependency is introduced. Manifest hashing pins the already-resolved mooncrypt 0.4.7 as a direct CLI hashing dependency (Apache-2.0). The pinned toolchain core/env and
 core/encoding/utf8 provide exit/Unix arguments and string encoding. The inspected
 core/async/fs API includes binary files, create modes and `rename(replace?)`;
 we use a small synchronous native C adapter to make descriptor identity, checked

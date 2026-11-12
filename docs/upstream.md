@@ -109,3 +109,14 @@ rebuild, new upstream import or license change occurred. Each implementation
 applies its own patch for timing validity. Existing bidirectional evidence remains
 separate; the benchmark is not an additional interoperability or malicious-input
 safety claim.
+
+## Commit 19 content hashing
+
+CLI now directly imports moonbitstack/mooncrypt/hash/sha2, explicitly selecting
+Sha256; moon.mod pins 0.4.7, the same version already resolved via moonzip 0.3.5.
+The installed manifest, Apache-2.0 license and Copyright 2026 Leo Cheng SHA-2 source
+were checked. No source was copied/modified and the resolved transitive versions
+are unchanged. SHA-256 empty/abc vectors and independent hashlib comparisons
+cover the narrow CLI integration. [Manifest scope](manifest.md) distinguishes
+content integrity from publisher authentication; there is no new signature or
+verification claim, compression adaptation or oracle rebuild.

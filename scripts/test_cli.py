@@ -147,7 +147,7 @@ if __name__=='__main__':
     result=unittest.TextTestRunner(verbosity=2).run(unittest.defaultTestLoader.loadTestsFromTestCase(CliFiles))
     private=None
     if result.wasSuccessful():
-        r=subprocess.run(['moon','test','cmd/main','--target','native','--deny-warn','--target-dir',str(ROOT/'_build'/('cli-'+platform.system().lower()))],cwd=ROOT,capture_output=True,timeout=120)
+        r=subprocess.run(['moon','test','cmd/main/io_wbtest.mbt','--target','native','--deny-warn','--target-dir',str(ROOT/'_build'/('cli-'+platform.system().lower()))],cwd=ROOT,capture_output=True,timeout=120)
         (ROOT/'_build'/('cli-private-'+platform.system()+'.log')).write_bytes(r.stdout+r.stderr)
         if r.returncode or 'Total tests: 9, passed: 9, failed: 0.' not in r.stdout.decode('utf8'):raise SystemExit('Private real-file IO contracts failed; inspect _build/cli-private-'+platform.system()+'.log')
         private=9

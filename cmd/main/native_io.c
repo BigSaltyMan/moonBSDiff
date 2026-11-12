@@ -187,6 +187,74 @@ MOONBIT_FFI_EXPORT int32_t mbsd_output_check(moonbit_bytes_t a,moonbit_bytes_t b
   return !problem[0];
 }
 
+/* Read-only identity preflight for two not-yet-created outputs. Existing
+ * targets/inputs are rejected separately by mbsd_output_check. Parent handles
+ * follow directory aliases. No write probe or destination reservation is made. */
+#ifdef _WIN32
+static HANDLE pair_parent(moonbit_bytes_t name,wchar_t full[32768],wchar_t **leaf) {
+  wchar_t *p=wide((char*)name); if(!p) return INVALID_HANDLE_VALUE;
+  DWORD n=GetFullPathNameW(p,32768,full,NULL); free(p);
+  if(!n || n>=32768) { fail("resolve output pair",GetLastError()); return INVALID_HANDLE_VALUE; }
+  wchar_t *slash=wcsrchr(full,L'\\');
+  if(!slash || !slash[1]) { fail("invalid output pair name",ERROR_INVALID_NAME); return INVALID_HANDLE_VALUE; }
+  *leaf=slash+1;
+  if(wcschr(*leaf,L':')) { fail("output pair alternate streams are unsupported",ERROR_INVALID_NAME); return INVALID_HANDLE_VALUE; }
+  /* Win32 normalizes final dots/spaces; reject aliases conservatively even for
+   * extended/case-sensitive paths. Never write using these normalized strings. */
+  size_t leaf_len=wcslen(*leaf);
+  while(leaf_len && ((*leaf)[leaf_len-1]==L'.' || (*leaf)[leaf_len-1]==L' ')) (*leaf)[--leaf_len]=0;
+  if(!leaf_len) { fail("invalid output pair name",ERROR_INVALID_NAME); return INVALID_HANDLE_VALUE; }
+  wchar_t first=slash[1]; slash[1]=0;
+  HANDLE parent=CreateFileW(full,FILE_READ_ATTRIBUTES,FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE,NULL,OPEN_EXISTING,FILE_FLAG_BACKUP_SEMANTICS,NULL);
+  slash[1]=first;
+  if(parent==INVALID_HANDLE_VALUE) fail("open output pair parent",GetLastError());
+  return parent;
+}
+#else
+static int pair_parent(moonbit_bytes_t name,const char **leaf) {
+  const char *path=(char*)name,*slash=strrchr(path,'/');
+  *leaf=slash?slash+1:path;
+  if(!**leaf || !strcmp(*leaf,".") || !strcmp(*leaf,"..")) { fail("invalid output pair name",EINVAL); return -1; }
+  size_t n=slash?(size_t)(slash-path):1;
+  char *parent=malloc(n+2); if(!parent) { fail("output pair parent allocation",ENOMEM); return -1; }
+  if(!slash) strcpy(parent,"."); else if(!n) strcpy(parent,"/"); else { memcpy(parent,path,n); parent[n]=0; }
+  int fd=open(parent,O_PATH|O_DIRECTORY|O_CLOEXEC); free(parent);
+  if(fd<0) fail("open output pair parent",errno);
+  return fd;
+}
+#endif
+MOONBIT_FFI_EXPORT int32_t mbsd_pair_check(moonbit_bytes_t a,moonbit_bytes_t b) {
+  problem[0]=0;
+#ifdef _WIN32
+  wchar_t full_a[32768],full_b[32768],*leaf_a=NULL,*leaf_b=NULL;
+  HANDLE pa=pair_parent(a,full_a,&leaf_a),pb=pair_parent(b,full_b,&leaf_b);
+  if(pa!=INVALID_HANDLE_VALUE && pb!=INVALID_HANDLE_VALUE) {
+    BY_HANDLE_FILE_INFORMATION ia,ib;
+    if(!GetFileInformationByHandle(pa,&ia) || !GetFileInformationByHandle(pb,&ib)) fail("output pair parent identity",GetLastError());
+    else if(!(ia.dwFileAttributes&FILE_ATTRIBUTE_DIRECTORY) || !(ib.dwFileAttributes&FILE_ATTRIBUTE_DIRECTORY)) fail("output pair parent is not a directory",ERROR_DIRECTORY);
+    else if(ia.dwVolumeSerialNumber==ib.dwVolumeSerialNumber && ia.nFileIndexHigh==ib.nFileIndexHigh && ia.nFileIndexLow==ib.nFileIndexLow) {
+      /* Conservatively reject case aliases even in case-sensitive Windows dirs. */
+      int equal=CompareStringOrdinal(leaf_a,-1,leaf_b,-1,TRUE);
+      if(!equal) fail("compare output pair names",GetLastError());
+      else if(equal==CSTR_EQUAL) fail("patch and manifest have the same target",ERROR_ALREADY_EXISTS);
+    }
+  }
+  if(pa!=INVALID_HANDLE_VALUE && !CloseHandle(pa)) fail("close output pair parent",GetLastError());
+  if(pb!=INVALID_HANDLE_VALUE && !CloseHandle(pb)) fail("close output pair parent",GetLastError());
+#else
+  const char *leaf_a=NULL,*leaf_b=NULL;
+  int pa=pair_parent(a,&leaf_a),pb=pair_parent(b,&leaf_b);
+  if(pa>=0 && pb>=0) {
+    struct stat ia,ib;
+    if(fstat(pa,&ia)<0 || fstat(pb,&ib)<0) fail("output pair parent identity",errno);
+    else if(ia.st_dev==ib.st_dev && ia.st_ino==ib.st_ino && !strcmp(leaf_a,leaf_b)) fail("patch and manifest have the same target",EEXIST);
+  }
+  if(pa>=0 && close(pa)<0) fail("close output pair parent",errno);
+  if(pb>=0 && close(pb)<0) fail("close output pair parent",errno);
+#endif
+  return !problem[0];
+}
+
 /* Never removes a path supplied by the caller. Temporary cleanup uses a held
  * Windows file handle or closes an anonymous Linux inode, never unlink(path). */
 MOONBIT_FFI_EXPORT int32_t mbsd_deliver(moonbit_bytes_t name,moonbit_bytes_t data) {

@@ -7,6 +7,10 @@ extern "C" fn io_read(path : Bytes, cap : Int32) -> Bytes = "mbsd_read"
 extern "C" fn io_check(a : Bytes, b : Bytes, out : Bytes) -> Int32 = "mbsd_output_check"
 
 ///|
+#borrow(a, b)
+extern "C" fn io_pair_check(a : Bytes, b : Bytes) -> Int32 = "mbsd_pair_check"
+
+///|
 #borrow(path, data)
 extern "C" fn io_deliver(path : Bytes, data : Bytes) -> Int32 = "mbsd_deliver"
 
@@ -64,6 +68,12 @@ fn print_help() -> Unit {
   println("moonbsdiff diff OLD_FILE NEW_FILE PATCH_FILE")
   println("moonbsdiff patch OLD_FILE PATCH_FILE OUTPUT_FILE")
   println("moonbsdiff --help | --version")
+  println(
+    "diff only: --manifest MANIFEST_FILE writes a separate SHA-256 JSON manifest.",
+  )
+  println(
+    "Patch then manifest are delivered without replacement; two-file delivery is not atomic.",
+  )
   println("moonbsdiff inspect [--json] [--max-patch-bytes VALUE] PATCH_FILE")
   println(
     "inspect is header-only: streams/CRC, controls, restoration and identity are not checked.",
@@ -166,6 +176,7 @@ struct CliConfig {
   limits : @moonbsdiff.Limits
   show : Bool
   json : Bool
+  manifest : String?
   files : Array[String]
 }
 
@@ -195,6 +206,7 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
   let seen : Array[String] = []
   let mut show = false
   let mut json = false
+  let mut manifest : String? = None
   let mut escaped = false
   let mut i = 2
   while i < args.length() {
@@ -213,6 +225,12 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
       return Err(option + " is not applicable to inspect")
     }
     let bytes = match option {
+      "--manifest" => {
+        if operation != "diff" {
+          return Err("--manifest is only applicable to diff")
+        }
+        false
+      }
       "--json" => {
         if operation != "inspect" {
           return Err("--json is only applicable to inspect")
@@ -251,6 +269,17 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
     if i + 1 >= args.length() {
       return Err("missing value for " + option)
     }
+    if option == "--manifest" {
+      let path = args[i + 1]
+      if path.length() == 0 || leading_dash(path) {
+        return Err(
+          "--manifest requires a nonempty path value; use ./ for a leading '-' name",
+        )
+      }
+      manifest = Some(path)
+      i = i + 2
+      continue
+    }
     let value = match parse_limit(args[i + 1], bytes) {
       Ok(v) => v
       Err(e) => return Err(option + ": " + e)
@@ -283,6 +312,9 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
       "--show-limits accepts no file arguments and never executes an operation",
     )
   }
+  if show && manifest is Some(_) {
+    return Err("--manifest cannot be combined with --show-limits")
+  }
   let expected = if operation == "inspect" { 1 } else { 3 }
   if !show && files.length() != expected {
     return Err("expected exactly \{expected} file arguments; use --help")
@@ -291,7 +323,7 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
     Ok(_) => ()
     Err(e) => return Err(@debug.to_string(e))
   }
-  Ok({ operation, limits, show, json, files, })
+  Ok({ operation, limits, show, json, manifest, files, })
 }
 
 ///|
@@ -371,6 +403,26 @@ fn main {
       @utf8.decode_lossy(io_error()[:]),
     )
   }
+  if config.manifest is Some(manifest_path) {
+    if io_check(
+        path_bytes(first),
+        path_bytes(second),
+        path_bytes(manifest_path),
+      ) ==
+      0 {
+      failure(
+        "manifest output '" +
+        manifest_path +
+        "': " +
+        @utf8.decode_lossy(io_error()[:]),
+      )
+    }
+    if io_pair_check(path_bytes(output), path_bytes(manifest_path)) == 0 {
+      failure(
+        "patch/manifest output conflict: " + @utf8.decode_lossy(io_error()[:]),
+      )
+    }
+  }
   // All native caps were validated as positive Int-indexable bytes before any IO.
   let old = read_input(
     operation + " read old (max_old_bytes=\{limits.max_old_bytes} bytes)",
@@ -414,6 +466,11 @@ fn main {
       b""
     }
   }
+  // All hashes refer to these exact buffers; no path is reopened for hashing.
+  let manifest_data = match config.manifest {
+    Some(_) => Some(make_manifest(old, other, value))
+    None => None
+  }
   if io_deliver(path_bytes(output), value) == 0 {
     failure(
       operation +
@@ -422,5 +479,18 @@ fn main {
       "': " +
       @utf8.decode_lossy(io_error()[:]),
     )
+  }
+  if config.manifest is Some(manifest_path) && manifest_data is Some(data) {
+    if io_deliver(path_bytes(manifest_path), data) == 0 {
+      failure(
+        "patch delivered to '" +
+        output +
+        "'; manifest not completed at '" +
+        manifest_path +
+        "': " +
+        @utf8.decode_lossy(io_error()[:]) +
+        "; no rollback attempted",
+      )
+    }
   }
 }
