@@ -1,4 +1,4 @@
-# Linux delivery compatibility (0.2.0 Unreleased)
+# Linux delivery compatibility (CLI 0.2.0)
 
 This changes the native CLI delivery adapter, not BSDIFF40 or the library API.
 The published 0.1.0 requirements remain historical facts. Windows delivery is

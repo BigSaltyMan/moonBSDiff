@@ -167,6 +167,46 @@ jobs:
           $dev = Join-Path $vs 'VC/Auxiliary/Build/vcvars64.bat'
           cmd /c "call `"$dev`" >nul && python scripts/build_cli.py && python scripts/test_cli.py --exe _build/bin/windows/moonbsdiff.exe && python scripts/test_cli_limits.py --exe _build/bin/windows/moonbsdiff.exe && python scripts/test_cli_inspect.py --exe _build/bin/windows/moonbsdiff.exe && python scripts/test_cli_manifest.py --exe _build/bin/windows/moonbsdiff.exe && python scripts/test_cli_verify.py --exe _build/bin/windows/moonbsdiff.exe"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Package and validate Linux release archive once
+        if: runner.os == 'Linux'
+        run: python3 scripts/package_cli.py
+      - name: Package and validate Windows release archive once
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $vs = & "${env:ProgramFiles(x86)}/Microsoft Visual Studio/Installer/vswhere.exe" -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          if (-not $vs) { throw 'MSVC build tools not found' }
+          $dev = Join-Path $vs 'VC/Auxiliary/Build/vcvars64.bat'
+          cmd /c "call `"$dev`" >nul && python scripts/package_cli.py"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Retain verified platform distribution
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: cli-dist-${{ runner.os }}
+          path: _build/cli-dist/*
+          if-no-files-found: error
+          retention-days: 30
+
+  cli-distribution:
+    name: Collect source-bound CLI release assets
+    needs: cli-native
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: cli-dist-*
+          path: _build/cli-platform-artifacts
+      - name: Verify distribution collection contracts
+        run: python3 -m unittest discover -s scripts -p test_cli_distribution.py
+      - name: Bind both archives to this workflow source and produce checksums
+        run: python3 scripts/collect_cli_release.py --input _build/cli-platform-artifacts --output _build/cli-release --source-sha "${{ github.sha }}"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: cli-release-${{ github.sha }}
+          path: _build/cli-release/*
+          if-no-files-found: error
+          retention-days: 30
 
   reference:
     name: Real BSDiff reference interoperability

@@ -1,6 +1,6 @@
-# External content manifest (0.2.0 Unreleased)
+# External content manifest (CLI 0.2.0)
 
-This source-only feature is not part of published 0.1.0. The patch remains plain
+This CLI feature is not part of published 0.1.0. The patch remains plain
 BSDIFF40: no custom header, trailer or embedded JSON. Commit 20 adds bounded manifest reading, verify, and checked patch delivery.
 Signatures, network fetching, automatic updates and streaming remain unimplemented.
 
@@ -20,7 +20,7 @@ operational/output failures use stderr and exit 1.
 
 ## Schema 1 and real example
 
-Captured from the command above with old bytes abc/00/ff (5 bytes) and new bytes
+Historical Commit 19 capture from the command above with old bytes abc/00/ff (5 bytes) and new bytes
 abC/00/ff/! (6 bytes), where / separates displayed fragments, not input bytes.
 All sizes and hashes were independently checked with Python hashlib in testing.
 The actual file is compact UTF-8 JSON plus one LF (405 bytes); pretty-printed here:
@@ -51,10 +51,10 @@ The actual file is compact UTF-8 JSON plus one LF (405 bytes); pretty-printed he
 Required top-level members are schema_version (JSON integer 1), patch_format
 (string BSDIFF40), producer, old, new, patch. The generator emits producer name=moonbsdiff and
 version from the actual generated cli_version/module build metadata; the consumer
-treats those required strings only as provenance information. This checkout
-still reports 0.1.0; the producer does not pretend this is released 0.2.0 or embed
-an unverified source SHA. The checkout's unreleased features are distinct from
-the immutable published 0.1.0 artifact.
+treats those required strings only as provenance information. The historical example above reports that build's 0.1.0 metadata; CLI 0.2.0 now
+reports 0.2.0 from the same generated module source. No unverified source SHA is
+embedded. GitHub CLI distribution is distinct from the immutable published
+Mooncakes 0.1.0 artifact; Mooncakes 0.2.0 is not published.
 
 Each content entry has size_bytes as a nonnegative decimal **string**, and sha256
 as exactly 64 lowercase hexadecimal digits (full SHA-256). Zero denotes actual
@@ -256,4 +256,5 @@ Content consistency against a supplied manifest still does not authenticate its
 publisher. If an attacker replaces both patch and expected manifest, ordinary
 hashes do not supply authenticity. Expected manifests must come from a trusted
 channel. There is no signature, network acquisition, automatic update or streaming
-promise. These additions remain 0.2.0 Unreleased and are absent from published 0.1.0.
+promise. These CLI 0.2.0 additions are absent from published Mooncakes 0.1.0;
+Mooncakes 0.2.0 has not been published.

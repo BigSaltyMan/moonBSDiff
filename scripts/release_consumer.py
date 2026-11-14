@@ -1,5 +1,5 @@
 """External candidate or registry consumer with a fresh SDK registry and project."""
-import argparse,json,os,pathlib,shutil,subprocess,tempfile,urllib.request,zipfile
+import argparse,re,json,os,pathlib,shutil,subprocess,tempfile,urllib.request,zipfile
 from release_audit import audit_zip,require,sha
 ROOT=pathlib.Path(__file__).resolve().parents[1]
 def main():
@@ -25,7 +25,8 @@ def main():
         dependency=folder/'candidate';dependency.mkdir()
         with zipfile.ZipFile(a.candidate) as z:z.extractall(dependency)
         (folder/'moon.work').write_text('members = ["candidate", "consumer"]\n',encoding='utf8')
-        with (project/'moon.mod').open('a',encoding='utf8') as f:f.write('import { "BigSaltyMan/moonbsdiff@0.1.0" }\n')
+        candidate_version=re.search(r'^version\s*=\s*"([^"]+)"', (dependency/'moon.mod').read_text(encoding='utf8'),re.M)[1]
+        with (project/'moon.mod').open('a',encoding='utf8') as f:f.write('import { "BigSaltyMan/moonbsdiff@'+candidate_version+'" }\n')
         run(['moon','update'])
         package=a.candidate.read_bytes()
     else:

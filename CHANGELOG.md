@@ -1,6 +1,13 @@
 # Changelog
 
-## 0.2.0 — Unreleased
+## 0.2.0 — GitHub CLI
+
+- Windows AMD64 ZIP and Linux x86_64 tar.gz distributions include licenses,
+  source/build identities, actual runtime dependencies, archive SHA-256 and
+  unpacked-product verification. See [download/install](docs/cli-install.md);
+  publication identity is the formal v0.2.0 Release and its successful source CI.
+- This is the GitHub CLI distribution. Mooncakes 0.2.0 has not been published;
+  published 0.1.0 package, tag and historical hashes remain unchanged.
 
 - Linux retains anonymous/proc delivery as primary and adds a capability-selected
   guarded local-ext compatibility route using private objects and no-replace
@@ -35,7 +42,7 @@
   unused sort/match options, and -- permits leading-hyphen paths.
 - One validated configuration controls input reads and core calls. Defaults,
   library API, dependencies and no-overwrite delivery remain unchanged.
-- These additions are source-only, not part of published 0.1.0.
+- These additions are included in CLI 0.2.0, not published Mooncakes 0.1.0.
 
 ## 0.1.0 — 2026-11-12
 

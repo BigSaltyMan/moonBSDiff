@@ -1,6 +1,10 @@
 # Native command line and file delivery
 
-## Build and commands
+## Download, build and commands
+
+[Prebuilt CLI 0.2.0 download, checksums and runtime requirements](cli-install.md)
+are separate from Mooncakes: 0.2.0 is not published there. Source builds below
+require the SDK/compiler; running the prebuilt CLI does not.
 
 Supported and actually exercised: Windows 11 AMD64 and Ubuntu 24.04/WSL2 Linux
 x86_64, with moon 0.1.20261102 (ea07287), moonc v0.10.19+bee578715,
@@ -47,7 +51,7 @@ Linux equivalents:
 ./_build/bin/linux/moonbsdiff patch 'old file.bin' 'update.patch' 'restored file.bin'
 ```
 
-The executable reports `moonbsdiff 0.1.0` from generated module metadata.
+The executable reports `moonbsdiff 0.2.0` from generated module metadata.
 CI checks generated source and actual --version against moon.mod to catch drift.
 Our order is **patch OLD PATCH OUTPUT**, different from upstream
 **bspatch OLD NEW PATCH**. Diff/patch operations require exactly three file arguments; inspect takes one, and --show-limits takes none. Exit codes:
@@ -57,7 +61,7 @@ field/value/limit metadata where available. Successful diff/patch are silent.
 No overwrite switch, stdin protocol, network update or directory synchronization
 is provided.
 
-## Patch inspection (Unreleased, target 0.2.0)
+## Patch inspection (CLI 0.2.0)
 
 ```sh
 ./_build/bin/linux/moonbsdiff inspect testdata/upstream/replace/patch.bin
@@ -77,7 +81,7 @@ describe decimal-string byte fields, lossless Int64 and JSON escaping. This is
 not --deep, manifest validation or a full patch-verification command. The feature
 is not in published 0.1.0; generated CLI version remains module metadata.
 
-## External manifest output (Unreleased, target 0.2.0)
+## External manifest output (CLI 0.2.0)
 
 ```sh
 ./_build/bin/linux/moonbsdiff diff --manifest update.json old.bin new.bin update.patch
@@ -99,7 +103,7 @@ source, platform details and partial failure](manifest.md) define the contract.
 SHA-256 does not authenticate the publisher; a manifest replaced together with
 its patch cannot supply authenticity. Bounded verify/checked restoration is described below.
 
-## Verify and checked patch (Unreleased, target 0.2.0)
+## Verify and checked patch (CLI 0.2.0)
 
 ```sh
 ./_build/bin/linux/moonbsdiff verify --manifest testdata/manifest/update.json testdata/manifest/old.bin testdata/manifest/update.patch
@@ -185,10 +189,10 @@ Concurrent file mutation is not a consistent snapshot guarantee. BSDIFF40 does
 not contain old-file identity hashes; callers must verify intended old and new
 hashes externally. Input buffers/files are never written by product operations.
 
-## CLI overrides (Unreleased, target 0.2.0)
+## CLI overrides (CLI 0.2.0)
 
-These source-checkout additions are **not included in published 0.1.0**. The
-module-generated version string is still 0.1.0 until the next release is prepared;
+These CLI additions are **not included in published 0.1.0**. The
+module-generated version string is 0.2.0 for this GitHub CLI release;
 use the checkout SHA to identify unreleased CLI behavior. No library defaults,
 public signatures, dependencies or native file-delivery mechanisms changed.
 
@@ -298,7 +302,7 @@ unsupported conditions still fail explicitly, with **no unsafe rename fallback**
 The locally verified Linux output filesystem is /tmp on WSL ext4, not a claim
 that all mounted/network/Windows-backed filesystems implement these operations.
 
-Commit 21 (0.2.0 Unreleased) adds a Linux compatibility route only on explicit
+Commit 21 (CLI 0.2.0) adds a Linux compatibility route only on explicit
 anonymous/proc capability errors, before writing. It requires local ext filesystem
 magic 0xef53, a trusted-owner/protected parent, verified 0700 private directory and
 0600 exclusively created payload. All operations stay descriptor-anchored; final

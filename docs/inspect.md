@@ -1,6 +1,6 @@
-# Header-only patch inspection (Unreleased, target 0.2.0)
+# Header-only patch inspection (CLI 0.2.0)
 
-These source-checkout additions are not in published 0.1.0. They inspect the
+These CLI additions are not in published 0.1.0. They inspect the
 BSDIFF40 header and compressed intervals only. There is no --deep mode, manifest
 verification, old-file identity check, decompression or restoration in this step.
 A successful exit is not a claim that the patch is valid or can be applied.

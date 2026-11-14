@@ -1,6 +1,6 @@
 # MoonBSDiff
 
-MoonBSDiff is a MoonBit reference port of BSDiff 4.3 for binary diffs and patches. The current stage implements structured errors, `Limits::validate`, internal BSDIFF40 integer/envelope parsing, and a private bounded bzip2 adapter. Public diff and apply APIs now generate and restore strict BSDIFF40 patches. A native Windows/Linux CLI is available; see [CLI build and file contracts](docs/cli.md). Compression uses moonzip 0.3.5 at level 9; strict bounded decoding uses its attributed, adapted sources under `internal/bzip2/`.
+MoonBSDiff is a MoonBit reference port of BSDiff 4.3 for binary diffs and patches. The current stage implements structured errors, `Limits::validate`, internal BSDIFF40 integer/envelope parsing, and a private bounded bzip2 adapter. Public diff and apply APIs now generate and restore strict BSDIFF40 patches. Download the [Windows/Linux CLI 0.2.0](docs/cli-install.md) from the GitHub CLI release (Mooncakes 0.2.0 is not published); see [CLI build and file contracts](docs/cli.md). Compression uses moonzip 0.3.5 at level 9; strict bounded decoding uses its attributed, adapted sources under `internal/bzip2/`.
 
 The `Limits` fields for old, new, patch and output buffer sizes are byte counts in 1..2147483647, bounded for Int indexing. `max_decompressed_bytes` is an aggregate byte count, `max_control_instructions` counts instructions, and `max_sort_work` / `max_match_work` count algorithm-defined work units; each is a positive Int64. Sorting visits accumulate across index rounds; matching/generation visits accumulate across scan, raw encoding, compression-wrapper copies and final assembly; see [generation resources](docs/generation-resources.md). Limits::for_apply() supplies conservative application defaults: old/new/output 1 MiB each, patch 64 KiB, total decompression 2 MiB and 16384 instructions. Sorting/matching fields are unused positive placeholders, not generation defaults; use the separate measured Limits::for_diff() policy for generation. Validation means only that a configuration is legal, not that a complete patch operation has runtime resource protection. The private decoder now enforces per-call and shared decompression budgets. No cross-field relationships are imposed.
 
@@ -145,7 +145,7 @@ Python is a build/test tool, not a runtime dependency of the CLI.
 ./_build/bin/linux/moonbsdiff patch 'old file.bin' 'update.patch' 'restored file.bin'
 ```
 
-**Unreleased CLI additions (target 0.2.0, absent from published 0.1.0):**
+**CLI 0.2.0 additions (absent from published Mooncakes 0.1.0):**
 
 ```sh
 ./_build/bin/linux/moonbsdiff diff --max-old-bytes 256KiB --show-limits
@@ -157,10 +157,10 @@ precede paths, `--` permits leading-hyphen paths, and display mode accepts no
 files and performs no IO. Byte units are case-sensitive B/KiB/MiB; count/work
 values have no units. Patch rejects sort/match options. The reader and core use
 the same validated configuration; raising one cap leaves every other cap intact.
-See the [full CLI option table](docs/cli.md#cli-overrides-unreleased-target-020).
+See the [full CLI option table](docs/cli.md#cli-overrides-cli-020).
 This does not expand measured size or memory/CPU guarantees.
 
-**Header-only inspection (also Unreleased, target 0.2.0):**
+**Header-only inspection (CLI 0.2.0):**
 
 ```sh
 ./_build/bin/linux/moonbsdiff inspect testdata/upstream/replace/patch.bin
@@ -172,10 +172,10 @@ bounded patch (default 128 KiB), creates no output and does not decompress or
 restore. `header-only` and all unperformed checks are explicit; JSON byte counts
 and offsets are decimal strings with no Int64 precision loss. See [real output
 and schema](docs/inspect.md). Inspect performs no manifest/identity/deep verification; use verify below for supplied-manifest content checks.
-The minimal library `inspect_header`/read-only `PatchInfo` API is new in this
-unreleased source and leaves diff/apply/defaults unchanged.
+The minimal library `inspect_header`/read-only `PatchInfo` API is in the 0.2.0
+source; Mooncakes 0.2.0 is not published. Diff/apply/defaults are unchanged.
 
-**Optional external manifest (0.2.0 Unreleased):**
+**Optional external manifest (CLI 0.2.0):**
 
 ```sh
 ./_build/bin/linux/moonbsdiff diff --manifest update.json old.bin new.bin update.patch
@@ -188,7 +188,7 @@ first, manifest second, without replacement; partial failure keeps the patch and
 reports manifest incomplete. This is not an atomic pair, a signature or publisher
 authentication. Expected manifests must come from a trusted channel. Verify and checked restoration are available below. Published 0.1.0 is unchanged.
 
-**Content verification and checked restoration (0.2.0 Unreleased):**
+**Content verification and checked restoration (CLI 0.2.0):**
 
 ```sh
 ./_build/bin/linux/moonbsdiff verify --manifest update.json old.bin update.patch
@@ -231,7 +231,7 @@ results belong to its checkout SHA; historical reports are not current passes.
 These are source checks, not registry-consumer or release acceptance.
 
 
-## Linux compatibility delivery (0.2.0 Unreleased)
+## Linux compatibility delivery (CLI 0.2.0)
 
 When anonymous creation is unsupported or /proc references are absent, delivery
 can use an exclusive 0700 private directory and 0600 file on a guarded local ext
@@ -242,7 +242,7 @@ malicious-same-UID/root, or power-loss guarantees. Uncertain temporary identity
 can leave an explicitly reported object for inspection; no caller output path is
 deleted as rollback. [Design, threat model and evidence](docs/linux-delivery.md)
 explain the strict selection and permission conditions. Published 0.1.0 retains
-its old requirements; these additions are unreleased.
+its old requirements; Mooncakes 0.2.0 has not been published.
 
 ## Executable examples
 

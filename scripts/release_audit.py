@@ -37,7 +37,9 @@ def main():
     for name,digest in expected.items():
         require(sha((source/name).read_bytes())==digest,'source changed during preparation: '+name)
     run(['moon','package','--list'])
-    package=source/'_build/publish/BigSaltyMan-moonbsdiff-0.1.0.zip'
+    import re
+    module_version=re.search(r'^version\s*=\s*"([^"]+)"', (source/'moon.mod').read_text(encoding='utf8'),re.M)[1]
+    package=source/('_build/publish/BigSaltyMan-moonbsdiff-'+module_version+'.zip')
     count=audit_zip(package,expected)
     for name in ['LICENSE','README.md','CHANGELOG.md','moon.mod','moon.pkg','pkg.generated.mbti','internal/bzip2/LICENSE','internal/bzip2/source-lock.json','internal/bzip2/changes.patch','tools/oracle/BSDIFF-LICENSE.txt','tools/oracle/BZIP2-LICENSE.txt','docs/acceptance.md']:
         require(name in expected,'required source/license missing: '+name)
