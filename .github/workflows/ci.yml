@@ -1,5 +1,13 @@
 name: CI
-on: [push, pull_request]
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      run_generation_scales:
+        description: Rerun the explicit native scale measurements (not part of ordinary pushes)
+        type: boolean
+        default: false
 jobs:
   native:
     runs-on: ubuntu-latest
@@ -107,6 +115,14 @@ jobs:
             python3 scripts/check_acceptance.py --test-log "diff-$target.log" -- moon test diff_test.mbt diff_vectors_test.mbt diff_wbtest.mbt --target "$target" --deny-warn
             grep -E 'Total tests: [1-9][0-9]*, passed: [1-9][0-9]*, failed: 0' "diff-$target.log"
           done
+
+      - name: Compact reusable-index API on JS and Wasm-GC (native covered above)
+        shell: bash
+        run: |
+          for target in js wasm-gc; do
+            python3 scripts/check_acceptance.py --test-log "index-$target.log" -- moon test diff_index_test.mbt --target "$target" --deny-warn
+          done
+          moon run examples/index-reuse --target js
 
       - name: Compact generation resource contracts on JS and Wasm-GC
         shell: bash
@@ -229,6 +245,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0 # verify historical measurement bytes at their original SHA
       - uses: hustcer/setup-moonbit@bdc8c076af1f4c5012a6ac3451a2009ec75bf921 # v1.22
         with:
           version: 0.10.19+bee578715
@@ -238,15 +256,18 @@ jobs:
       - name: Verify fixed policies and historical scale evidence without timing
         run: python3 scripts/generation_scale.py --verify-report
       - name: Execute only the six new native-release inputs in stage order
+        if: github.event_name == 'workflow_dispatch' && inputs.run_generation_scales
         run: |
           python3 scripts/generation_scale.py --measure-stage 256k --output _build/scale256.json
           python3 scripts/generation_scale.py --measure-stage 1m --prior _build/scale256.json --output _build/scale-all.json
       - name: Replay two explicit public CLI policies with matching patch read caps
+        if: github.event_name == 'workflow_dispatch' && inputs.run_generation_scales
         run: |
           python3 scripts/build_cli.py --release
           python3 scripts/generation_scale.py --replay-cli _build/bin/linux/moonbsdiff --stage 256k --case random
           python3 scripts/generation_scale.py --replay-cli _build/bin/linux/moonbsdiff --stage 1m --case random
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: github.event_name == 'workflow_dispatch' && inputs.run_generation_scales
         with:
           name: generation-scales-${{ github.sha }}
           path: |

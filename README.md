@@ -7,6 +7,13 @@ random replay. The 64 KiB generation default is unchanged; independent work,
 control, raw-data and patch caps may still reject inputs within a size cap.
 This does not modify CLI 0.2.0 downloads or publish any Mooncakes version.
 
+The same unreleased source now offers [DiffIndex](docs/diff-index.md) for one old
+version and multiple targets: build the suffix index once, then generate with
+fresh per-target budgets. The opaque object retains immutable old bytes and its
+private index; single-use `diff` remains unchanged. No speed factor or concurrent
+use guarantee is claimed. Run `moon run examples/index-reuse --target js` for the
+small public-API example.
+
 MoonBSDiff is a MoonBit reference port of BSDiff 4.3 for binary diffs and patches. The current stage implements structured errors, `Limits::validate`, internal BSDIFF40 integer/envelope parsing, and a private bounded bzip2 adapter. Public diff and apply APIs now generate and restore strict BSDIFF40 patches. Download the [Windows/Linux CLI 0.2.0](docs/cli-install.md) from the GitHub CLI release (Mooncakes 0.2.0 is not published); see [CLI build and file contracts](docs/cli.md). Compression uses moonzip 0.3.5 at level 9; strict bounded decoding uses its attributed, adapted sources under `internal/bzip2/`.
 
 The `Limits` fields for old, new, patch and output buffer sizes are byte counts in 1..2147483647, bounded for Int indexing. `max_decompressed_bytes` is an aggregate byte count, `max_control_instructions` counts instructions, and `max_sort_work` / `max_match_work` count algorithm-defined work units; each is a positive Int64. Sorting visits accumulate across index rounds; matching/generation visits accumulate across scan, raw encoding, compression-wrapper copies and final assembly; see [generation resources](docs/generation-resources.md). Limits::for_apply() supplies conservative application defaults: old/new/output 1 MiB each, patch 64 KiB, total decompression 2 MiB and 16384 instructions. Sorting/matching fields are unused positive placeholders, not generation defaults; use the separate measured Limits::for_diff() policy for generation. Validation means only that a configuration is legal, not that a complete patch operation has runtime resource protection. The private decoder now enforces per-call and shared decompression budgets. No cross-field relationships are imposed.

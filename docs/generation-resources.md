@@ -7,6 +7,15 @@ are unchanged. The new policies are not a blanket size guarantee or a change to
 the released CLI 0.2.0 assets. Historical Commit 11 measurements below were not
 rerun or rewritten.
 
+Commit 24 adds [DiffIndex reuse](diff-index.md). Construction checks old bytes
+and charges one cumulative sorting budget; indexed generation revalidates target
+limits and creates a fresh matching/generation budget. The old Bytes and final
+SA are the only retained fields. Ordinary diff keeps its original pre-sort
+preflight and budget semantics; both routes share generate_indexed_patch for
+matching/encoding/packaging. Work-unit definitions below are unchanged. The
+earlier measurement timings belong to their original source SHA, not to this
+new API; only compact reuse/isolation contracts were run for Commit 24.
+
 ## Review and fixes (Commit 11)
 
 Baseline: clean master, `d20524e42375d58058c2089a6643f780f44bb030`.

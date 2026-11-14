@@ -2,6 +2,17 @@
 
 ## 0.3.0 — Unreleased
 
+- Opaque DiffIndex::build / DiffIndex::diff reuse immutable old bytes and one
+  suffix array across targets. Construction charges sorting once; every target
+  rechecks its limits and receives a fresh matching/generation budget. Ordinary
+  diff shares the same pipeline and retains its signature/default behavior.
+- Five compact public API tests on native/JS/Wasm-GC cover multi-target reuse,
+  deterministic independent results, exact quotas, failures/recovery and size
+  caps. A small executable example shows two restored targets from one index.
+- Historical larger-scale timings remain bound to their original Git sources;
+  ordinary pushes check records, while large remeasurement requires explicit
+  workflow_dispatch selection. No old measurements were refreshed for this API.
+
 - Explicit measured 256 KiB and 1 MiB generation/application policies, complete
   machine-readable caps, deterministic replay, six native-release input pairs
   and two public CLI replays. Input/restoration hashes, cumulative work, raw
@@ -9,8 +20,8 @@
 - GNU time invocation maximum RSS is distinguished from unmeasured API-only
   peak memory. Sparse, periodic and independent random cases passed; this is
   not acceptance of every size-compliant input or other targets at these sizes.
-- Existing explicit Limits suffice: no algorithm optimization, default factory,
-  root public interface or dependency change. Released CLI 0.2.0 assets and
+- Those scale policies use existing explicit Limits: no algorithm optimization,
+  default factory or dependency change. Released CLI 0.2.0 assets and
   Mooncakes 0.1.0 identity are unchanged; Mooncakes 0.2.0 is still unpublished.
 
 ## 0.2.0 — GitHub CLI

@@ -1,0 +1,7 @@
+import {
+  "BigSaltyMan/moonbsdiff",
+}
+
+pkgtype(kind: "executable")
+
+supported_targets = "-all+native+js+wasm-gc"

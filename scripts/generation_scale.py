@@ -125,6 +125,23 @@ def verify_fixed_records(report):
                 re.fullmatch('[0-9a-f]{64}', row['executable_sha256']), 'CLI byte/hash evidence differs')
 
 
+def verify_historical_sources(report):
+    """Bind historical timing to its original Git source, never current code."""
+    revision = report['baseline_sha']
+    require(re.fullmatch('[0-9a-f]{40}', revision), 'invalid historical source SHA')
+    git = ['git', '-c', 'safe.directory='+ROOT.as_posix()]
+    names = subprocess.check_output(git+['ls-tree', '-r', '--name-only', revision], cwd=ROOT, text=True).splitlines()
+    expected = {name for name in names if (
+        ('/' not in name and name.endswith('.mbt') and not name.endswith(('_test.mbt', '_wbtest.mbt'))) or
+        (name.startswith('internal/bzip2/') and name.count('/') == 2 and name.endswith('.mbt')) or
+        name in ('moon.mod', 'moon.pkg'))}
+    require(set(report['sources']) == expected, 'historical source inventory differs')
+    # Read Git blobs directly: archive can apply host EOL conversion on Windows.
+    actual = {name: sha(subprocess.check_output(git+['cat-file', 'blob', revision+':'+name], cwd=ROOT))
+              for name in sorted(expected)}
+    require(actual == report['sources'], 'historical source hashes differ')
+
+
 def measure(stage, output, prior):
     require(platform.system() == 'Linux', 'measurement target is Linux native release')
     require(not output.exists(), 'refusing to replace evidence output')
@@ -272,10 +289,13 @@ if __name__ == '__main__':
         require(a.output is not None, '--output required')
         measure(a.measure_stage, a.output, a.prior)
     elif a.verify_report:
-        report = verify(json.loads(a.verify_report.read_text(encoding='utf8')), current=True)
-        if a.verify_report.resolve() == RECORD.resolve():
+        fixed = a.verify_report.resolve() == RECORD.resolve()
+        report = verify(json.loads(a.verify_report.read_text(encoding='utf8')), current=not fixed)
+        if fixed:
+            verify_historical_sources(report)
             verify_fixed_records(report)
-        print('Scale identities, policies, work, raw blocks and restoration evidence: PASS')
+        print(('Historical source-bound' if fixed else 'Current source-bound')+
+              ' scale identities, policies, work, raw blocks and restoration evidence: PASS')
     elif a.replay_cli:
         require(a.stage is not None, '--stage required')
         replay(a.replay_cli, a.stage, a.case)

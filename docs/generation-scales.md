@@ -201,6 +201,11 @@ diff/apply recovery, and two public CLI random-pair replays (four commands).
 There are six independent input pairs, not eight. No old CLI/IO/library/random
 matrix, C oracle, large historical compression probe or resource benchmark was
 rerun. JS/Wasm-GC and Windows large-scale execution were not measured; core
-algorithms were unchanged. CI repeats only this new native scale collection in
-one explicit Linux task, without absolute timing thresholds. Later Commit 24+
-work and publishing remain outside this step.
+algorithms were unchanged. The scale collection has one explicit Linux task
+without absolute timing thresholds. Starting with Commit 24, ordinary pushes
+verify these historical records against their original Git source hashes;
+they do not remeasure the large cases or claim old timings for current code.
+To request remeasurement, use workflow_dispatch with run_generation_scales=true.
+New temporary reports still require matching current source identities between
+stages. The compact [index-reuse API evidence](diff-index.md) is separate from
+this historical scale acceptance. Publishing remains outside these source steps.

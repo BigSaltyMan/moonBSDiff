@@ -443,14 +443,13 @@ fn generated_patch_size(
 }
 
 ///|
-/// Generate a standard BSDIFF40 patch with explicit generation limits.
-fn generate_patch(
+// Shared by one-shot and reusable-index generation; check before sorting or
+// entering the per-target scan/encoding pipeline.
+fn generation_preflight(
   old_bytes : Bytes,
   new_bytes : Bytes,
   limits : Limits,
-  sort_budget : SortBudget,
-  match_budget : MatchBudget,
-) -> Result[Bytes, BsdiffError] {
+) -> Result[Unit, BsdiffError] {
   match limits.validate() {
     Err(e) => return Err(e)
     Ok(_) => ()
@@ -490,11 +489,40 @@ fn generate_patch(
     Err(e) => return Err(e)
     Ok(_) => ()
   }
+  Ok(())
+}
+
+///|
+/// Generate a standard BSDIFF40 patch with explicit generation limits.
+fn generate_patch(
+  old_bytes : Bytes,
+  new_bytes : Bytes,
+  limits : Limits,
+  sort_budget : SortBudget,
+  match_budget : MatchBudget,
+) -> Result[Bytes, BsdiffError] {
+  match generation_preflight(old_bytes, new_bytes, limits) {
+    Err(e) => return Err(e)
+    Ok(_) => ()
+  }
   let sa = match build_suffix_array(old_bytes, 2147483647L, sort_budget) {
     Err(e) => return Err(e)
     Ok(v) => v
   }
 
+  generate_indexed_patch(old_bytes, new_bytes, sa, limits, match_budget)
+}
+
+///|
+// Both callers have passed generation_preflight. This function only reads sa;
+// it owns no persistent work state and never constructs/sorts an index.
+fn generate_indexed_patch(
+  old_bytes : Bytes,
+  new_bytes : Bytes,
+  sa : Array[Int32],
+  limits : Limits,
+  match_budget : MatchBudget,
+) -> Result[Bytes, BsdiffError] {
   let segment_cap = if limits.max_control_instructions < 2147483647L / 24L {
     limits.max_control_instructions
   } else {
