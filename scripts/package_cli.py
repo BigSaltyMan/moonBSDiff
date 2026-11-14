@@ -200,7 +200,8 @@ def main():
     require(dependency_versions.get('moonzip') == '0.3.5' and dependency_versions.get('mooncrypt') == '0.4.7', 'wrong direct dependency')
     info = dict(schema_version=1, version=version(), source_sha=source, platform=system, architecture='x86_64',
                 build_mode='native release', build_command='python scripts/build_cli.py --release',
-                toolchain=[line for line in toolchain.splitlines() if re.match(r'^(moon |moonc |moonrun )', line)],
+                toolchain=[re.match(r'^((?:moon|moonc|moonrun) .+?\))', line)[1]
+                           for line in toolchain.splitlines() if re.match(r'^(moon |moonc |moonrun )', line)],
                 dependencies=dependency_versions, runtime=dependencies,
                 executable=dict(name=exe_name, size_bytes=exe.stat().st_size, sha256=sha(exe.read_bytes())),
                 runner_image=os.environ.get('ImageOS'), runner_image_version=os.environ.get('ImageVersion'),
