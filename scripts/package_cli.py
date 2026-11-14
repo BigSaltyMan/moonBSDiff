@@ -51,8 +51,9 @@ def metadata(exe, system):
         compiler = subprocess.run(['cl'], capture_output=True, timeout=15)
         compiler_text = (compiler.stdout + compiler.stderr).decode('utf8', errors='replace')
         require('Compiler Version' in compiler_text, 'MSVC compiler identity missing')
+        compiler_version = next(line.strip() for line in compiler_text.splitlines() if 'Compiler Version' in line)
         return dict(format='PE32+ x86_64', dll_imports=dlls,
-                    compiler=compiler_text.splitlines()[0],
+                    compiler=compiler_version,
                     runtime_scope='Tested on this Windows runner; no universal minimum Windows version claimed')
     header = run(['readelf', '-h', str(exe)])
     require('Advanced Micro Devices X86-64' in header, 'not ELF x86_64')
