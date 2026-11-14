@@ -1,21 +1,21 @@
 # External content manifest (0.2.0 Unreleased)
 
 This source-only feature is not part of published 0.1.0. The patch remains plain
-BSDIFF40: no custom header, trailer or embedded JSON. There is no manifest reader,
-verify, signature or manifest-checked restoration in this step (Commit 20 remains
-pending).
+BSDIFF40: no custom header, trailer or embedded JSON. Commit 20 adds bounded manifest reading, verify, and checked patch delivery.
+Signatures, network fetching, automatic updates and streaming remain unimplemented.
 
 ```sh
 moonbsdiff diff --manifest update.json old.bin new.bin update.patch
 ```
 
-Only diff accepts --manifest. Options precede operands and -- ends options for
+Diff uses --manifest as output; patch and verify use it as input as described below.
+Options precede operands and -- ends options for
 leading-hyphen input/output names. The manifest flag takes one nonempty path value;
 a leading-hyphen manifest name must use ./-name, since -- terminates options only
 for positional operands. Duplicate/missing/inapplicable flags and combining
 --manifest with --show-limits exit 2 before IO. Existing limit overrides still
-apply. Without this flag no manifest is allocated/hashed/written and the old
-single-output path is unchanged. Success is silent on stdout/stderr, exit 0;
+apply. Without this flag diff emits no manifest and plain patch retains its original
+unchecked-identity behavior. Success is silent on stdout/stderr, exit 0;
 operational/output failures use stderr and exit 1.
 
 ## Schema 1 and real example
@@ -49,8 +49,9 @@ The actual file is compact UTF-8 JSON plus one LF (405 bytes); pretty-printed he
 ```
 
 Required top-level members are schema_version (JSON integer 1), patch_format
-(string BSDIFF40), producer, old, new, patch. producer has name=moonbsdiff and
-version from the actual generated cli_version/module build metadata. This checkout
+(string BSDIFF40), producer, old, new, patch. The generator emits producer name=moonbsdiff and
+version from the actual generated cli_version/module build metadata; the consumer
+treats those required strings only as provenance information. This checkout
 still reports 0.1.0; the producer does not pretend this is released 0.2.0 or embed
 an unverified source SHA. The checkout's unreleased features are distinct from
 the immutable published 0.1.0 artifact.
@@ -65,8 +66,8 @@ is made that different generator/tool versions produce identical patches.
 
 The patch size excludes this separate JSON file. This is a content binding schema,
 not an inspect report: it makes no claim about CRC or instruction validation. A
-future bounded parser must validate schema/format, exact field types and integer/
-hash syntax before using any values; no such product input path exists yet.
+bounded consumer validates schema/format, exact field types and integer/hash syntax
+before using any values; see the Commit 20 input policy below.
 
 ## Hash implementation and data binding
 
@@ -144,4 +145,115 @@ the existing platform builds and appends only the new manifest CLI collection.
 **A hash manifest checks content, not publisher identity. If both manifest and
 patch are replaced, ordinary hashes do not provide authenticity. Obtain expected
 manifests from a trusted channel.** This is not a signature or a safe automatic-
-update system. Manifest validation and checked restoration remain Commit 20.
+update system. Bounded content verification and checked restoration are provided below; neither authenticates a publisher.
+
+## Bounded consumption and checked restoration (Commit 20)
+
+```sh
+moonbsdiff verify --manifest update.json old.bin update.patch
+moonbsdiff patch --manifest update.json old.bin update.patch restored.bin
+```
+
+All options precede operands, -- still permits leading-hyphen operand names, and
+a leading-hyphen manifest value uses ./-name. Verify requires --manifest and
+exactly two input operands; no final output operand is accepted. Patch accepts
+an optional manifest and exactly three operands. Diff generation and inspect
+remain separate: inspect accepts no manifest or --deep mode. Verify accepts the
+same meaningful application caps as patch (old/new/output/patch/expanded/control),
+rejects sorting/matching, --json and --show-limits, and introduces no new config
+file, environment priority or library default. Default application policy remains
+for_apply with the CLI patch cap of 128 KiB. Producer metadata never selects a
+code path, grants trust, or authorizes file reads.
+
+### Input schema and parser policy
+
+Manifest input is a regular file bounded to **16384 bytes** by the existing native
+reader, both before known-size allocation and during accumulated reads. This cap
+is fixed, not affected by --max-patch-bytes or an unlimited sentinel. The normal
+405-byte output fits it. Standard core/encoding/utf8 decoding is strict; invalid
+UTF-8 and a leading BOM are rejected. Standard core/json parses with
+max_nesting_depth=8, reject_duplicate_keys=true and preserve_number_repr=true.
+The fixed SDK's parser checks duplicates while parsing, before keys are lost to
+an object map; decoded equivalents such as size_bytes and \u0073ize_bytes are
+also duplicates. **All duplicate keys at every depth are rejected.**
+
+The six root fields and each producer/content object's exact fields are required.
+**Unknown fields are rejected at every object level**, including proposed paths
+or extensions; they never drive IO. Schema version is the integer literal 1,
+not 1.0, an exponent or a string. Format must be BSDIFF40. Producer name/version
+must be strings but are opaque information; a different/unknown producer version
+is not automatically rejected or trusted. Each size is a nonempty ASCII decimal
+string in 0..9223372036854775807, checked before multiply/add and never converted
+through floating point. Leading zeros are accepted. The literal "0" is valid for
+empty content and is unrelated to the strictly positive Limits settings. Hashes
+must be exactly 64 lowercase ASCII hex digits; absent/wrong-type/uppercase/invalid
+hashes fail. This consumes the unchanged Commit 19 schema rather than creating a
+new manifest format or rewriting expected values.
+
+### Shared pipeline and delivery
+
+Verify and patch --manifest call the same verified_restore function:
+
+1. Bounded-read and strictly parse the manifest.
+2. Check declared old and patch sizes against their effective input caps; check
+   new size against both max_new_bytes and max_output_bytes before reading inputs.
+3. Bounded-read the actual old/patch buffers; check both exact sizes and SHA-256.
+   A size/hash mismatch stops before header parsing or apply.
+4. Reuse inspect_header for structural checks and compare its declared target
+   size to the manifest. Header-only inspection is not accepted as full validation.
+5. Call the public apply with those **same immutable Bytes** and effective Limits.
+   No hash-path/reopen gap exists. Apply retains its CRC/control/consumption and
+   expanded/instruction checks. A corrupt payload with an updated manifest hash
+   still fails here.
+6. Compare restored byte size and SHA-256 to the manifest's original new identity.
+
+Verify discards the restored buffer, creates no output/temporary-delivery file
+and on success prints:
+
+```text
+Verification succeeded: manifest, inputs and restored content match (not publisher authentication).
+```
+
+It really restores into bounded memory: this is not header-only, zero-memory or
+streaming verification. Concurrent writes during the initial read remain outside
+a filesystem-snapshot guarantee; the bytes actually checked are exactly those
+used in apply. The expected new identity comes from the supplied manifest, never
+from regenerating it using the restored result.
+
+Patch prechecks the output against old, patch and manifest with the existing
+native identity/no-existing-target check (including aliases), then calls the
+shared pipeline. **Only after every check succeeds** does it call the unchanged
+no-overwrite delivery function. Validation failure never calls delivery, writes
+inputs or creates a final output. Operational delivery failures keep the existing
+semantics; a post-link close error can leave an output visible, so a failure is
+not a power-loss/rollback guarantee. Linux delivery still requires O_TMPFILE and
+/proc. Plain patch without --manifest still cannot reliably identify a wrong old
+file, and diff's optional two-output non-transactional contract is unchanged.
+
+Success exits 0 (checked patch stays silent). Parameter/configuration problems,
+including missing verify --manifest, exit 2. File/encoding/JSON/schema/declaration/
+identity/header/apply/restored-content/delivery failures exit 1 with a stage and
+content-specific stderr diagnostic. Failures leave stdout empty, never a partial
+success report. No JSON event/progress output is added.
+
+### Directed evidence
+
+The retained [Commit 19 sample](../testdata/manifest/README.md) supplies fixed old,
+new, patch and manifest bytes. New tests perform no diff or oracle generation.
+Windows/Linux each passed five new tests / 44 calls without skips: correct verify
+and checked delivery including empty files, 16 KiB exact/over-limit reads,
+pre-apply input mismatch, header/new-size mismatch, wrong restored hash, actual
+apply rejection, strict schema/types/numbers/duplicates/depth/UTF-8, ignored
+producer-version authority, custom caps before missing input opens, and preservation
+of existing outputs/manifest hard-link aliases. Inputs, contents and mtimes stay
+unchanged; verification creates no file. Commit 19's obsolete patch-inapplicable
+argument assertion is now a missing-value assertion because that flag is valid.
+Existing CI platform builds append only this collection; locally the old CLI/IO,
+full library/interoperability matrices, probes and resource measurements were not
+rerun. Root .mbti, default factories, native IO and dependencies are unchanged.
+
+Content consistency against a supplied manifest still does not authenticate its
+publisher. If an attacker replaces both patch and expected manifest, ordinary
+hashes do not supply authenticity. Expected manifests must come from a trusted
+channel. There is no signature, network acquisition, automatic update or streaming
+promise. These additions remain 0.2.0 Unreleased and are absent from published 0.1.0.

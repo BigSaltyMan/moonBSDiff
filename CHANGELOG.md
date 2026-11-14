@@ -2,13 +2,19 @@
 
 ## 0.2.0 — Unreleased
 
+- Verify and optional patch --manifest share bounded strict schema-1 consumption,
+  pre-apply input size/hash checks, header consistency, real in-memory apply and
+  restored size/hash checks. Checked output is delivered only after success.
+- Manifest reads are capped at 16 KiB and JSON depth 8; duplicate/unknown fields,
+  invalid sizes/hashes and malformed content fail. Producer metadata is not trust.
+
 - Diff can emit a separate schema-1 SHA-256 manifest for the actual old/new/patch
   buffers, with deterministic JSON and generated producer metadata. Patch bytes
   remain standard BSDIFF40; hashing uses pinned mooncrypt 0.4.7 (Apache-2.0).
 - Both outputs use no-overwrite delivery with read-only alias preflight; patch
   delivery precedes manifest delivery. Partial failure reports the delivered
-  patch and incomplete manifest without path-based rollback. No verification,
-  signature or manifest-checked restoration is added.
+  patch and incomplete manifest without path-based rollback. No signature or
+  publisher-authentication guarantee is added.
 
 - Header-only CLI inspect with text/schema-versioned JSON, bounded patch reads,
   exact decimal-string byte fields and explicit unperformed checks. No decoder,

@@ -28,7 +28,7 @@ class ManifestCli(unittest.TestCase):
         with contextlib.chdir(self.p):self.run_cli(['diff','--manifest','./-manifest.json','--','-old','-new','-patch'])
         d=json.loads((self.p/'-manifest.json').read_bytes());self.assertEqual(d['old'],entry(b'\x00\xff'));self.assertEqual(d['new'],entry(b'\x00\xff'))
     def test_invalid_arguments(self):
-        rows=[['diff','--manifest'],['diff','--manifest',''],['diff','--manifest','--show-limits'],['diff','--manifest','a','--manifest','b',self.old,self.new,self.patch],['patch','--manifest','a',self.old,self.new,self.patch],['inspect','--manifest','a',self.patch],['diff','--manifest','a','--show-limits']]
+        rows=[['diff','--manifest'],['diff','--manifest',''],['diff','--manifest','--show-limits'],['patch','--manifest'],['diff','--manifest','a','--manifest','b',self.old,self.new,self.patch],['inspect','--manifest','a',self.patch],['diff','--manifest','a','--show-limits']]
         for args in rows:
             with self.subTest(args=args):self.run_cli(args,2);self.assertFalse(self.patch.exists())
     def test_output_conflicts_and_parent_aliases(self):

@@ -83,7 +83,7 @@ is not in published 0.1.0; generated CLI version remains module metadata.
 ./_build/bin/linux/moonbsdiff diff --manifest update.json old.bin new.bin update.patch
 ```
 
-Diff alone accepts --manifest PATH, once, before operands. It is incompatible
+Diff accepts --manifest PATH as an output; patch/verify accept it as input, once, before operands. It is incompatible
 with --show-limits. A leading-hyphen manifest value uses ./-name; positional --
 rules are unchanged. The optional JSON binds actual old/new/patch buffers with
 full lowercase SHA-256 and decimal-string sizes. BSDIFF40 bytes are unchanged.
@@ -97,7 +97,38 @@ keeps the patch and does not roll back by deleting caller paths. Check existing
 outputs before retrying. Success remains silent. [Schema, real manifest, hash
 source, platform details and partial failure](manifest.md) define the contract.
 SHA-256 does not authenticate the publisher; a manifest replaced together with
-its patch cannot supply authenticity. Manifest validation/restoration is pending.
+its patch cannot supply authenticity. Bounded verify/checked restoration is described below.
+
+## Verify and checked patch (Unreleased, target 0.2.0)
+
+```sh
+./_build/bin/linux/moonbsdiff verify --manifest testdata/manifest/update.json testdata/manifest/old.bin testdata/manifest/update.patch
+./_build/bin/linux/moonbsdiff patch --manifest update.json old.bin update.patch restored.bin
+```
+
+Verify requires a manifest and exactly OLD/PATCH operands; it actually performs
+bounded in-memory apply, checks restored content and prints one success line,
+without a final output file. Patch's optional manifest uses that same pipeline
+and delivers only after all identities match. Plain patch is unchanged and does
+not reliably identify the old file. Inspect remains header-only.
+
+Manifest input is capped at 16 KiB with a depth-8 strict UTF-8/JSON parser; all
+duplicate (including escaped-equivalent) and unknown keys are rejected. Schema 1,
+BSDIFF40, required objects/fields, exact decimal-string sizes (zero allowed for
+content), lowercase SHA-256 and producer string types are checked. Producer
+metadata confers no trust. Effective old/patch/new/output caps are checked before
+input reads or restored allocation; hashes bind the same Bytes passed to apply.
+Output aliases of old, patch or manifest and existing targets are refused by the
+unchanged native check/delivery. All verification failures leave inputs and final
+output untouched; delivery failure retains its previously documented boundary.
+
+Verify accepts meaningful patch limit overrides, not sorting/matching, --json or
+--show-limits. Existing prefix-options/--/duplicates rules apply. Parameter/config
+errors exit 2; read/schema/identity/apply/restoration/delivery errors exit 1 on
+stderr, with empty stdout. Success exits 0 (checked patch is silent).
+[Full input policy, stages and test evidence](manifest.md#bounded-consumption-and-checked-restoration-commit-20)
+distinguish this content check from publisher authentication. There is no signature,
+network fetch, automatic update or streaming restoration.
 
 ## Dependencies and native isolation
 

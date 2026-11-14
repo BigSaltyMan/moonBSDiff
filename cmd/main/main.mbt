@@ -69,7 +69,17 @@ fn print_help() -> Unit {
   println("moonbsdiff patch OLD_FILE PATCH_FILE OUTPUT_FILE")
   println("moonbsdiff --help | --version")
   println(
-    "diff only: --manifest MANIFEST_FILE writes a separate SHA-256 JSON manifest.",
+    "moonbsdiff verify --manifest MANIFEST_FILE [LIMITS] OLD_FILE PATCH_FILE",
+  )
+  println(
+    "moonbsdiff patch --manifest MANIFEST_FILE [LIMITS] OLD_FILE PATCH_FILE OUTPUT_FILE",
+  )
+  println(
+    "Manifest input: at most 16384 bytes, schema 1, no duplicate/unknown keys. Verify restores in memory, never writes output.",
+  )
+
+  println(
+    "--manifest MANIFEST_FILE: diff writes; patch/verify read and validate the SHA-256 JSON manifest.",
   )
   println(
     "Patch then manifest are delivered without replacement; two-file delivery is not atomic.",
@@ -189,9 +199,14 @@ fn leading_dash(text : String) -> Bool {
 ///|
 fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
   if args.length() < 2 ||
-    (args[1] != "diff" && args[1] != "patch" && args[1] != "inspect") {
+    (
+      args[1] != "diff" &&
+      args[1] != "patch" &&
+      args[1] != "inspect" &&
+      args[1] != "verify"
+    ) {
     return Err(
-      "expected diff OLD NEW PATCH, patch OLD PATCH OUTPUT, or inspect PATCH; use --help",
+      "expected diff OLD NEW PATCH, patch OLD PATCH OUTPUT, inspect PATCH, or verify --manifest MANIFEST OLD PATCH; use --help",
     )
   }
   let operation = args[1]
@@ -225,19 +240,19 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
       return Err(option + " is not applicable to inspect")
     }
     let bytes = match option {
-      "--manifest" => {
-        if operation != "diff" {
-          return Err("--manifest is only applicable to diff")
-        }
-        false
-      }
+      "--manifest" => false
       "--json" => {
         if operation != "inspect" {
           return Err("--json is only applicable to inspect")
         }
         false
       }
-      "--show-limits" => false
+      "--show-limits" => {
+        if operation == "verify" {
+          return Err("--show-limits is not applicable to verify")
+        }
+        false
+      }
       "--max-old-bytes"
       | "--max-new-bytes"
       | "--max-output-bytes"
@@ -245,8 +260,8 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
       | "--max-expanded-bytes" => true
       "--max-controls" => false
       "--max-sort-work" | "--max-match-work" => {
-        if operation == "patch" {
-          return Err(option + " is not applicable to patch")
+        if operation != "diff" {
+          return Err(option + " is not applicable to " + operation)
         }
         false
       }
@@ -315,7 +330,16 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
   if show && manifest is Some(_) {
     return Err("--manifest cannot be combined with --show-limits")
   }
-  let expected = if operation == "inspect" { 1 } else { 3 }
+  if operation == "verify" && manifest is None {
+    return Err("verify requires --manifest MANIFEST_FILE")
+  }
+  let expected = if operation == "inspect" {
+    1
+  } else if operation == "verify" {
+    2
+  } else {
+    3
+  }
   if !show && files.length() != expected {
     return Err("expected exactly \{expected} file arguments; use --help")
   }
@@ -385,6 +409,13 @@ fn main {
     inspect_command(config)
     return
   }
+  if config.operation == "verify" {
+    verified_restore(config) |> ignore
+    println(
+      "Verification succeeded: manifest, inputs and restored content match (not publisher authentication).",
+    )
+    return
+  }
   let operation = config.operation
   let limits = config.limits
   let first = config.files[0]
@@ -403,7 +434,30 @@ fn main {
       @utf8.decode_lossy(io_error()[:]),
     )
   }
-  if config.manifest is Some(manifest_path) {
+  if operation == "patch" && config.manifest is Some(manifest_path) {
+    if io_check(
+        path_bytes(first),
+        path_bytes(manifest_path),
+        path_bytes(output),
+      ) ==
+      0 {
+      failure(
+        "patch output conflicts with input/manifest: " +
+        @utf8.decode_lossy(io_error()[:]),
+      )
+    }
+    let restored = verified_restore(config)
+    if io_deliver(path_bytes(output), restored) == 0 {
+      failure(
+        "patch verified write/deliver '" +
+        output +
+        "': " +
+        @utf8.decode_lossy(io_error()[:]),
+      )
+    }
+    return
+  }
+  if operation == "diff" && config.manifest is Some(manifest_path) {
     if io_check(
         path_bytes(first),
         path_bytes(second),

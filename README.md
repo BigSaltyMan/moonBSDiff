@@ -171,7 +171,7 @@ Reports format, patch/declared-target sizes and compressed intervals. It reads a
 bounded patch (default 128 KiB), creates no output and does not decompress or
 restore. `header-only` and all unperformed checks are explicit; JSON byte counts
 and offsets are decimal strings with no Int64 precision loss. See [real output
-and schema](docs/inspect.md). Manifest/identity/deep verification is not provided.
+and schema](docs/inspect.md). Inspect performs no manifest/identity/deep verification; use verify below for supplied-manifest content checks.
 The minimal library `inspect_header`/read-only `PatchInfo` API is new in this
 unreleased source and leaves diff/apply/defaults unchanged.
 
@@ -186,8 +186,23 @@ diff and the returned patch, with string byte counts and actual tool metadata.
 The patch remains BSDIFF40. Outputs are checked for conflicts and delivered patch
 first, manifest second, without replacement; partial failure keeps the patch and
 reports manifest incomplete. This is not an atomic pair, a signature or publisher
-authentication. Expected manifests must come from a trusted channel. Verification
-and checked restoration are not implemented yet. Published 0.1.0 is unchanged.
+authentication. Expected manifests must come from a trusted channel. Verify and checked restoration are available below. Published 0.1.0 is unchanged.
+
+**Content verification and checked restoration (0.2.0 Unreleased):**
+
+```sh
+./_build/bin/linux/moonbsdiff verify --manifest update.json old.bin update.patch
+./_build/bin/linux/moonbsdiff patch --manifest update.json old.bin update.patch restored.bin
+```
+
+Verify requires a manifest, bounds its read to 16 KiB, rejects malformed schema/
+duplicate/unknown keys, checks old/patch identities, actually applies in memory,
+and checks restored size/hash without writing a final file. Checked patch reuses
+that pipeline and delivers only after success. Input hashing and apply share the
+same buffers. Inspect remains header-only, and unmanifested patch is unchanged.
+[Manifest policy](docs/manifest.md) defines limits, strict decimal-string sizes,
+metadata handling and failure stages. Hashes establish supplied-content consistency,
+not publisher authenticity; trusted expected manifests are still required.
 
 Paths containing Chinese characters or spaces must be quoted similarly.
 Our order is `patch OLD PATCH OUTPUT`; upstream is `bspatch OLD NEW PATCH`.
