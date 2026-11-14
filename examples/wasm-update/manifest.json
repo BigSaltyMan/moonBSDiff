@@ -25,5 +25,28 @@
       "sha256": "3be4c97eef6dc8f5fc487451239cedcc521fa7b2b2f909dcb0ca07af5e3c01a0"
     }
   },
-  "origin": "Independent direct compilation before any diff/apply; Windows AMD64; other hosts must match, never auto-refresh"
+  "origin": "Independent direct compilation before any diff/apply; Windows AMD64; other hosts must match, never auto-refresh",
+  "expected_by_module_version": {
+    "0.1.0": {
+      "v1": {
+        "size": 3962,
+        "sha256": "8370502fe3589a72155618c507042401c463bce58f1f78c47e6361d9be5429ee"
+      },
+      "v2": {
+        "size": 3962,
+        "sha256": "3be4c97eef6dc8f5fc487451239cedcc521fa7b2b2f909dcb0ca07af5e3c01a0"
+      }
+    },
+    "0.2.0": {
+      "v1": {
+        "size": 3962,
+        "sha256": "023a5da2b1b83c2f82ce22f7d4f6ef5ab9fd6ecb639bca36c0fffb1c2befefe9"
+      },
+      "v2": {
+        "size": 3962,
+        "sha256": "c9eeb08749a391adbb92301b1ec0a0b85cf7e7dce11f99f14bbd4c0679edd594"
+      }
+    }
+  },
+  "version_0_2_0_origin": "Independent direct Linux/WSL compilation, same pinned compiler/flags; each output differs from verified 0.1.0 bytes only at offset 3888 in custom name section (module @0.1.0 -> @0.2.0). No code/data section change and no diff/apply used to derive expectations. Original expected field retains Commit 14/15 history."
 }

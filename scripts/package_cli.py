@@ -164,7 +164,8 @@ def main():
     require(system in ('windows', 'linux') and platform.machine().lower() in ('amd64', 'x86_64'), 'unsupported release host')
     git = ['git', '-c', 'safe.directory=' + ROOT.as_posix()]
     source = run(git + ['rev-parse', 'HEAD'], cwd=ROOT).strip()
-    require(not run(git + ['status', '--porcelain', '--untracked-files=no'], cwd=ROOT), 'tracked source is not clean')
+    dirty = run(git + ['status', '--porcelain', '--untracked-files=no'], cwd=ROOT)
+    require(not dirty, 'tracked source is not clean:\n' + dirty)
     require(not os.environ.get('GITHUB_SHA') or os.environ['GITHUB_SHA'] == source, 'workflow/source SHA mismatch')
     require(version() == '0.2.0', 'this release entrypoint is for CLI 0.2.0')
     sdk = pathlib.Path(os.environ['MOON_HOME']) if os.environ.get('MOON_HOME') else pathlib.Path(shutil.which('moon')).resolve().parent.parent

@@ -24,7 +24,11 @@ python scripts/run_examples.py --cli _build/bin/linux/moonbsdiff
 
 manifest.json fixes source identities and module hashes from an independent
 Windows AMD64 compilation before any diff/apply execution. Normal runs never
-refresh it from restored bytes. Each module is 3962 bytes, below CLI generation
+refresh it from restored bytes. The original expected field retains the 0.1.0
+Commit 14/15 evidence. Version-keyed expectations also cover 0.2.0: direct
+compilation changed only byte 3888 of each Wasm custom name section, from
+module @0.1.0 to @0.2.0; code/data bytes are identical. Unknown module versions
+fail rather than selecting an arbitrary expectation. Each module is 3962 bytes, below CLI generation
 limits. The script rejects a toolchain/source/module identity difference rather
 than silently accepting platform drift. Other platforms must reproduce exactly;
 final CI results establish which hosts did so. No cross-compiler reproducibility
@@ -40,6 +44,6 @@ Raw binaries, patches and reports remain ignored under _build, not in source.
 The script does not implement diff/apply in Python, use a C oracle, benchmark,
 run a browser or inspect module internals. Patch size is reported even if larger;
 a single sample says nothing about general compression. BSDIFF40 does not contain
-old-file identity hashes. Linux CLI output requires O_TMPFILE and /proc; no power-
-loss durability guarantee is added. The memory example itself needs neither IO
+old-file identity hashes. Linux CLI output follows the [primary/guarded delivery policy](../../docs/linux-delivery.md);
+no power-loss durability guarantee is added. The memory example itself needs neither IO
 nor this Python driver. Sources follow the repository BSD-2-Clause license.
