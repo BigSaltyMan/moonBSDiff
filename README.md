@@ -208,8 +208,9 @@ Paths containing Chinese characters or spaces must be quoted similarly.
 Our order is `patch OLD PATCH OUTPUT`; upstream is `bspatch OLD NEW PATCH`.
 Exit codes are 0 success, 2 arguments/configuration, 1 operation failure; errors go to stderr.
 Existing outputs, including links/aliases of inputs, are refused. A target created
-during delivery is also preserved. Linux output requires O_TMPFILE and /proc;
-unsupported filesystems fail closed. There is no overwrite option or durability
+during delivery is also preserved. Linux prefers O_TMPFILE+/proc; a guarded
+local-ext compatibility path is now verified with /proc unavailable. Unsupported
+filesystems or unsafe parent permissions still fail closed. There is no overwrite option or durability
 promise. [CLI details](docs/cli.md) explain bounded reads, handle-based cleanup,
 actual platform tests, source/version provenance and filesystem scope.
 
@@ -229,6 +230,19 @@ zero tests, failed children and stale/incomplete reference evidence. Actual CI
 results belong to its checkout SHA; historical reports are not current passes.
 These are source checks, not registry-consumer or release acceptance.
 
+
+## Linux compatibility delivery (0.2.0 Unreleased)
+
+When anonymous creation is unsupported or /proc references are absent, delivery
+can use an exclusive 0700 private directory and 0600 file on a guarded local ext
+filesystem, then anchored non-replacing linkat. Windows is unchanged. Real WSL2
+ext4 testing with hidden /proc and ordinary UID 1000 passed manifest generation,
+checked patch and verify. This does not add general DrvFS/9p, FAT, network-FS,
+malicious-same-UID/root, or power-loss guarantees. Uncertain temporary identity
+can leave an explicitly reported object for inspection; no caller output path is
+deleted as rollback. [Design, threat model and evidence](docs/linux-delivery.md)
+explain the strict selection and permission conditions. Published 0.1.0 retains
+its old requirements; these additions are unreleased.
 
 ## Executable examples
 

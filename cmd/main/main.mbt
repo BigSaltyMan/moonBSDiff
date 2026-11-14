@@ -127,7 +127,7 @@ fn print_help() -> Unit {
     "patch: old/output 1048576 bytes, patch 131072, decoded 2097152, 16384 controls.",
   )
   println(
-    "Linux output requires O_TMPFILE and /proc; no unsafe fallback. No durability guarantee.",
+    "Linux output prefers O_TMPFILE+/proc; guarded local-ext compatibility may work without them. No durability guarantee.",
   )
   println(
     "Exit codes: 0 success, 2 arguments, 1 operation failure. BSDIFF40 does not identify the old file.",

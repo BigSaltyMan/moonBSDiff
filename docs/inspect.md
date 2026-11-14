@@ -156,5 +156,5 @@ matrix, resource measurement or large compression sample is rerun locally.
 
 The normal CI reuses both platform CLI builds and appends only this new CLI
 collection. Later commits may add manifest/deeper validation; none is asserted
-here. The existing Linux O_TMPFILE and /proc requirements apply to diff/patch
-output delivery, not inspect: inspect never invokes that delivery path.
+here. Linux primary/guarded compatibility conditions apply to diff/patch output
+delivery ([design](linux-delivery.md)), not inspect: inspect never invokes delivery.

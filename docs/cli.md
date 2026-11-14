@@ -253,8 +253,8 @@ to public diff/apply. Read failures name the field and effective byte cap; core
 failures retain kind/stage/field/value/limit. Output/delivery logic is unchanged.
 Raising one cap never raises another; for example raising new alone can still
 fail the output or work quota. Accepting a numeric limit does not establish
-performance/peak-memory acceptance at that size. Linux O_TMPFILE and /proc and
-no-overwrite requirements still apply.
+performance/peak-memory acceptance at that size. Linux delivery follows the
+primary/guarded compatibility policy below; no-overwrite requirements still apply.
 
 Directed verification: `python scripts/test_cli_limits.py --exe PATH_TO_CLI`.
 This reuses existing file/error helpers but runs only five new CLI contracts
@@ -284,7 +284,7 @@ renames that held file with ReplaceIfExists=FALSE. A target appearing meanwhile
 causes failure. Failure cleanup marks the owned temporary file for deletion by
 that same held handle; it never deletes a supplied/colliding path.
 
-Linux opens the target directory and creates an **unnamed fresh inode** there
+The preferred Linux path opens the target directory and creates an **unnamed fresh inode** there
 with O_TMPFILE, mode 0600. It has no temporary pathname that could collide or be
 replaced. O_EXCL is deliberately not combined with O_TMPFILE: Linux gives that
 combination a different meaning that prohibits later linking. An O_PATH reference
@@ -292,10 +292,25 @@ retains the inode through /proc/self/fd while the writing descriptor is complete
 written and closed. linkat with AT_SYMLINK_FOLLOW on that reference creates the
 final name; the kernel refuses every existing destination. Cleanup closes the
 anonymous references, so no path-based deletion race exists. The opened directory
-anchors the destination. This requires O_TMPFILE filesystem support and /proc;
-unsupported filesystems fail explicitly, with **no unsafe rename fallback**.
+anchors the destination. This primary route requires O_TMPFILE support and /proc.
+The new guarded compatibility route below can work without those facilities;
+unsupported conditions still fail explicitly, with **no unsafe rename fallback**.
 The locally verified Linux output filesystem is /tmp on WSL ext4, not a claim
 that all mounted/network/Windows-backed filesystems implement these operations.
+
+Commit 21 (0.2.0 Unreleased) adds a Linux compatibility route only on explicit
+anonymous/proc capability errors, before writing. It requires local ext filesystem
+magic 0xef53, a trusted-owner/protected parent, verified 0700 private directory and
+0600 exclusively created payload. All operations stay descriptor-anchored; final
+linkat never replaces a target. Cleanup depends on those permission invariants,
+not an assumed atomic inode-check/unlink. Identity uncertainty retains objects
+and reports failure, and an error after linking explicitly says output delivered.
+No user path is removed to roll back. Malicious same-UID/root manipulation is
+outside this narrower route's model; no broad hostile-parent guarantee follows.
+[Full route/error policy and real no-proc evidence](linux-delivery.md) distinguish
+forced tests from an actual unprivileged isolated run. No Windows delivery code,
+core API/default or dependency changed; DrvFS/9p and other fallback filesystems
+remain unsupported. The primary route remains preferred when available.
 
 Both paths loop on short writes and treat zero progress, write and writer-close
 errors as failure before commit. Only files created by the current operation

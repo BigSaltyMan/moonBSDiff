@@ -1,0 +1,83 @@
+{
+  "platform": "Linux",
+  "kernel": "6.6.87.2-microsoft-standard-WSL2",
+  "architecture": "x86_64",
+  "filesystem_magic": "0xef53",
+  "filesystem": "ext4",
+  "directory_mode": "0o700",
+  "uid": 1000,
+  "effective_capabilities": 0,
+  "permitted_capabilities": 0,
+  "parent_mount_namespace": "mnt:[4026532225]",
+  "isolated_mount_namespace": "mnt:[4026532233]",
+  "proc_self_fd_exists": false,
+  "anonymous_open_succeeded": true,
+  "proc_keeper_errno": 2,
+  "product_fault_hook": false,
+  "commands": [
+    [
+      "diff",
+      "--manifest",
+      "update.json",
+      "old.bin",
+      "new.bin",
+      "update.patch"
+    ],
+    [
+      "patch",
+      "--manifest",
+      "update.json",
+      "old.bin",
+      "update.patch",
+      "restored.bin"
+    ],
+    [
+      "verify",
+      "--manifest",
+      "update.json",
+      "old.bin",
+      "update.patch"
+    ]
+  ],
+  "byte_equal": true,
+  "files": {
+    "old.bin": {
+      "size": 5,
+      "sha256": "77cb6bea091ff250af304a09024b0c526be6a21014a91ab56e788c63a69e811f"
+    },
+    "new.bin": {
+      "size": 6,
+      "sha256": "0ebd3565334ae7ea8506c274a03ecbec59d38ceef1191d7fd5fb4d1d08cde7d2"
+    },
+    "update.patch": {
+      "size": 153,
+      "sha256": "50e7fad965f39f6a18ecc699e2e8b9b4b083e5544792473b2569ee4a9fb551b6"
+    },
+    "update.json": {
+      "size": 405,
+      "sha256": "887eb07fa8cafcde084e6af2ce1968d3ce383ee1d79eed0ff497c3ad037a1047"
+    },
+    "restored.bin": {
+      "size": 6,
+      "sha256": "0ebd3565334ae7ea8506c274a03ecbec59d38ceef1191d7fd5fb4d1d08cde7d2"
+    }
+  },
+  "private_objects_remaining": 0,
+  "executable_sha256": "5c7af1b5aa42162dfb91c294a470011b18ece7408cc9cad332b6dff392cd6982",
+  "native_io_sha256": "f53c94831488c822f4a15ac5e8d59494cab2b89ddeb1635bba61c585cc5d5b89",
+  "host_mount_namespace_unchanged": true,
+  "scope": "Commit 21 Linux compatibility only, not a full test matrix",
+  "baseline_sha": "1dc691b2f8ea4db05f225f88396d8fdf3665dc43",
+  "toolchain": [
+    "moon 0.1.20261102 (ea07287 2026-11-02)",
+    "moonc v0.10.19+bee578715 (2026-11-02)",
+    "moonrun 0.1.20261102 (ea07287 2026-11-02)"
+  ],
+  "build": "native debug, scripts/build_cli.py",
+  "forced_tests": {
+    "groups": 2,
+    "scenarios": 18,
+    "failed": 0,
+    "scope": "private Linux-only hooks; not real-environment evidence"
+  }
+}

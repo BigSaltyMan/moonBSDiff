@@ -125,7 +125,7 @@ handle existing files yourself before retrying. Repeating over a delivered patch
 is refused rather than overwriting it.
 
 There are no product filesystem writes beyond the existing deliver function.
-Linux delivery still requires O_TMPFILE support and /proc; no unsafe fallback,
+Linux delivery now uses the primary or [guarded compatibility policy](linux-delivery.md); no unsafe rename fallback,
 power-loss durability or broader platform promise is introduced.
 
 ## Validation scope and trust
@@ -226,8 +226,8 @@ shared pipeline. **Only after every check succeeds** does it call the unchanged
 no-overwrite delivery function. Validation failure never calls delivery, writes
 inputs or creates a final output. Operational delivery failures keep the existing
 semantics; a post-link close error can leave an output visible, so a failure is
-not a power-loss/rollback guarantee. Linux delivery still requires O_TMPFILE and
-/proc. Plain patch without --manifest still cannot reliably identify a wrong old
+not a power-loss/rollback guarantee. Linux uses the [primary/guarded compatibility
+policy](linux-delivery.md). Plain patch without --manifest still cannot reliably identify a wrong old
 file, and diff's optional two-output non-transactional contract is unchanged.
 
 Success exits 0 (checked patch stays silent). Parameter/configuration problems,

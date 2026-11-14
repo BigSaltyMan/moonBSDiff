@@ -2,6 +2,13 @@
 
 ## 0.2.0 — Unreleased
 
+- Linux retains anonymous/proc delivery as primary and adds a capability-selected
+  guarded local-ext compatibility route using private objects and no-replace
+  linkat. Unsafe permissions/filesystems fail closed; uncertain objects are retained
+  with diagnostics, and post-link failure never rolls back the final path.
+- Private forced tests and a real isolated no-proc, non-root ext4 roundtrip cover
+  the addition. Windows, library API/defaults and dependencies are unchanged.
+
 - Verify and optional patch --manifest share bounded strict schema-1 consumption,
   pre-apply input size/hash checks, header consistency, real in-memory apply and
   restored size/hash checks. Checked output is delivered only after success.

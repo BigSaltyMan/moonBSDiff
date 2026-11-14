@@ -21,6 +21,9 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <dirent.h>
+#include <sys/random.h>
+#include <sys/vfs.h>
+#include <linux/magic.h>
 #endif
 
 static char problem[256];
@@ -255,8 +258,152 @@ MOONBIT_FFI_EXPORT int32_t mbsd_pair_check(moonbit_bytes_t a,moonbit_bytes_t b) 
   return !problem[0];
 }
 
-/* Never removes a path supplied by the caller. Temporary cleanup uses a held
- * Windows file handle or closes an anonymous Linux inode, never unlink(path). */
+#ifndef _WIN32
+/* Set only by the private compatibility contract entrypoint. No product knobs. */
+static int compat_force,compat_mutate,compat_selected,compat_retained;
+static char compat_last[80];
+static int same_inode(const struct stat *a,const struct stat *b) {
+  return a->st_dev==b->st_dev && a->st_ino==b->st_ino;
+}
+static int private_entry(int dir,const char *name,int held,const struct stat *created) {
+  struct stat named,current;
+  return fstat(held,&current)==0 && S_ISDIR(current.st_mode) && current.st_uid==geteuid() &&
+    (current.st_mode&07777)==0700 && same_inode(&current,created) &&
+    fstatat(dir,name,&named,AT_SYMLINK_NOFOLLOW)==0 && same_inode(&named,created);
+}
+static int payload_entry(int dir,const struct stat *created) {
+  struct stat named;
+  return fstatat(dir,"payload",&named,AT_SYMLINK_NOFOLLOW)==0 && S_ISREG(named.st_mode) &&
+    named.st_uid==geteuid() && (named.st_mode&07777)==0600 && same_inode(&named,created);
+}
+static void retained(const char *name) {
+  compat_retained=1;
+  size_t used=strlen(problem);
+  snprintf(problem+used,sizeof(problem)-used,"; private temporary retained or renamed: %s (do not blindly delete)",name);
+}
+static int random_name(char name[80]) {
+  unsigned char token[16];size_t at=0;
+  while(at<sizeof(token)) {
+    ssize_t n=getrandom(token+at,sizeof(token)-at,0);
+    if(n<0 && errno==EINTR) continue;
+    if(n<=0) { fail("temporary name entropy",n<0?errno:EIO);return 0; }
+    at+=(size_t)n;
+  }
+  strcpy(name,".moonbsdiff-compat-");size_t prefix=strlen(name);
+  static const char hex[]="0123456789abcdef";
+  for(size_t i=0;i<sizeof(token);i++) { name[prefix+i*2]=hex[token[i]>>4];name[prefix+i*2+1]=hex[token[i]&15]; }
+  name[prefix+sizeof(token)*2]=0;return 1;
+}
+static int compat_deliver(int dir,const char *leaf,moonbit_bytes_t data) {
+  compat_selected++;
+  struct stat parent,ds,ps;struct statfs fs;
+  if(fstat(dir,&parent)<0 || fstatfs(dir,&fs)<0) { fail("compatibility parent metadata",errno);return 0; }
+  /* Restrict permission assumptions to the locally validated ext filesystem.
+   * Non-sticky writable parents and untrusted owners cannot protect mkdir/open. */
+  if(fs.f_type!=EXT4_SUPER_MAGIC || !S_ISDIR(parent.st_mode) || parent.st_nlink==0 ||
+     (parent.st_uid!=geteuid() && parent.st_uid!=0) ||
+     ((parent.st_mode&0022) && !(parent.st_mode&S_ISVTX))) {
+    fail("compatibility requires local ext permissions and protected output parent",EPERM);return 0;
+  }
+  int made=0,known_dir=0,payload=0,private_fd=-1,writer=-1,keeper=-1;
+  char name[80]={0};
+  for(unsigned attempt=0;attempt<128;attempt++) {
+    if(compat_mutate==1 && !attempt) strcpy(name,".moonbsdiff-compat-collision");
+    else if(!random_name(name)) return 0;
+    if(mkdirat(dir,name,0700)==0) { made=1;break; }
+    if(errno!=EEXIST) { fail("exclusive private directory creation",errno);return 0; }
+  }
+  if(!made) { fail("private directory name collisions exhausted",EEXIST);return 0; }
+  strcpy(compat_last,name);
+  if(fstatat(dir,name,&ds,AT_SYMLINK_NOFOLLOW)<0) fail("created private directory identity",errno);
+  else {
+    known_dir=1;
+    if(!S_ISDIR(ds.st_mode) || ds.st_uid!=geteuid() || (ds.st_mode&07777)!=0700) fail("private directory permissions",EPERM);
+  }
+  if(!problem[0]) {
+    private_fd=openat(dir,name,O_RDONLY|O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC);
+    if(private_fd<0) fail("open private directory",errno);
+    else if(!private_entry(dir,name,private_fd,&ds)) fail("private directory identity changed",ESTALE);
+  }
+  if(!problem[0]) {
+    writer=openat(private_fd,"payload",O_WRONLY|O_CREAT|O_EXCL|O_NOFOLLOW|O_CLOEXEC,0600);
+    if(writer<0) fail("exclusive private payload creation",errno);
+    else if(fstat(writer,&ps)<0) fail("private payload identity",errno);
+    else {
+      payload=1;
+      if(!S_ISREG(ps.st_mode) || ps.st_uid!=geteuid() || (ps.st_mode&07777)!=0600 || ps.st_nlink!=1) fail("private payload permissions",EPERM);
+    }
+  }
+  if(!problem[0]) {
+    keeper=openat(private_fd,"payload",O_PATH|O_NOFOLLOW|O_CLOEXEC);
+    struct stat held;
+    if(keeper<0 || fstat(keeper,&held)<0) fail("retain private payload identity",errno);
+    else if(!same_inode(&held,&ps)) fail("private payload changed on open",ESTALE);
+  }
+  size_t at=0,n=Moonbit_array_length(data);
+  while(!problem[0] && at<n) {
+    size_t amount=n-at>32768?32768:n-at;
+    if(fault==9 && amount>2) amount=2;
+    if(fault==4 && at) { fail("injected write",EIO);break; }
+    if(fault==4) amount=1;
+    ssize_t done=fault==10?0:write(writer,data+at,amount);
+    if(done<0 && errno==EINTR) continue;
+    if(done<=0) { fail("write private payload",done<0?errno:EIO);break; }
+    at+=(size_t)done;
+  }
+  if(writer>=0) { if(close(writer)<0) fail("close written private payload",errno);writer=-1; }
+  if(fault==5) fail("injected close written private payload",EIO);
+  if(!problem[0] && compat_mutate==2) {
+    int other=openat(dir,leaf,O_WRONLY|O_CREAT|O_EXCL|O_CLOEXEC,0600);
+    if(other<0 || write(other,"other",5)!=5) fail("test competing target",EIO);
+    if(other>=0) close(other);
+  }
+  if(!problem[0] && compat_mutate==3) {
+    if(unlinkat(private_fd,"payload",0)<0 || symlinkat("../input",private_fd,"payload")<0) fail("test payload replacement",errno);
+  }
+  if(!problem[0] && compat_mutate==4) {
+    if(renameat(dir,name,dir,"retained-original")<0 || mkdirat(dir,name,0700)<0) fail("test directory replacement",errno);
+  }
+  if(!problem[0] && (!private_entry(dir,name,private_fd,&ds) || !payload_entry(private_fd,&ps))) fail("private temporary identity changed before delivery",ESTALE);
+  if(!problem[0] && fault==6) fail("injected compatibility delivery",EACCES);
+  int committed=0;
+  if(!problem[0]) {
+    if(linkat(private_fd,"payload",dir,leaf,0)<0) fail("compatibility deliver without replacement",errno);
+    else committed=1;
+  }
+  /* These deletes rely on the protected parent and uid-private directory, NOT
+   * on an atomic check/unlink illusion. Malicious same-uid/root control is out
+   * of scope. Unexpected identity => retain, never follow/delete replacement. */
+  int clean=1;
+  if(compat_mutate==5 && committed) { fail("injected compatibility cleanup",EIO);clean=0; }
+  if(private_fd>=0) {
+    if(!private_entry(dir,name,private_fd,&ds)) clean=0;
+    if(clean && payload) {
+      if(!payload_entry(private_fd,&ps)) clean=0;
+      else if(unlinkat(private_fd,"payload",0)<0) { fail("cleanup owned private payload",errno);clean=0; }
+    }
+  } else if(payload) clean=0;
+  if(clean && made && known_dir) {
+    struct stat named;
+    if(fstatat(dir,name,&named,AT_SYMLINK_NOFOLLOW)<0 || !same_inode(&named,&ds)) clean=0;
+    else if(unlinkat(dir,name,AT_REMOVEDIR)<0) { fail("cleanup owned private directory",errno);clean=0; }
+  } else if(!known_dir) clean=0;
+  if(!clean) { fail("private cleanup ownership uncertain",ESTALE);retained(name); }
+  if(keeper>=0 && close(keeper)<0) fail("close private identity reference",errno);
+  if(private_fd>=0 && close(private_fd)<0) fail("close private directory",errno);
+  if(committed && problem[0]) {
+    char original[256];memcpy(original,problem,sizeof(original));
+    snprintf(problem,sizeof(problem),"output already delivered; %.225s",original);
+  }
+  return !problem[0];
+}
+static int anonymous_unavailable(int error) {
+  return error==EOPNOTSUPP || error==EINVAL || error==EISDIR || error==ENOSYS || error==ENOENT;
+}
+#endif
+
+/* Never removes final caller paths. Primary cleanup uses held identities;
+ * compatibility cleanup uses only the protected private namespace above. */
 MOONBIT_FFI_EXPORT int32_t mbsd_deliver(moonbit_bytes_t name,moonbit_bytes_t data) {
   problem[0]=0; size_t n=Moonbit_array_length(data),at=0;
 #ifdef _WIN32
@@ -317,11 +464,29 @@ MOONBIT_FFI_EXPORT int32_t mbsd_deliver(moonbit_bytes_t name,moonbit_bytes_t dat
   if(dir<0) { fail("open output directory",errno); return 0; }
   /* O_TMPFILE creates a fresh unnamed inode. O_EXCL must not be used here:
    * Linux defines O_TMPFILE|O_EXCL to forbid its later linking. */
-  int writer=openat(dir,".",O_TMPFILE|O_RDWR|O_CLOEXEC,0600),keeper=-1;
-  if(writer<0) { fail("anonymous temporary creation (requires O_TMPFILE filesystem)",errno); close(dir); return 0; }
+  int writer,keeper=-1;
+  if(compat_force==1 || compat_force==2) { writer=-1;errno=compat_force==1?EOPNOTSUPP:EACCES; }
+  else writer=openat(dir,".",O_TMPFILE|O_RDWR|O_CLOEXEC,0600);
+  if(writer<0) {
+    int error=errno;
+    if(anonymous_unavailable(error)) compat_deliver(dir,leaf,data);
+    else fail("anonymous temporary creation",error);
+    if(close(dir)<0) fail("close output directory",errno);
+    return !problem[0];
+  }
   char reference[80]; snprintf(reference,sizeof(reference),"/proc/self/fd/%d",writer);
-  keeper=open(reference,O_PATH|O_CLOEXEC);
-  if(keeper<0) fail("retain temporary identity",errno);
+  if(compat_force==3 || compat_force==4) { keeper=-1;errno=ENOENT; }
+  else keeper=open(reference,O_PATH|O_CLOEXEC);
+  if(keeper<0) {
+    int error=errno;
+    int closed=close(writer)==0,close_error=closed?0:errno;
+    if(compat_force==4) { closed=0;close_error=EIO; }
+    if(!closed) fail("close anonymous temporary before compatibility",close_error);
+    else if(error==ENOENT || error==ENOTDIR) compat_deliver(dir,leaf,data);
+    else fail("retain temporary identity",error);
+    if(close(dir)<0) fail("close output directory",errno);
+    return !problem[0];
+  }
   while(!problem[0] && at<n) {
     size_t amount=n-at>32768?32768:n-at;
     if(fault==9 && amount>2) amount=2;
@@ -441,3 +606,88 @@ MOONBIT_FFI_EXPORT int32_t mbsd_io_contract(int32_t mode) {
   test_remove(input,0); test_remove(output,0); if(mode==1) test_remove(collision,0); test_remove(root,1);
   problem[0]=0; return result;
 }
+#ifndef _WIN32
+/* Deterministic tests operate exclusively inside a newly owned fixture root. */
+MOONBIT_FFI_EXPORT int32_t mbsd_compat_contract(int32_t mode) {
+  char root[]="/tmp/moonbsdiff-compat-contract-XXXXXX",input[256],out[256];
+  if(!mkdtemp(root)) return 201;
+  snprintf(input,sizeof(input),"%s/input",root);snprintf(out,sizeof(out),"%s/output",root);
+  problem[0]=0;fault=0;compat_force=1;compat_mutate=0;compat_selected=0;compat_retained=0;compat_last[0]=0;
+  int dir=open(root,O_RDONLY|O_DIRECTORY|O_CLOEXEC),result=0;
+  if(dir<0 || !test_put(input,"sentinel",8,0)) result=202;
+  if(mode==2) {
+    compat_mutate=1;
+    if(mkdirat(dir,".moonbsdiff-compat-collision",0700)<0) result=203;
+    int cd=openat(dir,".moonbsdiff-compat-collision",O_RDONLY|O_DIRECTORY|O_CLOEXEC);
+    int file=cd>=0?openat(cd,"marker",O_WRONLY|O_CREAT|O_EXCL|O_CLOEXEC,0600):-1;
+    if(file<0 || write(file,"keep",4)!=4) result=204;
+    if(file>=0) close(file);if(cd>=0) close(cd);
+  }
+  if(mode==3) compat_mutate=2;
+  if(mode==4) compat_mutate=3;
+  if(mode==5) compat_mutate=4;
+  if(mode==6) fault=4;
+  if(mode==7) fault=5;
+  if(mode==8) fault=6;
+  if(mode==9) compat_force=2;
+  if(mode==10) compat_force=3;
+  if(mode==11) compat_force=4;
+  if(mode==12) fault=9;
+  if(mode==13 && chmod(root,0777)<0) result=205;
+  if(mode==14 && chmod(root,01777)<0) result=206;
+  if(mode==15) fault=10;
+  if(mode==16) { compat_force=0;fault=4; }
+  if(mode==17) { compat_force=0;fault=5; }
+  if(mode==18) compat_mutate=5;
+  int success=(mode==1 || mode==2 || mode==10 || mode==12 || mode==14);
+  if(!result) {
+    moonbit_bytes_t name=bytes(out,strlen(out)+1),data=bytes("abcdef",6);
+    int ok=mbsd_deliver(name,data);moonbit_decref(name);moonbit_decref(data);
+    if(ok!=success) result=210+mode;
+    int selected=(mode==9 || mode==11 || mode==16 || mode==17)?0:1;
+    if(compat_selected!=selected) result=240+mode;
+    if((mode==4 || mode==5) && (!compat_retained || !strstr(problem,"identity"))) result=270+mode;
+    if(mode==18 && (!compat_retained || !strstr(problem,"output already delivered"))) result=298;
+    if(mode==9 && !strstr(problem,"anonymous temporary creation")) result=299;
+    if(mode==11 && !strstr(problem,"close anonymous")) result=300;
+  }
+  fault=0;compat_force=0;compat_mutate=0;
+  if(!test_matches(input,"sentinel") && !result) result=301;
+  if(success && !test_matches(out,"abcdef") && !result) result=302;
+  if(mode==3 && !test_matches(out,"other") && !result) result=303;
+  if(mode==18 && !test_matches(out,"abcdef") && !result) result=311;
+  if(!success && mode!=3 && mode!=18 && !test_missing(out) && !result) result=304;
+  if(mode==18) {
+    int pd=openat(dir,compat_last,O_RDONLY|O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC);
+    if(pd<0) result=312;
+    if(pd>=0) { unlinkat(pd,"payload",0);close(pd); }
+    unlinkat(dir,compat_last,AT_REMOVEDIR);
+  }
+  if(mode==4) {
+    int pd=openat(dir,compat_last,O_RDONLY|O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC);struct stat ps;
+    if(pd<0 || fstatat(pd,"payload",&ps,AT_SYMLINK_NOFOLLOW)<0 || !S_ISLNK(ps.st_mode)) result=305;
+    if(pd>=0) { unlinkat(pd,"payload",0);close(pd); } /* Our test-injected symlink. */
+    unlinkat(dir,compat_last,AT_REMOVEDIR);
+  }
+  if(mode==5) {
+    struct stat named;if(fstatat(dir,compat_last,&named,AT_SYMLINK_NOFOLLOW)<0 || !S_ISDIR(named.st_mode)) result=306;
+    int pd=openat(dir,"retained-original",O_RDONLY|O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC);
+    if(pd<0) result=307;
+    if(pd>=0) { unlinkat(pd,"payload",0);close(pd); }
+    unlinkat(dir,"retained-original",AT_REMOVEDIR);unlinkat(dir,compat_last,AT_REMOVEDIR);
+  }
+  if(mode==2) {
+    char marker[256];snprintf(marker,sizeof(marker),"%s/.moonbsdiff-compat-collision/marker",root);
+    if(!test_matches(marker,"keep") && !result) result=308;
+    int cd=openat(dir,".moonbsdiff-compat-collision",O_RDONLY|O_DIRECTORY|O_CLOEXEC);
+    if(cd>=0) { unlinkat(cd,"marker",0);close(cd); }
+    unlinkat(dir,".moonbsdiff-compat-collision",AT_REMOVEDIR);
+  }
+  int entries=0;DIR *listing=opendir(root);if(!listing) result=309;
+  else { struct dirent *e;while((e=readdir(listing))) if(strcmp(e->d_name,".") && strcmp(e->d_name,"..")) entries++;closedir(listing); }
+  if(entries!=(success || mode==3 || mode==18?2:1) && !result) result=310;
+  if(dir>=0) { unlinkat(dir,"input",0);unlinkat(dir,"output",0);close(dir); }
+  chmod(root,0700);rmdir(root);problem[0]=0;
+  return result;
+}
+#endif
