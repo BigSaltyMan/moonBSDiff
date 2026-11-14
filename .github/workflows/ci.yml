@@ -223,3 +223,34 @@ jobs:
       - run: moon update
       - name: Build locked oracle once and execute source-bound bidirectional matrix
         run: python3 scripts/check_acceptance.py --reference
+
+  generation-scales:
+    name: Native larger-input policies (256 KiB then 1 MiB)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: hustcer/setup-moonbit@bdc8c076af1f4c5012a6ac3451a2009ec75bf921 # v1.22
+        with:
+          version: 0.10.19+bee578715
+          core-version: 0.10.19+bee578715
+      - run: moon version --all
+      - run: moon update
+      - name: Verify fixed policies and historical scale evidence without timing
+        run: python3 scripts/generation_scale.py --verify-report
+      - name: Execute only the six new native-release inputs in stage order
+        run: |
+          python3 scripts/generation_scale.py --measure-stage 256k --output _build/scale256.json
+          python3 scripts/generation_scale.py --measure-stage 1m --prior _build/scale256.json --output _build/scale-all.json
+      - name: Replay two explicit public CLI policies with matching patch read caps
+        run: |
+          python3 scripts/build_cli.py --release
+          python3 scripts/generation_scale.py --replay-cli _build/bin/linux/moonbsdiff --stage 256k --case random
+          python3 scripts/generation_scale.py --replay-cli _build/bin/linux/moonbsdiff --stage 1m --case random
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: generation-scales-${{ github.sha }}
+          path: |
+            _build/scale-all.json
+            _build/generation-scales/cli-*.json
+          if-no-files-found: error
+          retention-days: 30

@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "status": "0.3.0 Unreleased; explicit source policies, defaults unchanged",
+  "stages": {
+    "256k": {
+      "size_bytes": 262144,
+      "limits": {
+        "max_old_bytes": 262144,
+        "max_new_bytes": 262144,
+        "max_output_bytes": 262144,
+        "max_patch_bytes": 524288,
+        "max_decompressed_bytes": 360448,
+        "max_control_instructions": 4096,
+        "max_sort_work": 52429000,
+        "max_match_work": 67108864
+      },
+      "application_limits": {
+        "max_old_bytes": 262144,
+        "max_new_bytes": 262144,
+        "max_output_bytes": 262144,
+        "max_patch_bytes": 524288,
+        "max_decompressed_bytes": 360448,
+        "max_control_instructions": 4096,
+        "max_sort_work": 1,
+        "max_match_work": 1
+      }
+    },
+    "1m": {
+      "size_bytes": 1048576,
+      "limits": {
+        "max_old_bytes": 1048576,
+        "max_new_bytes": 1048576,
+        "max_output_bytes": 1048576,
+        "max_patch_bytes": 2097152,
+        "max_decompressed_bytes": 1441792,
+        "max_control_instructions": 16384,
+        "max_sort_work": 209715400,
+        "max_match_work": 268435456
+      },
+      "application_limits": {
+        "max_old_bytes": 1048576,
+        "max_new_bytes": 1048576,
+        "max_output_bytes": 1048576,
+        "max_patch_bytes": 2097152,
+        "max_decompressed_bytes": 1441792,
+        "max_control_instructions": 16384,
+        "max_sort_work": 1,
+        "max_match_work": 1
+      }
+    }
+  }
+}

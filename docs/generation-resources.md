@@ -1,5 +1,12 @@
 # Generation resources and call isolation
 
+Commit 23 adds [explicit 256 KiB/1 MiB source policies](generation-scales.md)
+(0.3.0 Unreleased), with six new native-release measurements and two CLI replays.
+The 64 KiB default factory, algorithms, work-unit definitions and guarantees below
+are unchanged. The new policies are not a blanket size guarantee or a change to
+the released CLI 0.2.0 assets. Historical Commit 11 measurements below were not
+rerun or rewritten.
+
 ## Review and fixes (Commit 11)
 
 Baseline: clean master, `d20524e42375d58058c2089a6643f780f44bb030`.

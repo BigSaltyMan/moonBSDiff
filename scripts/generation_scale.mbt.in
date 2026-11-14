@@ -1,0 +1,102 @@
+// Test-only instrumentation compiled with byte-identical production sources.
+///|
+fn scale_random(n : Int, seed : UInt) -> Bytes {
+  let mut state = seed
+  Bytes::from_array(Array::makei(n, _ => {
+    state = state * 1664525U + 1013904223U
+    (state >> 24).reinterpret_as_int().to_byte()
+  }))
+}
+
+///|
+fn scale_sha(data : Bytes) -> String {
+  let hex = StringBuilder(size_hint=64)
+  for byte in @sha2.hash(data[:], kind=@sha2.Sha256) {
+    hex.write_string(byte.to_hex())
+  }
+  hex.to_string()
+}
+
+///|
+fn scale_case(n : Int, kind : Int, limits : Limits, probe : Bool) -> Unit raise {
+  let old = if kind == 1 {
+    Bytes::from_array(Array::makei(n, i => (i % 7).to_byte()))
+  } else {
+    scale_random(n, 2026112301U + n.reinterpret_as_uint())
+  }
+  let new = if kind == 0 {
+    let changed = old.to_array()
+    for i in [n / 7, n / 3, n / 2, n - 1] {
+      changed[i] = (changed[i].to_int() ^ 85).to_byte()
+    }
+    Bytes::from_array(changed)
+  } else if kind == 1 {
+    Bytes::from_array(Array::makei(n, i => ((i + 3) % 7).to_byte()))
+  } else {
+    scale_random(n, 2026112303U + n.reinterpret_as_uint())
+  }
+  let before_old = scale_sha(old)
+  let before_new = scale_sha(new)
+  if probe {
+    match diff(old, new, { ..limits, max_sort_work: 1L, }) {
+      Ok(_) => abort("low sorting quota returned a patch")
+      Err(e) => {
+        assert_eq(e.kind, ResourceLimitExceeded)
+        assert_eq(e.stage, Sorting)
+        assert_eq(e.field, Some("sort_remaining"))
+        assert_eq(e.value, Some(5L * (n.to_int64() + 1L)))
+        assert_eq(e.limit, Some(1L))
+        assert_eq(e.offset, None)
+        assert_eq(e.block, None)
+      }
+    }
+    let recovered = match diff(b"recover", b"RECOVER!", limits) {
+      Ok(p) => p
+      Err(_) => abort("fresh public diff after failure failed")
+    }
+    assert_eq(apply(b"recover", recovered, limits), Ok(b"RECOVER!"))
+    println("SCALE-PROBE:rejected-sorting-and-fresh-public-call-passed")
+  }
+  let sort = match sorting_budget(limits.max_sort_work) {
+    Ok(b) => b
+    Err(_) => abort("invalid sort quota")
+  }
+  let work = match matching_budget(limits.max_match_work) {
+    Ok(b) => b
+    Err(_) => abort("invalid generation quota")
+  }
+  let start = @bench.monotonic_clock_start()
+  let patch = match generate_patch(old, new, limits, sort, work) {
+    Ok(p) => p
+    Err(e) => {
+      println("SCALE-FAIL:" + @debug.to_string(e))
+      abort("bounded generation failed")
+    }
+  }
+  let generate_us = @bench.monotonic_clock_end(start)
+  let start = @bench.monotonic_clock_start()
+  let restored = match apply(old, patch, limits) {
+    Ok(b) => b
+    Err(e) => {
+      println("SCALE-FAIL:" + @debug.to_string(e))
+      abort("bounded application failed")
+    }
+  }
+  let apply_us = @bench.monotonic_clock_end(start)
+  assert_eq(restored, new)
+  assert_eq(scale_sha(old), before_old)
+  assert_eq(scale_sha(new), before_new)
+  let info = match parse_header(patch, limits) {
+    Ok(i) => i
+    Err(_) => abort("generated header failed")
+  }
+  // Diagnostics run after timing; fixed known input, bounded by explicit quotas.
+  let control = @bzip2.bunzip2(patch[32:info.control_end], limit=limits.max_decompressed_bytes.to_int())
+  let difference = @bzip2.bunzip2(patch[info.control_end:info.diff_end], limit=n)
+  let extra = @bzip2.bunzip2(patch[info.diff_end:info.extra_end], limit=n)
+  assert_eq(control.length() % 24, 0)
+  assert_eq(difference.length() + extra.length(), n)
+  println("SCALE:\{limits.max_sort_work - sort.remaining}:\{limits.max_match_work - work.remaining}:\{patch.length()}:\{generate_us}:\{apply_us}:\{control.length()}:\{difference.length()}:\{extra.length()}:\{before_old}:\{before_new}:\{scale_sha(restored)}:\{scale_sha(patch)}")
+}
+
+@TESTS@

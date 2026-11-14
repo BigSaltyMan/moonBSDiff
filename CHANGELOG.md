@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.3.0 — Unreleased
+
+- Explicit measured 256 KiB and 1 MiB generation/application policies, complete
+  machine-readable caps, deterministic replay, six native-release input pairs
+  and two public CLI replays. Input/restoration hashes, cumulative work, raw
+  blocks, patch sizes and core/invocation timing are recorded separately.
+- GNU time invocation maximum RSS is distinguished from unmeasured API-only
+  peak memory. Sparse, periodic and independent random cases passed; this is
+  not acceptance of every size-compliant input or other targets at these sizes.
+- Existing explicit Limits suffice: no algorithm optimization, default factory,
+  root public interface or dependency change. Released CLI 0.2.0 assets and
+  Mooncakes 0.1.0 identity are unchanged; Mooncakes 0.2.0 is still unpublished.
+
 ## 0.2.0 — GitHub CLI
 
 - Windows AMD64 ZIP and Linux x86_64 tar.gz distributions include licenses,
