@@ -149,7 +149,9 @@ def measure(stage, output, prior):
         for p in production()+[ROOT/'moon.mod', ROOT/'moon.pkg']:
             shutil.copyfile(p, snapshot/p.name)
         shutil.copytree(ROOT/'internal', snapshot/'internal')
-        os.symlink(ROOT/'.mooncakes', snapshot/'.mooncakes', target_is_directory=True)
+        cache = ROOT/'.mooncakes'
+        cache.mkdir(exist_ok=True)
+        os.symlink(cache, snapshot/'.mooncakes', target_is_directory=True)
         for name, digest in source_hashes.items():
             require(sha((snapshot/name).read_bytes()) == digest, 'snapshot production bytes differ: '+name)
         with (snapshot/'moon.pkg').open('a', encoding='utf8') as f:
@@ -164,7 +166,8 @@ def measure(stage, output, prior):
         base = ['moon', 'test', bridge.name, '--target', 'native', '--release', '--deny-warn']
         built = subprocess.run(base+['--build-only'], cwd=snapshot, capture_output=True, timeout=180)
         (folder/'build.log').write_bytes(built.stdout+built.stderr)
-        require(built.returncode == 0, 'snapshot build failed; '+str(folder/'build.log'))
+        require(built.returncode == 0, 'snapshot build failed; '+str(folder/'build.log')+'\n'+
+                (built.stdout+built.stderr).decode('utf8', errors='replace'))
         for kind in KINDS:
             rss = folder/(kind+'-rss.json')
             command = ['/usr/bin/time', '-f', '{"max_rss_kib":%M}', '-o', str(rss), *base, '--filter', 'scale-'+kind]
