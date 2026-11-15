@@ -67,6 +67,10 @@ fn cli_args() -> Array[String] {
 fn print_help() -> Unit {
   println("moonbsdiff diff OLD_FILE NEW_FILE PATCH_FILE")
   println("moonbsdiff patch OLD_FILE PATCH_FILE OUTPUT_FILE")
+  println("moonbsdiff patch --stream OLD_FILE PATCH_FILE OUTPUT_FILE")
+  println(
+    "--stream: native bounded file apply; incompatible with --manifest; inputs are not snapshots.",
+  )
   println("moonbsdiff --help | --version")
   println(
     "moonbsdiff verify --manifest MANIFEST_FILE [LIMITS] OLD_FILE PATCH_FILE",
@@ -188,6 +192,7 @@ struct CliConfig {
   operation : String
   limits : @moonbsdiff.Limits
   options : @moonbsdiff.DiffOptions
+  stream : Bool
   show : Bool
   json : Bool
   manifest : String?
@@ -224,6 +229,7 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
   }
   let mut options = @moonbsdiff.DiffOptions::default()
   let seen : Array[String] = []
+  let mut stream = false
   let mut show = false
   let mut json = false
   let mut manifest : String? = None
@@ -245,6 +251,12 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
       return Err(option + " is not applicable to inspect")
     }
     let bytes = match option {
+      "--stream" => {
+        if operation != "patch" {
+          return Err("--stream is only applicable to patch")
+        }
+        false
+      }
       "--compression-level" => {
         if operation != "diff" {
           return Err(option + " is only applicable to diff")
@@ -282,6 +294,11 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
       return Err("duplicate option: " + option)
     }
     seen.push(option)
+    if option == "--stream" {
+      stream = true
+      i += 1
+      continue
+    }
     if option == "--json" {
       json = true
       i = i + 1
@@ -349,6 +366,9 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
   if show && manifest is Some(_) {
     return Err("--manifest cannot be combined with --show-limits")
   }
+  if stream && (manifest is Some(_) || show) {
+    return Err("--stream cannot be combined with --manifest or --show-limits")
+  }
   if operation == "verify" && manifest is None {
     return Err("verify requires --manifest MANIFEST_FILE")
   }
@@ -370,7 +390,7 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
     Ok(_) => ()
     Err(e) => return Err(@debug.to_string(e))
   }
-  Ok({ operation, limits, options, show, json, manifest, files, })
+  Ok({ operation, limits, options, stream, show, json, manifest, files, })
 }
 
 ///|
@@ -459,6 +479,10 @@ fn main {
       "'): " +
       @utf8.decode_lossy(io_error()[:]),
     )
+  }
+  if config.stream {
+    stream_command(config)
+    return
   }
   if operation == "patch" && config.manifest is Some(manifest_path) {
     if io_check(

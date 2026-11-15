@@ -75,6 +75,7 @@ jobs:
         run: |
           set -o pipefail
           for target in js wasm-gc; do
+            python3 scripts/check_acceptance.py --test-log "stream-pull-$target.log" -- moon test internal/bzip2 --filter 'stream pull*' --target "$target" --deny-warn
             python3 scripts/check_acceptance.py --test-log "compression-$target.log" -- moon test compression_wbtest.mbt --filter 'compression-compact*' --target "$target" --deny-warn
             grep -E 'Total tests: [1-9][0-9]*, passed: [1-9][0-9]*, failed: 0' "compression-$target.log"
             python3 scripts/check_compression.py --log "compression-$target.log"
@@ -173,6 +174,8 @@ jobs:
           python3 scripts/test_cli_manifest.py --exe _build/bin/linux/moonbsdiff
           python3 scripts/test_cli_verify.py --exe _build/bin/linux/moonbsdiff
           python3 scripts/test_cli_options.py --exe _build/bin/linux/moonbsdiff
+          python3 scripts/test_cli_stream.py --exe _build/bin/linux/moonbsdiff
+          python3 scripts/check_acceptance.py --test-log _build/stream-delivery-linux.log -- moon test cmd/main/stream_wbtest.mbt --target native --deny-warn
       - name: Real unprivileged ext4 delivery without proc (private mount namespace)
         if: runner.os == 'Linux'
         run: python3 scripts/test_linux_delivery.py --exe _build/bin/linux/moonbsdiff
@@ -189,7 +192,7 @@ jobs:
           $vs = & "${env:ProgramFiles(x86)}/Microsoft Visual Studio/Installer/vswhere.exe" -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
           if (-not $vs) { throw 'MSVC build tools not found' }
           $dev = Join-Path $vs 'VC/Auxiliary/Build/vcvars64.bat'
-          cmd /c "call `"$dev`" >nul && python scripts/build_cli.py && python scripts/test_cli.py --exe _build/bin/windows/moonbsdiff.exe && python scripts/test_cli_limits.py --exe _build/bin/windows/moonbsdiff.exe && python scripts/test_cli_inspect.py --exe _build/bin/windows/moonbsdiff.exe && python scripts/test_cli_manifest.py --exe _build/bin/windows/moonbsdiff.exe && python scripts/test_cli_verify.py --exe _build/bin/windows/moonbsdiff.exe && python scripts/test_cli_options.py --exe _build/bin/windows/moonbsdiff.exe"
+          cmd /c "call `"$dev`" >nul && python scripts/build_cli.py && python scripts/test_cli.py --exe _build/bin/windows/moonbsdiff.exe && python scripts/test_cli_limits.py --exe _build/bin/windows/moonbsdiff.exe && python scripts/test_cli_inspect.py --exe _build/bin/windows/moonbsdiff.exe && python scripts/test_cli_manifest.py --exe _build/bin/windows/moonbsdiff.exe && python scripts/test_cli_verify.py --exe _build/bin/windows/moonbsdiff.exe && python scripts/test_cli_options.py --exe _build/bin/windows/moonbsdiff.exe && python scripts/test_cli_stream.py --exe _build/bin/windows/moonbsdiff.exe && python scripts/check_acceptance.py --test-log _build/stream-delivery-windows.log -- moon test cmd/main/stream_wbtest.mbt --target native --deny-warn"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Package and validate Linux release archive once
         if: runner.os == 'Linux'

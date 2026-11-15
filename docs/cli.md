@@ -149,7 +149,8 @@ errors exit 2; read/schema/identity/apply/restoration/delivery errors exit 1 on
 stderr, with empty stdout. Success exits 0 (checked patch is silent).
 [Full input policy, stages and test evidence](manifest.md#bounded-consumption-and-checked-restoration-commit-20)
 distinguish this content check from publisher authentication. There is no signature,
-network fetch, automatic update or streaming restoration.
+network fetch or automatic update in this manifest path. Explicit source-only
+`patch --stream` is separate and rejects manifests; see below.
 
 ## Dependencies and native isolation
 
@@ -200,7 +201,8 @@ size is checked before reallocating/appending to the result. Capacity growth
 uses subtraction/division to remain <= the Int-sized cap; a growing file or
 zero/uninformative size cannot bypass the running check. A stat/read/close error
 returns no input value to the CLI. The core diff/apply still perform their own
-checks. This is in-memory processing, not a streaming core algorithm.
+checks. These original paths are in-memory processing; the separate native
+file path described below does not change the core memory APIs.
 
 Concurrent file mutation is not a consistent snapshot guarantee. BSDIFF40 does
 not contain old-file identity hashes; callers must verify intended old and new
@@ -408,3 +410,30 @@ full local random interoperability matrix, resource measurement or historical
 large compression sample was repeated for this IO-only step. The existing remote
 library pipeline may run its normal suite. Product distribution, full platform
 policy, examples and publication remain Commit 13-16.
+
+
+## Explicit file application (0.4.0 Unreleased source)
+
+```sh
+./_build/bin/linux/moonbsdiff patch --stream OLD_FILE PATCH_FILE OUTPUT_FILE
+./_build/bin/linux/moonbsdiff patch --stream --max-patch-bytes 256KiB OLD_FILE PATCH_FILE OUTPUT_FILE
+```
+
+Only patch accepts this flag; options/--/duplicates/exit codes follow the existing
+parser. It rejects --manifest and --show-limits. Old, patch and target sizes are
+prechecked against the same final Limits used throughout execution. Default
+application caps remain unchanged, including the CLI's independent 128 KiB patch
+cap. No automatic mode switch is made. New/decompressed/instruction limits still
+apply and can reject size-compliant files.
+
+This Windows/Linux native layer reads compressed intervals and old file positions
+in at most 4096-byte chunks, pauses final RLE output and writes bounded temporary
+chunks. It does not buffer the whole patch, decoded streams or restored file.
+Single-block bzip2 workspaces remain. All CRC, end and complete-consumption checks
+and input closing finish before writer closing/no-replace publication. A late
+failure cleans only owned temporary objects; existing post-delivery cleanup-error
+semantics remain. It does not guarantee snapshots of concurrently modified input,
+process peak memory, power-loss durability, streaming generation or cancellation.
+Manifest patch/verify keep the memory path and same-Bytes hash guarantee.
+See [design, buffer bounds, supported delivery paths and compact evidence](file-apply.md).
+Published CLI 0.2.0 does not contain this source-only feature.

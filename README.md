@@ -1,5 +1,11 @@
 # MoonBSDiff
 
+**0.4.0 Unreleased source:** explicit native `patch --stream` now reads, decodes
+and writes bounded segments before safe no-replace delivery. See the
+[file application design and validation](docs/file-apply.md). This path rejects
+`--manifest`, does not promise input snapshots or process peak memory, and is
+not included in the released CLI 0.2.0 assets. Memory APIs/defaults are unchanged.
+
 **0.3.0 Unreleased source policies:** [measured explicit 256 KiB and 1 MiB
 generation/application configurations](docs/generation-scales.md) are available.
 Each scale passed sparse/periodic/random native-release cases and a public CLI

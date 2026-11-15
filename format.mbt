@@ -16,7 +16,8 @@ fn parse_header(
     Err(e) => return Err(e)
     Ok(_) => ()
   }
-  let ranges = match parse_envelope(data, limits.max_patch_bytes) {
+  let ranges = match
+    parse_envelope(data, data.length().to_int64(), limits.max_patch_bytes) {
     Ok(value) => value
     Err(e) => return Err(e)
   }
@@ -41,9 +42,9 @@ fn parse_header(
 // Shared structural checks. No decoding and no restored-buffer size policy.
 fn parse_envelope(
   data : Bytes,
+  total : Int64,
   max_patch_bytes : Int64,
 ) -> Result[PatchRanges, BsdiffError] {
-  let total = data.length().to_int64()
   if total > max_patch_bytes {
     return Err(
       format_error(
@@ -63,7 +64,7 @@ fn parse_envelope(
         TruncatedData,
         Header,
         None,
-        Some(total),
+        Some(data.length().to_int64()),
         None,
         None,
         Some(32L),
@@ -177,7 +178,7 @@ fn parse_envelope(
     control_start: 32,
     control_end: control_end.to_int(),
     diff_end: diff_end.to_int(),
-    extra_end: data.length(),
+    extra_end: total.to_int(),
     new_size: output,
   })
 }
@@ -202,6 +203,32 @@ pub fn inspect_header(
   data : Bytes,
   max_patch_bytes : Int64,
 ) -> Result[PatchInfo, BsdiffError] {
+  inspect_header_prefix(data, data.length().to_int64(), max_patch_bytes)
+}
+
+///|
+/// Envelope check using a header prefix and separately measured file size.
+/// Reads only the first 32 bytes; does not allocate or decompress target data.
+pub fn inspect_header_prefix(
+  data : Bytes,
+  patch_bytes : Int64,
+  max_patch_bytes : Int64,
+) -> Result[PatchInfo, BsdiffError] {
+  if patch_bytes < 0L ||
+    patch_bytes > 2147483647L ||
+    patch_bytes < data.length().to_int64() {
+    return Err(
+      format_error(
+        InvalidField,
+        Header,
+        None,
+        None,
+        Some("patch_bytes"),
+        Some(patch_bytes),
+        Some(2147483647L),
+      ),
+    )
+  }
   if max_patch_bytes <= 0L || max_patch_bytes > 2147483647L {
     return Err(
       format_error(
@@ -215,12 +242,12 @@ pub fn inspect_header(
       ),
     )
   }
-  let ranges = match parse_envelope(data, max_patch_bytes) {
+  let ranges = match parse_envelope(data, patch_bytes, max_patch_bytes) {
     Ok(value) => value
     Err(e) => return Err(e)
   }
   Ok({
-    patch_bytes: data.length().to_int64(),
+    patch_bytes,
     new_bytes: ranges.new_size,
     control_start: ranges.control_start.to_int64(),
     control_length: (ranges.control_end - ranges.control_start).to_int64(),

@@ -62,3 +62,18 @@ Default fixture verification is offline and also checks embedded compressed lite
 Python -> MoonBit: eight compact level-1/9 fixtures plus four boundary fixtures decoded correctly on native; compact fixtures passed on JS and Wasm-GC. Headers with levels 1 through 9 were accepted under their valid block ceilings. Parsed block counts were 1/2 for near/cross level-1 inputs (99980/110080 bytes) and 1/2 for near/cross level-9 inputs (899980/921600 bytes). The large sample was tested only once in native. MoonBit -> Python: five level-9 results on native (including the 921600-byte case), four compact results on each other target, all strictly validated.
 
 The 13 Commit 3 offline fixtures passed one integrity check. The source-adaptation patch reproduced all five copied files (line endings normalized), and negative checks proved the Python comparator rejects a missing large result and a damaged stream. The C oracle was not rebuilt and its patches were not regenerated. Historical dependency probes were not rerun. CI now includes these compression checks but has not run remotely. This is bzip2 interoperability, not full BSDIFF40 interoperability. Detailed command counts are in testdata/compression/results.json.
+
+
+## Bounded pull adaptation (0.4.0 Unreleased source)
+
+The file path adds refillable bit input and StreamReader with independent RLE
+cursor/pending run, CRC and end state. The pinned block transform is shared with
+the memory decoder; final expanded blocks are not buffered by the new driver.
+A shared Budget reserves each entire final RLE run before emitting it across
+bounded pulls. EOF is returned only after block/combined CRC and exact interval
+consumption. Source chunks and output pulls are at most 4096 bytes, while BWT and
+RLE-domain block workspaces remain bounded by 100000 * level (at most 900000).
+See [file apply](file-apply.md) for simultaneous retention and compact validation;
+these logical bounds are not peak-memory measurements. The original memory
+apply/decoder still buffers its output. Source lock, notices and reproduction
+patch were refreshed; no dependency/codec/version/default change occurred.

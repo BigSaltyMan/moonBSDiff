@@ -1,6 +1,6 @@
 // Copyright 2026 Leo Cheng
 // SPDX-License-Identifier: Apache-2.0
-// Modified 2026-11-06 for MoonBSDiff; see README.md and changes.patch.
+// Modified 2026-11-06 and 2026-11-15 for MoonBSDiff; see README.md and changes.patch.
 
 ///|
 /// A field that has to be there, or the stream is short.
@@ -138,11 +138,7 @@ fn Fetcher::next(self : Fetcher, bits : Bits) -> Int32 raise Fault {
 /// Burrows-Wheeler, and then the run-length stage the sort was fed from. The CRC
 /// is checked at the end against the one in the header, because it is over the
 /// bytes after the last stage.
-fn read_block(
-  bits : Bits,
-  level : Int32,
-  meter : Meter,
-) -> (Bytes, UInt32) raise Fault {
+fn read_rle_block(bits : Bits, level : Int32) -> (Bytes, UInt32) raise Fault {
   let want_crc = match bits.take_word() {
     Some(v) => v
     None => raise Truncated(at=bits.used())
@@ -372,6 +368,18 @@ fn read_block(
     }
     plain.push(byte.to_byte())
   }
+  (Bytes::from_array(plain), want_crc)
+}
+
+///|
+// Existing whole-buffer path uses the same Huffman/MTF/inverse-BWT body.
+fn read_block(
+  bits : Bits,
+  level : Int32,
+  meter : Meter,
+) -> (Bytes, UInt32) raise Fault {
+  let (plain, want_crc) = read_rle_block(bits, level)
+  let n = plain.length()
   // And the run-length stage: four or more equal bytes were written as four and a
   // count, so four of a kind followed by a byte is not five bytes.
   let out : Array[Byte] = []

@@ -1,6 +1,6 @@
 // Copyright 2026 Leo Cheng
 // SPDX-License-Identifier: Apache-2.0
-// Modified 2026-11-06 for MoonBSDiff; see README.md and changes.patch.
+// Modified 2026-11-06 and 2026-11-15 for MoonBSDiff; see README.md and changes.patch.
 
 ///|
 /// bzip2 reads its bits most significant first. That is the opposite of DEFLATE,
@@ -9,7 +9,10 @@
 /// bit lives, and mixing them silently produces streams that only their author
 /// can read.
 priv struct Bits {
-  data : BytesView
+  mut data : BytesView
+  source : (() -> Bytes)?
+  total : Int32
+  mut base : Int32
   mut at : Int32
   mut acc : UInt32
   mut held : Int32
@@ -17,7 +20,20 @@ priv struct Bits {
 
 ///|
 fn Bits::new(data : BytesView) -> Bits {
-  { data, at: 0, acc: 0, held: 0, }
+  { data, source: None, total: data.length(), base: 0, at: 0, acc: 0, held: 0, }
+}
+
+///|
+fn Bits::source(total : Int32, source : () -> Bytes) -> Bits {
+  {
+    data: b""[:],
+    source: Some(source),
+    total,
+    base: 0,
+    at: 0,
+    acc: 0U,
+    held: 0,
+  }
 }
 
 ///|
@@ -28,7 +44,20 @@ fn Bits::new(data : BytesView) -> Bits {
 fn Bits::take(self : Bits, n : Int32) -> Int32? {
   while self.held < n {
     if self.at >= self.data.length() {
-      return None
+      match self.source {
+        None => return None
+        Some(read) => {
+          self.base += self.at
+          self.at = 0
+          let chunk = read()
+          if chunk.length() == 0 ||
+            chunk.length() > 4096 ||
+            chunk.length() > self.total - self.base {
+            return None
+          }
+          self.data = chunk[:]
+        }
+      }
     }
     self.acc = (self.acc << 8) | self.data[self.at].to_uint()
     self.at += 1
@@ -61,5 +90,5 @@ fn Bits::take_word(self : Bits) -> UInt32? {
 /// How many bytes were read out of the slice, which is where the reader got to
 /// rather than where the last bit it used ended.
 fn Bits::used(self : Bits) -> Int32 {
-  self.at
+  self.base + self.at
 }

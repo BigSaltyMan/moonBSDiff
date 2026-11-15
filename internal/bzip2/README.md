@@ -7,3 +7,12 @@ This is a decoder-only subset, not a replacement bzip2 engine. The source lock g
 Changes: remove unused writer/sink and original one-shot driver; substitute a local error type; pass a Meter into read_block; reserve before RLE output; reject four-byte RLE runs missing their count; use subtraction for intermediate run bounds. The new driver verifies the combined CRC and computes its logical bit position for exact single-stream consumption. Huffman, MTF, inverse BWT, CRC and randomisation algorithms are preserved.
 
 Package exports are implementation plumbing, not root-library API. They must not be treated as stable external APIs. `Budget.emitted` counts reserved/produced bytes across intervals and can also prove that failures stop before a disallowed RLE segment. `Decoded.blocks` counts actual parsed blocks, not byte-pattern matches. No public root debugging API was added.
+
+
+Commit 26 (2026-11-15): bits.mbt adds bounded source refill; decode.mbt splits
+read_rle_block (unchanged block transform) from the existing whole-output driver.
+New original MoonBSDiff stream.mbt retains the bounded RLE-domain block and emits
+final RLE incrementally, preserving CRC/end/budget state. It does not copy or
+trust the dependency streaming Reader. The reproduction patch includes copied
+file modifications; source-lock.json separately hashes the new driver. The
+original Apache-2.0 notices and LICENSE are retained. See docs/file-apply.md.

@@ -26,6 +26,12 @@
 #include <linux/magic.h>
 #endif
 
+#ifdef _WIN32
+static int stream_populate(HANDLE writer);
+#else
+static int stream_populate(int writer);
+#endif
+
 static char problem[256];
 /* Set only by the private white-box entrypoint below. No environment/CLI hook. */
 static int fault;
@@ -340,7 +346,8 @@ static int compat_deliver(int dir,const char *leaf,moonbit_bytes_t data) {
     if(keeper<0 || fstat(keeper,&held)<0) fail("retain private payload identity",errno);
     else if(!same_inode(&held,&ps)) fail("private payload changed on open",ESTALE);
   }
-  size_t at=0,n=Moonbit_array_length(data);
+  size_t at=0,n=data?Moonbit_array_length(data):0;
+  if(!data && !problem[0]) stream_populate(writer);
   while(!problem[0] && at<n) {
     size_t amount=n-at>32768?32768:n-at;
     if(fault==9 && amount>2) amount=2;
@@ -405,7 +412,7 @@ static int anonymous_unavailable(int error) {
 /* Never removes final caller paths. Primary cleanup uses held identities;
  * compatibility cleanup uses only the protected private namespace above. */
 MOONBIT_FFI_EXPORT int32_t mbsd_deliver(moonbit_bytes_t name,moonbit_bytes_t data) {
-  problem[0]=0; size_t n=Moonbit_array_length(data),at=0;
+  problem[0]=0; size_t n=data?Moonbit_array_length(data):0,at=0;
 #ifdef _WIN32
   wchar_t *relative=wide((char*)name); if(!relative) return 0;
   wchar_t full[32768],temp[32768];
@@ -425,6 +432,7 @@ MOONBIT_FFI_EXPORT int32_t mbsd_deliver(moonbit_bytes_t name,moonbit_bytes_t dat
   }
   if(writer==INVALID_HANDLE_VALUE) { fail("temporary name collisions exhausted",ERROR_FILE_EXISTS); return 0; }
   if(!DuplicateHandle(GetCurrentProcess(),writer,GetCurrentProcess(),&keeper,DELETE|FILE_READ_ATTRIBUTES, FALSE,0)) fail("retain temporary identity",GetLastError());
+  if(!data && !problem[0]) stream_populate(writer);
   while(!problem[0] && at<n) {
     DWORD amount=(DWORD)(n-at>32768?32768:n-at),done=0;
     if(fault==9 && amount>2) amount=2;
@@ -487,6 +495,7 @@ MOONBIT_FFI_EXPORT int32_t mbsd_deliver(moonbit_bytes_t name,moonbit_bytes_t dat
     if(close(dir)<0) fail("close output directory",errno);
     return !problem[0];
   }
+  if(!data && !problem[0]) stream_populate(writer);
   while(!problem[0] && at<n) {
     size_t amount=n-at>32768?32768:n-at;
     if(fault==9 && amount>2) amount=2;
@@ -691,3 +700,165 @@ MOONBIT_FFI_EXPORT int32_t mbsd_compat_contract(int32_t mode) {
   return result;
 }
 #endif
+
+/* Private synchronous streaming adapter. No product fault/configuration hook.
+ * Only this compilation unit owns these handles; callbacks never publish paths. */
+#ifdef _WIN32
+static HANDLE stream_inputs[2]={INVALID_HANDLE_VALUE,INVALID_HANDLE_VALUE};
+static HANDLE stream_writer=INVALID_HANDLE_VALUE;
+#else
+static int stream_inputs[2]={-1,-1},stream_writer=-1;
+_Static_assert(sizeof(off_t)>=8,"streaming requires 64-bit file offsets");
+#endif
+static int64_t stream_sizes[2];
+static int32_t (*stream_call)(void *);
+static void *stream_context;
+static size_t stream_written;
+static void stream_close_inputs(void) {
+  for(int i=0;i<2;i++) {
+#ifdef _WIN32
+    if(stream_inputs[i]!=INVALID_HANDLE_VALUE) {
+      if(!CloseHandle(stream_inputs[i])) fail("close stream input",GetLastError());
+      stream_inputs[i]=INVALID_HANDLE_VALUE;
+    }
+#else
+    if(stream_inputs[i]>=0) {
+      if(close(stream_inputs[i])<0) fail("close stream input",errno);
+      stream_inputs[i]=-1;
+    }
+#endif
+  }
+}
+MOONBIT_FFI_EXPORT int32_t mbsd_stream_open(moonbit_bytes_t old,moonbit_bytes_t patch,int64_t oldcap,int64_t patchcap) {
+  problem[0]=0;
+  moonbit_bytes_t names[2]={old,patch};int64_t caps[2]={oldcap,patchcap};
+  for(int i=0;i<2 && !problem[0];i++) {
+    if(caps[i]<1 || caps[i]>INT32_MAX) { fail("stream input cap",EINVAL);break; }
+#ifdef _WIN32
+    wchar_t *name=wide((char*)names[i]);if(!name) break;
+    stream_inputs[i]=CreateFileW(name,GENERIC_READ,FILE_SHARE_READ,NULL,OPEN_EXISTING,FILE_ATTRIBUTE_NORMAL,NULL);free(name);
+    LARGE_INTEGER size;
+    if(stream_inputs[i]==INVALID_HANDLE_VALUE || GetFileType(stream_inputs[i])!=FILE_TYPE_DISK || !GetFileSizeEx(stream_inputs[i],&size)) { fail("open/size stream input",GetLastError());break; }
+    stream_sizes[i]=size.QuadPart;
+#else
+    stream_inputs[i]=open((char*)names[i],O_RDONLY|O_CLOEXEC|O_NONBLOCK);
+    struct stat st;
+    if(stream_inputs[i]<0 || fstat(stream_inputs[i],&st)<0) { fail("open/size stream input",errno);break; }
+    if(!S_ISREG(st.st_mode)) { fail("stream input must be a regular file",EINVAL);break; }
+    stream_sizes[i]=st.st_size;
+#endif
+    if(stream_sizes[i]<0 || stream_sizes[i]>caps[i]) limit_fail(i?"max_patch_bytes":"max_old_bytes",(int)caps[i]);
+  }
+  if(problem[0]) stream_close_inputs();
+  return !problem[0];
+}
+MOONBIT_FFI_EXPORT int64_t mbsd_stream_size(int32_t which) { return which>=0 && which<2?stream_sizes[which]:-1; }
+MOONBIT_FFI_EXPORT moonbit_bytes_t mbsd_stream_read(int32_t which,int64_t offset,int32_t count) {
+  uint8_t buffer[4096];size_t at=0;
+  if(problem[0]) return bytes(NULL,0);
+  if(which<0 || which>1 || offset<0 || count<0 || count>4096 || offset>stream_sizes[which] || count>stream_sizes[which]-offset) {
+    fail("stream read range",EINVAL);return bytes(NULL,0);
+  }
+  while(at<(size_t)count) {
+#ifdef _WIN32
+    LARGE_INTEGER pos;pos.QuadPart=offset+(int64_t)at;DWORD done=0;
+    if(!SetFilePointerEx(stream_inputs[which],pos,NULL,FILE_BEGIN) || !ReadFile(stream_inputs[which],buffer+at,count-(DWORD)at,&done,NULL) || !done) {
+      fail("stream read/truncated input",GetLastError());break;
+    }
+#else
+    ssize_t done=pread(stream_inputs[which],buffer+at,(size_t)count-at,(off_t)(offset+(int64_t)at));
+    if(done<0 && errno==EINTR) continue;
+    if(done<=0) { fail("stream read/truncated input",done<0?errno:EIO);break; }
+#endif
+    at+=(size_t)done;
+  }
+  return problem[0]?bytes(NULL,0):bytes(buffer,at);
+}
+MOONBIT_FFI_EXPORT int32_t mbsd_stream_write(moonbit_bytes_t data) {
+  size_t n=Moonbit_array_length(data),at=0;
+  if(n>4096) { fail("stream output chunk",EINVAL);return 0; }
+  while(!problem[0] && at<n) {
+    size_t amount=n-at;
+    if(fault==9 && amount>2) amount=2;
+    if(fault==4 && stream_written) { fail("injected stream write",EIO);break; }
+    if(fault==4) amount=1;
+#ifdef _WIN32
+    DWORD done=0;
+    if(fault==10 || !WriteFile(stream_writer,data+at,(DWORD)amount,&done,NULL) || !done) { fail("stream write/no progress",GetLastError());break; }
+#else
+    ssize_t done=fault==10?0:write(stream_writer,data+at,amount);
+    if(done<0 && errno==EINTR) continue;
+    if(done<=0) { fail("stream write/no progress",done<0?errno:EIO);break; }
+#endif
+    at+=(size_t)done;stream_written+=(size_t)done;
+  }
+  return !problem[0];
+}
+#ifdef _WIN32
+static int stream_populate(HANDLE writer) {
+#else
+static int stream_populate(int writer) {
+#endif
+  stream_writer=writer;
+  int ok=stream_call && stream_call(stream_context);
+  /* Even an input-close failure must precede publication. */
+  stream_close_inputs();
+  if(!ok) fail("stream validation failed; temporary output not delivered",EIO);
+  return ok && !problem[0];
+}
+MOONBIT_FFI_EXPORT int32_t mbsd_stream_deliver(moonbit_bytes_t path,int32_t (*call)(void*),void *context) {
+  stream_call=call;stream_context=context;stream_written=0;
+  int ok=mbsd_deliver(path,NULL);
+  stream_close_inputs(); /* creation failure can occur before populate */
+  stream_call=NULL;stream_context=NULL;
+  return ok && !problem[0];
+}
+MOONBIT_FFI_EXPORT void mbsd_stream_abort(void) { stream_close_inputs(); }
+/* New delivery lifecycle only: callback writes, close gate, race, cleanup and reuse. */
+static int32_t stream_contract_body(void *ignored) {
+  (void)ignored;
+  moonbit_bytes_t read=mbsd_stream_read(0,0,1);
+  int good=Moonbit_array_length(read)==1 && read[0]=='A';moonbit_decref(read);
+  moonbit_bytes_t b=bytes("abcdef",6);
+  if(good) good=mbsd_stream_write(b);
+  moonbit_decref(b);return good;
+}
+MOONBIT_FFI_EXPORT int32_t mbsd_stream_contract(int32_t mode) {
+  char root[32000],input[32768],output[32768];problem[0]=0;fault=0;
+#ifdef _WIN32
+  wchar_t base[32768],name[32768];DWORD count=GetTempPathW(32000,base);
+  if(!count || count>32000) return 301;
+  swprintf(name,32768,L"%lsmoonbsdiff-stream-%lu-%u",base,(unsigned long)GetCurrentProcessId(),++sequence);
+  if(!CreateDirectoryW(name,NULL) || !WideCharToMultiByte(CP_UTF8,0,name,-1,root,sizeof(root),NULL,NULL)) return 302;
+#else
+  strcpy(root,"/tmp/moonbsdiff-stream-XXXXXX");if(!mkdtemp(root)) return 302;
+#endif
+  snprintf(input,sizeof(input),"%s/input",root);snprintf(output,sizeof(output),"%s/output",root);
+  int result=0;if(!test_put(input,"A",1,0)) result=303;
+  moonbit_bytes_t a=bytes(input,strlen(input)+1),b=bytes(output,strlen(output)+1);
+#ifndef _WIN32
+  if(mode==11) compat_force=1;
+#endif
+  if(!result && !mbsd_stream_open(a,a,1,1)) result=304;
+  fault=mode==11?0:mode;
+  if(!result) {
+    int ok=mbsd_stream_deliver(b,stream_contract_body,NULL);
+    if(ok!=(mode==9 || mode==11)) result=305;
+    if(mode==4 && !strstr(problem,"write")) result=306;
+    if(mode==5 && !strstr(problem,"close written")) result=307;
+    if(mode==6 && !strstr(problem,"delivery")) result=308;
+    if(mode==10 && !strstr(problem,"progress")) result=309;
+    if(mode==2) { if(!test_matches(output,"other")) result=310; }
+    else if(mode==9 || mode==11) { if(!test_matches(output,"abcdef")) result=311; }
+    else if(!test_missing(output)) result=312;
+  }
+  test_remove(output,0);fault=0;
+  if(!result && (!mbsd_stream_open(a,a,1,1) || !mbsd_stream_deliver(b,stream_contract_body,NULL) || !test_matches(output,"abcdef"))) result=313;
+  test_remove(output,0);test_remove(input,0);
+#ifdef _WIN32
+  wchar_t *r=wide(root);if(!r || !RemoveDirectoryW(r)) result=314;free(r);
+#else
+  if(rmdir(root)<0) result=314;compat_force=0;
+#endif
+  moonbit_decref(a);moonbit_decref(b);problem[0]=0;return result;
+}

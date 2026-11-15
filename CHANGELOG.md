@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.4.0 — Unreleased
+
+- Explicit native `patch --stream` uses interval-bounded compressed reads,
+  pausable final RLE emission and 4096-byte old/output chunks. Shared decoded
+  budget and instruction limits persist across all blocks and streams.
+- Block/combined CRC, real end markers and compressed/decoded complete
+  consumption precede existing safe no-overwrite delivery; late errors never
+  publish a partial successful output. Windows/Linux compact paths verified.
+- Pure `inspect_header_prefix` shares envelope validation without whole patch
+  buffering. Memory apply/default policies and dependencies stay unchanged.
+- Stream/manifest combination is refused; concurrent inputs are not consistent
+  snapshots. Format-bounded block workspaces remain; process peak memory,
+  streaming generation, progress and cancellation are not promised.
+
+
 ## 0.3.0 — Unreleased
 
 - DiffOptions selects bzip2 compression level 1..9 (default 9), with ordinary and

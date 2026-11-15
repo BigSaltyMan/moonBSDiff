@@ -14,6 +14,8 @@ pub fn diff_with_options(Bytes, Bytes, Limits, DiffOptions) -> Result[Bytes, Bsd
 
 pub fn inspect_header(Bytes, Int64) -> Result[PatchInfo, BsdiffError]
 
+pub fn inspect_header_prefix(Bytes, Int64, Int64) -> Result[PatchInfo, BsdiffError]
+
 // Errors
 
 // Types and methods

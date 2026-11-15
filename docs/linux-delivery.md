@@ -142,3 +142,16 @@ replacement behavior in
 [rename(2)](https://man7.org/linux/man-pages/man2/rename.2.html). The implementation
 uses hard-link publication rather than assuming ordinary rename is safe after
 a separate existence check.
+
+
+## Segmented populate lifecycle (0.4.0 Unreleased source)
+
+The explicit patch --stream path now invokes a synchronous producer inside the
+same delivery function, after creation/identity retention and before writer
+closing/publication. Both anonymous/proc and guarded compatibility branches use
+this producer. Format/CRC validation and input closing must succeed before it
+returns; failure takes existing owned-object cleanup. Bounded writes retain
+short-write/no-progress handling. Permission, filesystem, threat and
+post-publication-error boundaries above are unchanged. The new private callback
+set includes forced guarded compatibility on Linux; it does not repeat or expand
+the historical real no-proc environment claim. [File-path details](file-apply.md).

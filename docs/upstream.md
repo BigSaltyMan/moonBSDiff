@@ -120,3 +120,16 @@ are unchanged. SHA-256 empty/abc vectors and independent hashlib comparisons
 cover the narrow CLI integration. [Manifest scope](manifest.md) distinguishes
 content integrity from publisher authentication; there is no new signature or
 verification claim, compression adaptation or oracle rebuild.
+
+
+## Commit 26 decoder adaptation
+
+The copied moonzip 0.3.5 decoder now shares its unchanged Huffman/MTF/inverse-BWT
+block body between memory read_block and the bounded pull driver. bits.mbt gains
+a <=4096-byte refill source; decode.mbt returns the bounded RLE-domain block to
+allow final RLE pauses. New stream.mbt is MoonBSDiff driver code, not a copied
+public Reader. Source notices, changes.patch and source-lock adapted hashes
+identify these modifications; original hashes/license remain unchanged. Native
+file IO is original BSD-2-Clause adapter code and uses the documented native
+FuncRef callback adapter. No upstream archive/oracle rebuild or dependency
+upgrade is part of this step. [Detailed design and evidence](file-apply.md).

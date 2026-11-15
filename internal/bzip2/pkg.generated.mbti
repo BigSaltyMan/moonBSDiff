@@ -32,6 +32,12 @@ pub(all) struct Decoded {
   blocks : Int32
 }
 
+pub struct StreamReader {
+  // private fields
+}
+pub fn StreamReader::new(Int32, () -> Bytes, Int32, Budget) -> Self raise Fault
+pub fn StreamReader::read(Self, Int32) -> Bytes raise Fault
+
 // Type aliases
 
 // Traits

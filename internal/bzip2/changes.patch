@@ -1,15 +1,74 @@
---- a/bits.mbt
-+++ b/bits.mbt
+--- upstream/bits.mbt
++++ adapted/bits.mbt
 @@ -1,5 +1,6 @@
  // Copyright 2026 Leo Cheng
  // SPDX-License-Identifier: Apache-2.0
-+// Modified 2026-11-06 for MoonBSDiff; see README.md and changes.patch.
++// Modified 2026-11-06 and 2026-11-15 for MoonBSDiff; see README.md and changes.patch.
 
  ///|
  /// bzip2 reads its bits most significant first. That is the opposite of DEFLATE,
-@@ -62,64 +63,3 @@
+@@ -8,7 +9,10 @@
+ /// bit lives, and mixing them silently produces streams that only their author
+ /// can read.
+ priv struct Bits {
+-  data : BytesView
++  mut data : BytesView
++  source : (() -> Bytes)?
++  total : Int32
++  mut base : Int32
+   mut at : Int32
+   mut acc : UInt32
+   mut held : Int32
+@@ -16,7 +20,20 @@
+
+ ///|
+ fn Bits::new(data : BytesView) -> Bits {
+-  { data, at: 0, acc: 0, held: 0, }
++  { data, source: None, total: data.length(), base: 0, at: 0, acc: 0, held: 0, }
++}
++
++///|
++fn Bits::source(total : Int32, source : () -> Bytes) -> Bits {
++  {
++    data: b""[:],
++    source: Some(source),
++    total,
++    base: 0,
++    at: 0,
++    acc: 0U,
++    held: 0,
++  }
+ }
+
+ ///|
+@@ -27,7 +44,20 @@
+ fn Bits::take(self : Bits, n : Int32) -> Int32? {
+   while self.held < n {
+     if self.at >= self.data.length() {
+-      return None
++      match self.source {
++        None => return None
++        Some(read) => {
++          self.base += self.at
++          self.at = 0
++          let chunk = read()
++          if chunk.length() == 0 ||
++            chunk.length() > 4096 ||
++            chunk.length() > self.total - self.base {
++            return None
++          }
++          self.data = chunk[:]
++        }
++      }
+     }
+     self.acc = (self.acc << 8) | self.data[self.at].to_uint()
+     self.at += 1
+@@ -60,66 +90,5 @@
+ /// How many bytes were read out of the slice, which is where the reader got to
+ /// rather than where the last bit it used ended.
  fn Bits::used(self : Bits) -> Int32 {
-   self.at
+-  self.at
++  self.base + self.at
  }
 -
 -///|
@@ -72,12 +131,12 @@
 -  }
 -  Bytes::from_array(self.out)
 -}
---- a/decode.mbt
-+++ b/decode.mbt
+--- upstream/decode.mbt
++++ adapted/decode.mbt
 @@ -1,5 +1,6 @@
  // Copyright 2026 Leo Cheng
  // SPDX-License-Identifier: Apache-2.0
-+// Modified 2026-11-06 for MoonBSDiff; see README.md and changes.patch.
++// Modified 2026-11-06 and 2026-11-15 for MoonBSDiff; see README.md and changes.patch.
 
  ///|
  /// A field that has to be there, or the stream is short.
@@ -119,13 +178,15 @@
      }
      self.group_pos = 50
      self.group = self.selectors[self.group_no]
-@@ -140,16 +141,17 @@
- fn read_block(
-   bits : Bits,
-   level : Int32,
+@@ -137,19 +138,16 @@
+ /// Burrows-Wheeler, and then the run-length stage the sort was fed from. The CRC
+ /// is checked at the end against the one in the header, because it is over the
+ /// bytes after the last stage.
+-fn read_block(
+-  bits : Bits,
+-  level : Int32,
 -) -> (Bytes, UInt32) raise @moonzip.Refused {
-+  meter : Meter,
-+) -> (Bytes, UInt32) raise Fault {
++fn read_rle_block(bits : Bits, level : Int32) -> (Bytes, UInt32) raise Fault {
    let want_crc = match bits.take_word() {
      Some(v) => v
 -    None => raise @moonzip.Truncated(at=bits.used())
@@ -140,7 +201,7 @@
        at=bits.used(),
        what="the block's start pointer is outside the block",
      )
-@@ -177,16 +179,13 @@
+@@ -177,16 +175,13 @@
    }
    let n_in_use = seq_to_unseq.length()
    if n_in_use == 0 {
@@ -159,7 +220,7 @@
        at=bits.used(),
        what="a block with the wrong number of code tables",
      )
-@@ -196,7 +195,7 @@
+@@ -196,7 +191,7 @@
    // the data.
    let n_selectors = need(bits, 15)
    if n_selectors < 1 {
@@ -168,7 +229,7 @@
    }
    let selector_mtf = Array::make(n_selectors, 0)
    for i in 0..<n_selectors {
-@@ -204,7 +203,7 @@
+@@ -204,7 +199,7 @@
      while need(bits, 1) == 1 {
        j += 1
        if j >= n_groups {
@@ -177,7 +238,7 @@
        }
      }
      selector_mtf[i] = j
-@@ -233,7 +232,7 @@
+@@ -233,7 +228,7 @@
      for symbol in 0..<alpha {
        while true {
          if curr < 1 || curr > 20 {
@@ -186,7 +247,7 @@
          }
          if need(bits, 1) == 0 {
            break
-@@ -266,7 +265,7 @@
+@@ -266,7 +261,7 @@
    let mut sym = fetcher.next(bits)
    while true {
      if sym < 0 {
@@ -195,7 +256,7 @@
      }
      if sym == eob {
        break
-@@ -276,7 +275,7 @@
+@@ -276,7 +271,7 @@
        let mut weight = 1
        while true {
          if weight >= 2097152 {
@@ -204,7 +265,7 @@
          }
          if sym == 0 {
            run += weight
-@@ -286,15 +285,15 @@
+@@ -286,15 +281,15 @@
          weight = weight * 2
          sym = fetcher.next(bits)
          if sym < 0 {
@@ -223,7 +284,7 @@
        }
        let byte = seq_to_unseq[mtf[0]]
        for _ in 0..<run {
-@@ -304,7 +303,7 @@
+@@ -304,7 +299,7 @@
      }
      let v = sym - 1
      if v < 0 || v >= mtf.length() {
@@ -232,7 +293,7 @@
      }
      let value = mtf[v]
      let mut k = v
-@@ -314,17 +313,17 @@
+@@ -314,17 +309,17 @@
      }
      mtf[0] = value
      if block.length() >= max_block {
@@ -253,7 +314,26 @@
        at=bits.used(),
        what="the block's start pointer is past its end",
      )
-@@ -388,10 +387,15 @@
+@@ -373,6 +368,18 @@
+     }
+     plain.push(byte.to_byte())
+   }
++  (Bytes::from_array(plain), want_crc)
++}
++
++///|
++// Existing whole-buffer path uses the same Huffman/MTF/inverse-BWT body.
++fn read_block(
++  bits : Bits,
++  level : Int32,
++  meter : Meter,
++) -> (Bytes, UInt32) raise Fault {
++  let (plain, want_crc) = read_rle_block(bits, level)
++  let n = plain.length()
+   // And the run-length stage: four or more equal bytes were written as four and a
+   // count, so four of a kind followed by a byte is not five bytes.
+   let out : Array[Byte] = []
+@@ -388,10 +395,15 @@
        i += 1
      }
      let mut total = run
@@ -269,7 +349,7 @@
      for _ in 0..<total {
        crc.push_byte(value)
        out.push(byte)
-@@ -399,7 +403,7 @@
+@@ -399,7 +411,7 @@
    }
    let got = crc.finish()
    if got != want_crc {
@@ -278,8 +358,8 @@
    }
    (Bytes::from_array(out), got)
  }
---- a/bzip2.mbt
-+++ b/bzip2.mbt
+--- upstream/bzip2.mbt
++++ adapted/bzip2.mbt
 @@ -1,5 +1,6 @@
  // Copyright 2026 Leo Cheng
  // SPDX-License-Identifier: Apache-2.0
