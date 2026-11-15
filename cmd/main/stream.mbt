@@ -22,11 +22,12 @@ extern "C" fn stream_read(
 extern "C" fn stream_write(data : Bytes) -> Int32 = "mbsd_stream_write"
 
 ///|
-#borrow(path, body)
+#borrow(path, body, gate)
 extern "C" fn stream_deliver(
   path : Bytes,
   call : FuncRef[(() -> Int32) -> Int32],
   body : () -> Int32,
+  gate : () -> Int32,
 ) -> Int32 = "mbsd_stream_deliver"
 
 ///|
@@ -101,6 +102,7 @@ fn stream_exact(
 fn stream_execute(
   info : @moonbsdiff.PatchInfo,
   limits : @moonbsdiff.Limits,
+  progress : StreamProgress,
 ) -> Unit raise {
   let budget = @bzip2.Budget::{
     remaining: limits.max_decompressed_bytes,
@@ -135,6 +137,7 @@ fn stream_execute(
   let mut instructions = 0L
   let oldsize = stream_size(0)
   while newpos < info.new_bytes {
+    progress.checkpoint(10)
     stream_require(
       instructions < limits.max_control_instructions,
       "Applying ResourceLimitExceeded: max_control_instructions",
@@ -156,7 +159,9 @@ fn stream_execute(
     let mut done = 0L
     while done < x {
       let count = Int64::min(4096L, x - done).to_int()
+      progress.checkpoint(20)
       let data = stream_exact(delta, count, "diff")
+      progress.checkpoint(20)
       let pos = stream_add(oldpos, done)
       // Never negate Int64.min. Only a negative position within this chunk can
       // overlap zero; it is then proven to fit an Int before negating.
@@ -173,6 +178,7 @@ fn stream_execute(
       } else {
         Int64::min((count - prefix).to_int64(), oldsize - oldat).to_int()
       }
+      progress.checkpoint(20)
       let old = stream_read(0, Int64::min(oldat, oldsize), available)
       stream_require(io_failed() == 0, "Applying: old file read")
       let out = Array::makei(count, i => {
@@ -182,10 +188,12 @@ fn stream_execute(
           data[i]
         }
       })
+      progress.checkpoint(20)
       stream_require(
         stream_write(Bytes::from_array(out)) != 0,
         "Applying: write temporary",
       )
+      progress.written(count)
       done += count.to_int64()
     }
     newpos += x
@@ -197,17 +205,23 @@ fn stream_execute(
     done = 0L
     while done < y {
       let count = Int64::min(4096L, y - done).to_int()
+      progress.checkpoint(20)
       let data = stream_exact(extra, count, "extra")
+      progress.checkpoint(20)
       stream_require(stream_write(data) != 0, "Applying: write temporary")
+      progress.written(count)
       done += count.to_int64()
     }
     newpos += y
     oldpos = stream_add(oldpos, z)
   }
+  progress.phase("validating")
+  progress.checkpoint(40)
   // EOF is not assumed at the declared output length: read once more to force
   // the final run/block CRC, real end marker, combined CRC and interval boundary.
   for
     (name, reader) in [("control", control), ("diff", delta), ("extra", extra)] {
+    progress.checkpoint(40)
     stream_require(
       reader.read(1).length() == 0,
       "Applying InvalidField: unconsumed " + name,
@@ -216,23 +230,31 @@ fn stream_execute(
 }
 
 ///|
-fn stream_command(config : CliConfig) -> Unit {
+fn stream_run(config : CliConfig, progress : StreamProgress) -> Unit raise {
   let limits = config.limits
-  if stream_open(
+  stream_require(
+    io_check(
+      path_bytes(config.files[0]),
+      path_bytes(config.files[1]),
+      path_bytes(config.files[2]),
+    ) !=
+    0,
+    "stream output precheck",
+  )
+  progress.checkpoint(2)
+  stream_require(
+    stream_open(
       path_bytes(config.files[0]),
       path_bytes(config.files[1]),
       limits.max_old_bytes,
       limits.max_patch_bytes,
-    ) ==
-    0 {
-    failure("stream open: " + @utf8.decode_lossy(io_error()[:]))
-  }
+    ) !=
+    0,
+    "stream open",
+  )
+  progress.checkpoint(2)
   let header = stream_read(1, 0L, Int64::min(32L, stream_size(1)).to_int())
-  if io_failed() != 0 {
-    stream_abort()
-    failure("stream read header: " + @utf8.decode_lossy(io_error()[:]))
-    return
-  }
+  stream_require(io_failed() == 0, "stream read header")
   let info = match
     @moonbsdiff.inspect_header_prefix(
       header,
@@ -240,44 +262,54 @@ fn stream_command(config : CliConfig) -> Unit {
       limits.max_patch_bytes,
     ) {
     Ok(v) => v
-    Err(e) => {
-      stream_abort()
-      failure(@debug.to_string(e))
-      return
-    }
+    Err(e) => raise StreamError(@debug.to_string(e))
   }
   for
     (field, cap) in [
       ("max_new_bytes", limits.max_new_bytes),
       ("max_output_bytes", limits.max_output_bytes),
     ] {
-    if info.new_bytes > cap {
-      stream_abort()
-      failure(
-        "Header ResourceLimitExceeded: \{field} value=\{info.new_bytes} limit=\{cap}",
-      )
-      return
-    }
-  }
-  let mut detail = ""
-  let ok = stream_deliver(path_bytes(config.files[2]), fn(f) { f() }, fn() {
-    try {
-      stream_execute(info, limits)
-      1
-    } catch {
-      StreamError(message) => {
-        detail = message
-        0
-      }
-      e => {
-        detail = "Decompression: " + @debug.to_string(e)
-        0
-      }
-    }
-  })
-  if ok == 0 {
-    failure(
-      "stream apply: " + detail + "; " + @utf8.decode_lossy(io_error()[:]),
+    stream_require(
+      info.new_bytes <= cap,
+      "Header ResourceLimitExceeded: \{field} value=\{info.new_bytes} limit=\{cap}",
     )
+  }
+  progress.total = Some(info.new_bytes)
+  progress.phase("restoring")
+  progress.checkpoint(10)
+  let ok = stream_deliver(
+    path_bytes(config.files[2]),
+    fn(f) { f() },
+    fn() { progress.attempt(() => stream_execute(info, limits, progress)) },
+    fn() {
+      progress.attempt(() => {
+        progress.phase("delivering")
+        progress.checkpoint(50)
+        let admitted = interrupt_commit(progress.session)
+        if admitted == 0 {
+          progress.cancelled = true
+          raise StreamCancelled
+        }
+        stream_require(admitted == 1, "Interrupt commit admission failed")
+        progress.committing = true
+      })
+    },
+  )
+  if ok == 0 {
+    if progress.cancelled {
+      raise StreamCancelled
+    }
+    // A signal noticed while a pull raised is confirmed here, never mistaken
+    // for a successful EOF or reported as a cancellation after commit began.
+    progress.checkpoint(0)
+    raise StreamError(progress.detail)
+  }
+}
+
+///|
+fn stream_command(config : CliConfig) -> Unit {
+  let outcome = stream_operation(config)
+  if outcome != 0 {
+    @env.exit(outcome)
   }
 }

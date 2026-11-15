@@ -12,6 +12,8 @@
 #include <stdint.h>
 #include <string.h>
 #include <errno.h>
+#include <signal.h>
+#include <time.h>
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -32,6 +34,9 @@ static int stream_populate(HANDLE writer);
 static int stream_populate(int writer);
 #endif
 
+static int stream_stopped;
+static int stream_prepare_commit(void);
+static void stream_mark_published(void);
 static char problem[256];
 /* Set only by the private white-box entrypoint below. No environment/CLI hook. */
 static int fault;
@@ -40,6 +45,7 @@ static unsigned sequence;
 #endif
 static void fail(const char *op, unsigned long code) {
   if (!problem[0]) snprintf(problem,sizeof(problem),"%s (OS error %lu)",op,code);
+  else if(stream_stopped) { size_t n=strlen(problem); if(n<sizeof(problem)-1) snprintf(problem+n,sizeof(problem)-n,"; %s (OS error %lu)",op,code); }
 }
 static void limit_fail(const char *op, int cap) {
   if (!problem[0]) snprintf(problem,sizeof(problem),"%s: byte limit %d exceeded",op,cap);
@@ -373,10 +379,11 @@ static int compat_deliver(int dir,const char *leaf,moonbit_bytes_t data) {
   }
   if(!problem[0] && (!private_entry(dir,name,private_fd,&ds) || !payload_entry(private_fd,&ps))) fail("private temporary identity changed before delivery",ESTALE);
   if(!problem[0] && fault==6) fail("injected compatibility delivery",EACCES);
+  if(!data && !problem[0]) stream_prepare_commit();
   int committed=0;
   if(!problem[0]) {
     if(linkat(private_fd,"payload",dir,leaf,0)<0) fail("compatibility deliver without replacement",errno);
-    else committed=1;
+    else { committed=1; if(!data) stream_mark_published(); }
   }
   /* These deletes rely on the protected parent and uid-private directory, NOT
    * on an atomic check/unlink illusion. Malicious same-uid/root control is out
@@ -446,6 +453,7 @@ MOONBIT_FFI_EXPORT int32_t mbsd_deliver(moonbit_bytes_t name,moonbit_bytes_t dat
   if(fault==5) fail("injected close written temporary",ERROR_WRITE_FAULT);
   if(!problem[0] && fault==2 && !test_put((char*)name,"other",5,0)) fail("test target creation",EIO);
   if(!problem[0] && fault==6) fail("injected delivery",ERROR_ACCESS_DENIED);
+  if(!data && !problem[0]) stream_prepare_commit();
   if(!problem[0]) {
     size_t size=sizeof(FILE_RENAME_INFO)+((size_t)length+1)*sizeof(wchar_t);
     FILE_RENAME_INFO *rename=calloc(1,size);
@@ -454,6 +462,7 @@ MOONBIT_FFI_EXPORT int32_t mbsd_deliver(moonbit_bytes_t name,moonbit_bytes_t dat
       rename->ReplaceIfExists=FALSE; rename->RootDirectory=NULL; rename->FileNameLength=length*sizeof(wchar_t);
       memcpy(rename->FileName,full,length*sizeof(wchar_t));
       if(!SetFileInformationByHandle(keeper,FileRenameInfo,rename,(DWORD)size)) fail("deliver without replacement",GetLastError());
+      else if(!data) stream_mark_published();
       free(rename);
     }
   }
@@ -509,9 +518,11 @@ MOONBIT_FFI_EXPORT int32_t mbsd_deliver(moonbit_bytes_t name,moonbit_bytes_t dat
   if(fault==5) fail("injected close written temporary",EIO);
   if(!problem[0] && fault==2 && !test_put(path,"other",5,0)) fail("test target creation",EIO);
   if(!problem[0] && fault==6) fail("injected delivery",EACCES);
+  if(!data && !problem[0]) stream_prepare_commit();
   if(!problem[0]) {
     snprintf(reference,sizeof(reference),"/proc/self/fd/%d",keeper);
     if(linkat(AT_FDCWD,reference,dir,leaf,AT_SYMLINK_FOLLOW)<0) fail("deliver without replacement",errno);
+    else if(!data) stream_mark_published();
   }
   if(keeper>=0 && close(keeper)<0) fail("close temporary identity",errno);
   if(close(dir)<0) fail("close output directory",errno);
@@ -713,6 +724,9 @@ _Static_assert(sizeof(off_t)>=8,"streaming requires 64-bit file offsets");
 static int64_t stream_sizes[2];
 static int32_t (*stream_call)(void *);
 static void *stream_context;
+static void *stream_gate;
+static int stream_committed;
+static void interrupt_test_checkpoint(int point);
 static size_t stream_written;
 static void stream_close_inputs(void) {
   for(int i=0;i<2;i++) {
@@ -803,14 +817,29 @@ static int stream_populate(int writer) {
   int ok=stream_call && stream_call(stream_context);
   /* Even an input-close failure must precede publication. */
   stream_close_inputs();
-  if(!ok) fail("stream validation failed; temporary output not delivered",EIO);
+  if(!ok) {
+    stream_stopped=1;
+    if(!problem[0]) snprintf(problem,sizeof(problem),"stream producer stopped; temporary output not delivered");
+  }
   return ok && !problem[0];
 }
-MOONBIT_FFI_EXPORT int32_t mbsd_stream_deliver(moonbit_bytes_t path,int32_t (*call)(void*),void *context) {
-  stream_call=call;stream_context=context;stream_written=0;
+static int stream_prepare_commit(void) {
+  if(!stream_gate) return 1;
+  int ok=stream_call(stream_gate);
+  if(!ok) {
+    stream_stopped=1;
+    if(!problem[0]) snprintf(problem,sizeof(problem),"stream cancelled/failed before commit");
+  }
+  if(ok) interrupt_test_checkpoint(60); /* private late-request boundary */
+  return ok;
+}
+static void stream_mark_published(void) { stream_committed=1; }
+MOONBIT_FFI_EXPORT int32_t mbsd_stream_published(void) { return stream_committed; }
+MOONBIT_FFI_EXPORT int32_t mbsd_stream_deliver(moonbit_bytes_t path,int32_t (*call)(void*),void *context,void *gate) {
+  stream_call=call;stream_context=context;stream_gate=gate;stream_written=0;stream_committed=0;stream_stopped=0;
   int ok=mbsd_deliver(path,NULL);
   stream_close_inputs(); /* creation failure can occur before populate */
-  stream_call=NULL;stream_context=NULL;
+  stream_call=NULL;stream_context=NULL;stream_gate=NULL;stream_stopped=0;
   return ok && !problem[0];
 }
 MOONBIT_FFI_EXPORT void mbsd_stream_abort(void) { stream_close_inputs(); }
@@ -842,7 +871,7 @@ MOONBIT_FFI_EXPORT int32_t mbsd_stream_contract(int32_t mode) {
   if(!result && !mbsd_stream_open(a,a,1,1)) result=304;
   fault=mode==11?0:mode;
   if(!result) {
-    int ok=mbsd_stream_deliver(b,stream_contract_body,NULL);
+    int ok=mbsd_stream_deliver(b,stream_contract_body,NULL,NULL);
     if(ok!=(mode==9 || mode==11)) result=305;
     if(mode==4 && !strstr(problem,"write")) result=306;
     if(mode==5 && !strstr(problem,"close written")) result=307;
@@ -853,7 +882,7 @@ MOONBIT_FFI_EXPORT int32_t mbsd_stream_contract(int32_t mode) {
     else if(!test_missing(output)) result=312;
   }
   test_remove(output,0);fault=0;
-  if(!result && (!mbsd_stream_open(a,a,1,1) || !mbsd_stream_deliver(b,stream_contract_body,NULL) || !test_matches(output,"abcdef"))) result=313;
+  if(!result && (!mbsd_stream_open(a,a,1,1) || !mbsd_stream_deliver(b,stream_contract_body,NULL,NULL) || !test_matches(output,"abcdef"))) result=313;
   test_remove(output,0);test_remove(input,0);
 #ifdef _WIN32
   wchar_t *r=wide(root);if(!r || !RemoveDirectoryW(r)) result=314;free(r);
@@ -861,4 +890,125 @@ MOONBIT_FFI_EXPORT int32_t mbsd_stream_contract(int32_t mode) {
   if(rmdir(root)<0) result=314;compat_force=0;
 #endif
   moonbit_decref(a);moonbit_decref(b);problem[0]=0;return result;
+}
+
+/* Per-operation signal routing, never runtime/IO/cleanup from a handler.
+ * Generation tags keep a stale Windows handler from marking a later operation. */
+static int interrupt_generation;
+static int interrupt_test_point,interrupt_test_wait;
+#ifdef _WIN32
+static volatile LONG interrupt_route;
+static BOOL WINAPI stream_console_interrupt(DWORD kind) {
+  if(kind!=CTRL_C_EVENT && kind!=CTRL_BREAK_EVENT) return FALSE;
+  LONG observed=InterlockedCompareExchange(&interrupt_route,0,0);
+  if(!(observed&1)) return FALSE;
+  if(!(observed&4)) InterlockedCompareExchange(&interrupt_route,observed|2,observed);
+  return TRUE;
+}
+#else
+static volatile sig_atomic_t interrupt_live,interrupt_notified,interrupt_sealed;
+static struct sigaction interrupt_previous;
+static void stream_signal_interrupt(int number) { (void)number;if(!interrupt_sealed) interrupt_notified=interrupt_live; }
+#endif
+MOONBIT_FFI_EXPORT int32_t mbsd_interrupt_begin(void) {
+  problem[0]=0;stream_committed=0;
+  if(interrupt_generation>INT32_MAX-16) { fail("interrupt generation exhausted",EOVERFLOW);return 0; }
+#ifdef _WIN32
+  if(InterlockedCompareExchange(&interrupt_route,0,0)&1) { fail("interrupt operation already active",EBUSY);return 0; }
+  int token=interrupt_generation+8;
+  InterlockedExchange(&interrupt_route,token|1);
+  if(!SetConsoleCtrlHandler(stream_console_interrupt,TRUE)) {
+    InterlockedExchange(&interrupt_route,0);fail("install console interrupt handler",GetLastError());return 0;
+  }
+#else
+  if(interrupt_live) { fail("interrupt operation already active",EBUSY);return 0; }
+  sigset_t mask,previous;sigemptyset(&mask);sigaddset(&mask,SIGINT);
+  if(sigprocmask(SIG_BLOCK,&mask,&previous)<0) { fail("block SIGINT for install",errno);return 0; }
+  struct sigaction action;memset(&action,0,sizeof(action));action.sa_handler=stream_signal_interrupt;sigemptyset(&action.sa_mask);
+  if(sigaction(SIGINT,&action,&interrupt_previous)<0) { int e=errno;sigprocmask(SIG_SETMASK,&previous,NULL);fail("install SIGINT handler",e);return 0; }
+  int token=interrupt_generation+8;interrupt_notified=0;interrupt_sealed=0;interrupt_live=token;
+  if(sigprocmask(SIG_SETMASK,&previous,NULL)<0) {
+    int e=errno;interrupt_live=0;sigaction(SIGINT,&interrupt_previous,NULL);fail("restore signal mask after install",e);return 0;
+  }
+#endif
+  interrupt_generation=token;return token;
+}
+static int interrupt_requested(int token) {
+#ifdef _WIN32
+  return InterlockedCompareExchange(&interrupt_route,0,0)==(token|3);
+#else
+  return interrupt_live==token && interrupt_notified==token;
+#endif
+}
+/* Admission is the cancellation/irreversible-work linearization point. */
+MOONBIT_FFI_EXPORT int32_t mbsd_interrupt_commit(int32_t token) {
+#ifdef _WIN32
+  LONG observed=InterlockedCompareExchange(&interrupt_route,token|5,token|1);
+  if(observed==(token|1)) return 1;
+  if(observed==(token|3)) return 0;
+  fail("interrupt commit session mismatch",EINVAL);return -1;
+#else
+  sigset_t mask,previous;sigemptyset(&mask);sigaddset(&mask,SIGINT);
+  if(sigprocmask(SIG_BLOCK,&mask,&previous)<0) { fail("block SIGINT for commit",errno);return -1; }
+  interrupt_test_checkpoint(52); /* private blocked/pending signal regression */
+  sigset_t pending;
+  if(sigpending(&pending)<0) { int e=errno;sigprocmask(SIG_SETMASK,&previous,NULL);fail("query pending SIGINT",e);return -1; }
+  int ready=interrupt_live==token && !interrupt_sealed && interrupt_notified!=token && !sigismember(&pending,SIGINT);
+  if(ready) interrupt_sealed=1;
+  if(sigprocmask(SIG_SETMASK,&previous,NULL)<0) { fail("restore commit signal mask",errno);return -1; }
+  return ready;
+#endif
+}
+MOONBIT_FFI_EXPORT int32_t mbsd_interrupt_end(int32_t token) {
+#ifdef _WIN32
+  if((InterlockedCompareExchange(&interrupt_route,0,0)&~7)!=token) { fail("interrupt session mismatch",EINVAL);return 0; }
+  InterlockedExchange(&interrupt_route,token);
+  if(!SetConsoleCtrlHandler(stream_console_interrupt,FALSE)) { fail("restore console interrupt handler",GetLastError());return 0; }
+#else
+  if(interrupt_live!=token) { fail("interrupt session mismatch",EINVAL);return 0; }
+  sigset_t mask,previous;sigemptyset(&mask);sigaddset(&mask,SIGINT);
+  if(sigprocmask(SIG_BLOCK,&mask,&previous)<0) { fail("block SIGINT for restore",errno);return 0; }
+  interrupt_live=0;interrupt_notified=0;
+  int restored=sigaction(SIGINT,&interrupt_previous,NULL)==0,restore_error=errno;
+  int unblocked=sigprocmask(SIG_SETMASK,&previous,NULL)==0,mask_error=errno;
+  if(!restored || !unblocked) { fail("restore SIGINT handler/mask",!restored?restore_error:mask_error);return 0; }
+#endif
+  return 1;
+}
+/* Only the private test snapshot calls setup. No CLI or environment enables it. */
+MOONBIT_FFI_EXPORT void mbsd_interrupt_test_setup(int32_t point,int32_t wait,int32_t injected_fault) {
+  interrupt_test_point=point;interrupt_test_wait=wait;fault=injected_fault;
+}
+static void interrupt_test_checkpoint(int point) {
+  if(!interrupt_test_point || interrupt_test_point!=point) return;
+  interrupt_test_point=0;
+#ifndef _WIN32
+  if(point==52) { raise(SIGINT);return; }
+#endif
+  if(interrupt_test_wait) {
+#ifdef _WIN32
+    printf("INTERRUPT_READY %lu\n",(unsigned long)GetCurrentProcessId());
+#else
+    printf("INTERRUPT_READY %ld\n",(long)getpid());
+#endif
+    fflush(stdout);
+    for(int i=0;i<4000 && !interrupt_requested(interrupt_generation);i++) {
+#ifdef _WIN32
+      Sleep(5);
+#else
+      struct timespec pause={0,5000000};nanosleep(&pause,NULL);
+#endif
+    }
+    if(!interrupt_requested(interrupt_generation)) fail("private interrupt wait timed out",ETIMEDOUT);
+  } else {
+#ifdef _WIN32
+    stream_console_interrupt(CTRL_C_EVENT);
+#else
+    stream_signal_interrupt(SIGINT);
+#endif
+  }
+}
+MOONBIT_FFI_EXPORT int32_t mbsd_interrupt_poll(int32_t token,int32_t point) {
+  interrupt_test_checkpoint(point);
+  return interrupt_requested(token);
 }

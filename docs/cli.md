@@ -433,7 +433,40 @@ Single-block bzip2 workspaces remain. All CRC, end and complete-consumption chec
 and input closing finish before writer closing/no-replace publication. A late
 failure cleans only owned temporary objects; existing post-delivery cleanup-error
 semantics remain. It does not guarantee snapshots of concurrently modified input,
-process peak memory, power-loss durability, streaming generation or cancellation.
+process peak memory, power-loss durability, streaming generation or immediate
+interruption. File-only cooperative cancellation is described below.
 Manifest patch/verify keep the memory path and same-Bytes hash guarantee.
 See [design, buffer bounds, supported delivery paths and compact evidence](file-apply.md).
 Published CLI 0.2.0 does not contain this source-only feature.
+
+
+## File progress and cancellation (0.4.0 Unreleased source)
+
+```sh
+./_build/bin/linux/moonbsdiff patch --stream --progress text OLD PATCH OUTPUT
+./_build/bin/linux/moonbsdiff patch --stream --progress json OLD PATCH OUTPUT
+```
+
+`--progress` accepts exactly text or json, once, only with patch --stream. It
+follows prefix-options/-- rules and remains incompatible with manifests and
+show-limits. Without it, success remains silent. Progress and runtime errors go
+to stderr; stdout remains empty. JSON mode is JSONL throughout runtime, including
+open/precheck/decode/cancel/delivery errors; parameter errors precede that event
+stream and retain the existing text/exit-2 convention.
+
+Byte progress counts completed bounded temporary writes, not overall work or
+publication. Final CRC/EOF/consumption, closing, commit admission and delivery can
+still fail after byte count reaches the target. Empty targets have no percentage.
+Confirmed cooperative cancellation exits 130; ordinary runtime failures remain 1,
+parameter/configuration failures 2, success 0. Linux handles SIGINT; Windows handles
+Ctrl+C (when console delivery is enabled) and Ctrl+Break. Other termination events,
+forced kills and deadlines are not part of this cleanup guarantee.
+
+A final native admission check separates cancellable work from commit. Requests
+confirmed before it prevent publication; after it, the operation reports actual
+publication/failure and does not roll back caller paths. Competing output files
+are preserved. Closing/ownership/cleanup problems are retained in diagnostics;
+no blanket cleanup-success claim is made. The terminal output_committed field
+refers to this operation, not mere existence of a competitor's path.
+[Schema, checkpoints, platform tests and examples](file-apply.md#progress-and-cooperative-cancellation-commit-27).
+The feature does not cover generators, memory patch/verify or JS async execution.

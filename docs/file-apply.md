@@ -14,13 +14,15 @@ limit options apply unchanged. For example, a patch larger than the CLI's defaul
 expanded bytes and instruction caps remain independent; streaming does not widen
 Limits' positive Int-indexable byte fields or alter the default factories.
 Parameter/configuration failures exit 2; read/format/decode/execution/delivery
-failures exit 1 on stderr; success is silent and exits 0.
+failures exit 1 on stderr; confirmed cooperative cancellation exits 130. Success
+exits 0 and remains silent unless progress is explicitly selected.
 
 Only `patch` accepts `--stream`. It rejects `--manifest` and `--show-limits`.
 `verify` and checked `patch --manifest` keep their existing memory path, binding
 hashes to the actual Bytes used by apply. This file path neither authenticates
-old data nor claims a consistent input snapshot. It does not implement streaming
-generation, progress, cancellation or a wall-clock deadline. Published CLI 0.2.0
+old data nor claims a consistent input snapshot. File-only progress/cancellation
+are described below; streaming generation and wall-clock deadlines remain
+unsupported. Published CLI 0.2.0
 assets and Mooncakes packages are unchanged.
 
 ## Feasibility and ownership
@@ -173,4 +175,165 @@ Wasm file IO is made. Existing historical matrices, oracle, full CLI/IO suites,
 large compression probes, resource measurements and benchmarks were not rerun
 locally. CI adds the small new paths to existing jobs; the final source SHA and
 actual remote run identity belong in the completion report, not a self-referential
-source commit. This is no release and does not implement Commit 27.
+source commit. These are historical Commit 26 results; file-only Commit 27
+behavior and its separate evidence follow. No release is made.
+
+## Progress and cooperative cancellation (Commit 27)
+
+This addition covers only native file application, not generators, memory apply,
+manifest verification or JS asynchronous execution:
+
+```sh
+./_build/bin/linux/moonbsdiff patch --stream --progress text OLD PATCH OUTPUT
+./_build/bin/linux/moonbsdiff patch --stream --progress json OLD PATCH OUTPUT
+```
+
+`--progress` accepts exactly `text` or `json`, once, before paths. It requires
+`patch --stream` and follows the existing `--` rule. Manifest and show-limits
+combinations remain rejected. Without it, successful operations stay silent.
+Runtime progress, cancellation and error diagnostics go to stderr, never stdout.
+Argument/configuration errors exit 2 before an event stream starts and retain
+plain text diagnostics. Runtime failure is 1, confirmed cooperative cancellation
+before commit is 130, and success is 0.
+
+### Event schema 1
+
+JSON mode emits exactly one JSON object per stderr line; no ordinary product
+text is interleaved. Each object contains:
+
+| Field | Meaning |
+| --- | --- |
+| schema_version | Number 1 |
+| event | start, phase, progress, complete, cancelled or error |
+| stage | opening, restoring, validating, delivering or complete |
+| restored_bytes | Decimal string: bytes in completed bounded temporary writes |
+| total_bytes | Declared target as decimal string after header check; null before it is known |
+| output_committed | Boolean: this operation actually published its output |
+| message | Standard JSON-escaped diagnostic/information string; may be empty |
+
+This byte count is not an overall-work percentage. CRC/end/complete consumption,
+input/writer close, commit admission and delivery can still fail at the full byte
+count. A partial failed OS write is not counted as a completed chunk. No ETA is
+invented, and empty targets have no division or percentage. Progress is emitted
+at phase changes and after another 65536 completed bytes (also at a nonempty
+output's final byte count), not per byte or per compression symbol.
+
+For the 8192-byte repeat fixture, actual JSON events include:
+
+```jsonl
+{"schema_version":1,"event":"start","stage":"opening","restored_bytes":"0","total_bytes":null,"output_committed":false,"message":"Byte progress is not overall operation completion"}
+{"schema_version":1,"event":"progress","stage":"restoring","restored_bytes":"8192","total_bytes":"8192","output_committed":false,"message":"Temporary bytes; final validation/delivery still pending"}
+{"schema_version":1,"event":"phase","stage":"validating","restored_bytes":"8192","total_bytes":"8192","output_committed":false,"message":""}
+{"schema_version":1,"event":"phase","stage":"delivering","restored_bytes":"8192","total_bytes":"8192","output_committed":false,"message":""}
+{"schema_version":1,"event":"complete","stage":"complete","restored_bytes":"8192","total_bytes":"8192","output_committed":true,"message":"All checks and delivery completed"}
+```
+
+The restoring phase event between start and progress is omitted above only to
+keep this excerpt short. Text mode uses the same state, for example:
+
+```text
+moonbsdiff: progress stage=restoring restored_bytes=8192 total_bytes="8192" output_committed=false Temporary bytes; final validation/delivery still pending
+moonbsdiff: complete stage=complete restored_bytes=8192 total_bytes="8192" output_committed=true All checks and delivery completed
+```
+
+### Notification, checkpoints and irreversible boundary
+
+Each operation owns its progress, session ticket, confirmation and result. The
+native routing slot is process-local because this CLI is synchronous; generation
+tags prevent an in-flight Windows callback that read an older ticket from
+writing into a newer session. A notification delivered during a new session
+applies to that current operation. No root API,
+public callback framework, worker, background task or object-level concurrent
+execution contract is added. Every operation installs its own notification handler
+and restores/removes it on the normal cleanup path.
+
+Linux handles SIGINT via sigaction and only assigns sig_atomic_t notification
+state in the handler. Windows handles CTRL_C_EVENT and CTRL_BREAK_EVENT with an
+Interlocked notification; the OS invokes the handler on its control-handler
+thread, and the application creates no background worker. No handler prints,
+allocates runtime objects, closes files or removes paths. Ctrl+C must be enabled
+by the console environment; Ctrl+Break is the other supported Windows control
+notification. SIGTERM/SIGKILL, console close/logoff/shutdown, forced termination
+and arbitrary host termination are outside this cooperative cleanup contract.
+
+Normal execution confirms requests before control advancement, bounded decoder
+pulls, old reads, output writes, after completed output chunks, at final stream
+checks, and immediately before irreversible delivery. The compressed source never
+returns empty because of cancellation: it stays a real interval source. A pull
+may finish one Huffman/BWT block before the next cancellation check. The shared
+decoder/CRC implementation is unchanged; there is no immediate-block interrupt,
+strict wall-clock guarantee or budget refund.
+
+The final gate runs after validation and writer closing. Windows uses atomic
+compare/exchange for admission; Linux blocks SIGINT, checks both the notification
+and pending kernel signals, seals the operation, and restores the signal mask.
+Requests observed before admission cancel; after admission the handler continues
+to consume the supported notification while the operation reports actual
+publication or error. That interval is not cancellable and has no rollback.
+`complete` appears only after successful publication, cleanup and handler release.
+A post-publication error is `error` with output_committed true; never "cancelled
+without output". A competing target may exist with output_committed false:
+this field describes only the current operation's publication.
+
+Pre-admission cancellation returns no partial successful result and follows the
+existing owned-temporary cleanup. Closing/cleanup/identity warnings remain in the
+terminal diagnostic, including when exit is 130; uncertain objects are retained
+under existing ownership rules. No success claim hides a cleanup warning and no
+caller final path is deleted as rollback. A new call has fresh quotas/session
+state even after a previous cancellation or failure.
+
+Native interface references:
+[sigaction](https://man7.org/linux/man-pages/man2/sigaction.2.html),
+[signal-safety](https://man7.org/linux/man-pages/man7/signal-safety.7.html),
+[sigpending](https://man7.org/linux/man-pages/man2/sigpending.2.html),
+[SetConsoleCtrlHandler](https://learn.microsoft.com/windows/console/setconsolectrlhandler),
+[console process groups](https://learn.microsoft.com/en-us/windows/console/console-process-groups).
+
+### Narrow validation, 2026-11-15
+
+Pinned native release toolchain remains moon 0.1.20261102 (ea07287 2026-11-02),
+moonc v0.10.19+bee578715 (2026-11-02), moonrun 0.1.20261102. Windows x86_64 uses
+MSVC Build Tools 2022; Linux x86_64 uses WSL Ubuntu 24.04 locally. No dependency,
+root interface, default policy or copied decoder change is part of Commit 27.
+
+```sh
+python scripts/test_cli_progress.py --exe _build/bin/linux/moonbsdiff
+# Windows, from the configured compiler environment:
+# python scripts/test_cli_progress.py --exe _build/bin/windows/moonbsdiff.exe
+```
+
+The new script runs four normal protocol groups (text/default, JSON/empty,
+structured runtime errors, strict parameters) against the production executable.
+Only for private cancellation testing it builds a fresh byte-preserving snapshot
+of production sources, renames the main function and appends a private wrapper.
+That wrapper alone enables checkpoint injection or waiting; no product CLI option
+or environment variable enables either. Source hashes, build log and result
+records are kept in a fresh ignored _build/p27-* directory.
+
+Private cases: cancel after the first 4096-byte write; cancel plus injected writer
+close warning; cancel immediately before commit with a competing output; a late
+request followed by actual success; and a late request followed by no-replace
+failure. Linux also raises a real SIGINT while it is blocked at admission to
+check pending-signal rejection. Each case checks events/result/publication, input
+bytes, temporary objects, competing-file preservation and a new successful call
+in the same process. Five Windows and six Linux private cases are distinct from
+the four normal protocol groups.
+
+Additionally, a private waiting checkpoint enables one controlled external OS
+notification per platform: SIGINT sent only to the Linux child PID, and
+CTRL_BREAK_EVENT sent only to a Windows child in its own hidden console/group.
+The Windows sender is a separate helper process; it detaches only its own
+inherited console before attaching to the child, leaving the coordinator and
+unrelated processes untouched. Both actual notification paths confirmed exit
+status 130 for the operation after 4096 of 8192 temporary bytes, no publication,
+zero retained temporary objects and correct subsequent same-process recovery.
+These are actual OS notifications, separately recorded from direct handler
+injection; Windows keyboard Ctrl+C itself was not automated.
+
+Local checks ran the new groups and targeted follow-ups only. No old stream/CLI/IO
+full collection, library target matrix, reference matrix or resource measurement
+was rerun locally. CI reuses its existing platform jobs with only this compact new
+script added, and retains the existing historical-scale measurement condition.
+This implements only the file-application portion of Commit 27 and remains 0.4.0
+Unreleased; generator progress/cancellation, JS asynchronous execution and any
+new release are outside scope.

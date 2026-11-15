@@ -2,6 +2,16 @@
 
 ## 0.4.0 — Unreleased
 
+- File-only `patch --stream --progress text|json` reports real temporary-write
+  bytes, final validation, commit preparation and completion on stderr. JSONL
+  runtime diagnostics share schema 1; byte counts are decimal strings.
+- Cooperative SIGINT (Linux) / Ctrl+C or Ctrl+Break (Windows) cancellation exits
+  130 when confirmed before the native commit admission point, cleans owned
+  temporary output and leaves subsequent calls independent. Late requests never
+  trigger rollback; actual publication is reported, including failure after it.
+- Native signal handlers only notify. Block computation may delay checkpoints;
+  generator progress/cancellation, JS async execution and deadlines are absent.
+
 - Explicit native `patch --stream` uses interval-bounded compressed reads,
   pausable final RLE emission and 4096-byte old/output chunks. Shared decoded
   budget and instruction limits persist across all blocks and streams.
@@ -12,7 +22,7 @@
   buffering. Memory apply/default policies and dependencies stay unchanged.
 - Stream/manifest combination is refused; concurrent inputs are not consistent
   snapshots. Format-bounded block workspaces remain; process peak memory,
-  streaming generation, progress and cancellation are not promised.
+  streaming generation and immediate/strict-time interruption are not promised.
 
 
 ## 0.3.0 — Unreleased

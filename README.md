@@ -5,6 +5,12 @@ and writes bounded segments before safe no-replace delivery. See the
 [file application design and validation](docs/file-apply.md). This path rejects
 `--manifest`, does not promise input snapshots or process peak memory, and is
 not included in the released CLI 0.2.0 assets. Memory APIs/defaults are unchanged.
+Use `patch --stream --progress text OLD PATCH OUTPUT` (or `json`) for stderr
+progress. Ctrl+C requests cooperative cancellation (Windows also Ctrl+Break):
+confirmed pre-commit cancellation exits 130, with no publication of this call's
+output. Bytes restored are not overall completion; block internals are not
+immediately interruptible. See the [event and cancellation contract](docs/file-apply.md#progress-and-cooperative-cancellation-commit-27).
+
 
 **0.3.0 Unreleased source policies:** [measured explicit 256 KiB and 1 MiB
 generation/application configurations](docs/generation-scales.md) are available.

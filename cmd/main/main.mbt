@@ -67,7 +67,12 @@ fn cli_args() -> Array[String] {
 fn print_help() -> Unit {
   println("moonbsdiff diff OLD_FILE NEW_FILE PATCH_FILE")
   println("moonbsdiff patch OLD_FILE PATCH_FILE OUTPUT_FILE")
-  println("moonbsdiff patch --stream OLD_FILE PATCH_FILE OUTPUT_FILE")
+  println(
+    "moonbsdiff patch --stream [--progress text|json] OLD_FILE PATCH_FILE OUTPUT_FILE",
+  )
+  println(
+    "Progress/diagnostics go to stderr. Ctrl+C (Windows also Ctrl+Break) requests cooperative cancellation, exit 130 before commit; no rollback after commit begins.",
+  )
   println(
     "--stream: native bounded file apply; incompatible with --manifest; inputs are not snapshots.",
   )
@@ -192,6 +197,7 @@ struct CliConfig {
   operation : String
   limits : @moonbsdiff.Limits
   options : @moonbsdiff.DiffOptions
+  progress : String
   stream : Bool
   show : Bool
   json : Bool
@@ -229,6 +235,7 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
   }
   let mut options = @moonbsdiff.DiffOptions::default()
   let seen : Array[String] = []
+  let mut progress = "none"
   let mut stream = false
   let mut show = false
   let mut json = false
@@ -251,6 +258,12 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
       return Err(option + " is not applicable to inspect")
     }
     let bytes = match option {
+      "--progress" => {
+        if operation != "patch" {
+          return Err("--progress is only applicable to patch --stream")
+        }
+        false
+      }
       "--stream" => {
         if operation != "patch" {
           return Err("--stream is only applicable to patch")
@@ -312,6 +325,15 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
     if i + 1 >= args.length() {
       return Err("missing value for " + option)
     }
+    if option == "--progress" {
+      let value = args[i + 1]
+      if value != "text" && value != "json" {
+        return Err("--progress requires text or json")
+      }
+      progress = value
+      i += 2
+      continue
+    }
     if option == "--manifest" {
       let path = args[i + 1]
       if path.length() == 0 || leading_dash(path) {
@@ -366,6 +388,9 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
   if show && manifest is Some(_) {
     return Err("--manifest cannot be combined with --show-limits")
   }
+  if progress != "none" && !stream {
+    return Err("--progress requires patch --stream")
+  }
   if stream && (manifest is Some(_) || show) {
     return Err("--stream cannot be combined with --manifest or --show-limits")
   }
@@ -390,7 +415,17 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
     Ok(_) => ()
     Err(e) => return Err(@debug.to_string(e))
   }
-  Ok({ operation, limits, options, stream, show, json, manifest, files, })
+  Ok({
+    operation,
+    limits,
+    options,
+    progress,
+    stream,
+    show,
+    json,
+    manifest,
+    files,
+  })
 }
 
 ///|
@@ -467,6 +502,10 @@ fn main {
   let first = config.files[0]
   let second = config.files[1]
   let output = config.files[2]
+  if config.stream {
+    stream_command(config)
+    return
+  }
   if io_check(path_bytes(first), path_bytes(second), path_bytes(output)) == 0 {
     failure(
       operation +
@@ -479,10 +518,6 @@ fn main {
       "'): " +
       @utf8.decode_lossy(io_error()[:]),
     )
-  }
-  if config.stream {
-    stream_command(config)
-    return
   }
   if operation == "patch" && config.manifest is Some(manifest_path) {
     if io_check(
