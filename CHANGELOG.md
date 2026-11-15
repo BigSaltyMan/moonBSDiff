@@ -2,6 +2,17 @@
 
 ## 0.3.0 — Unreleased
 
+- DiffOptions selects bzip2 compression level 1..9 (default 9), with ordinary and
+  reusable-index diff_with_options APIs and diff-only CLI --compression-level.
+  Invalid options fail before expensive work; default signatures/level remain.
+- Control/difference/extra share one level and existing cumulative resource caps.
+  New native evidence independently checks all nine streams, a parsed two-block
+  level-1 extra stream and cached-upstream restoration; compact APIs run on
+  native/JS/Wasm-GC and new CLI contracts on Windows/Linux. Tiny level 1/6/9
+  timing samples have equal patch sizes and are not performance rankings.
+- Manifest schema 1, dependencies, Limits factories and published CLI 0.2.0
+  assets remain unchanged. No codec, parallel mode or Mooncakes release is added.
+
 - Opaque DiffIndex::build / DiffIndex::diff reuse immutable old bytes and one
   suffix array across targets. Construction charges sorting once; every target
   rechecks its limits and receives a fresh matching/generation budget. Ordinary

@@ -12,7 +12,7 @@ class CliLimits(unittest.TestCase):
     def test_effective_display_without_io(self):
         before={p.name:p.read_bytes() for p in self.p.iterdir()}
         defaults=self.display('diff')
-        self.assertEqual(defaults,dict(operation='diff',max_old_bytes='65536 bytes',max_new_bytes='65536 bytes',max_output_bytes='65536 bytes (target buffer; patch has separate cap)',max_patch_bytes='131072 bytes',max_decompressed_bytes='262144 bytes (raw control + diff + extra)',max_control_instructions='4096 instructions',max_sort_work='8388608 work units',max_match_work='8388608 work units (matching + generation)'))
+        self.assertEqual(defaults,dict(operation='diff',compression_level='9 (generation option; bzip2)',max_old_bytes='65536 bytes',max_new_bytes='65536 bytes',max_output_bytes='65536 bytes (target buffer; patch has separate cap)',max_patch_bytes='131072 bytes',max_decompressed_bytes='262144 bytes (raw control + diff + extra)',max_control_instructions='4096 instructions',max_sort_work='8388608 work units',max_match_work='8388608 work units (matching + generation)'))
         patch=self.display('patch')
         self.assertEqual(patch['max_old_bytes'],'1048576 bytes');self.assertEqual(patch['max_new_bytes'],'1048576 bytes');self.assertEqual(patch['max_patch_bytes'],'131072 bytes')
         self.assertEqual(patch['max_output_bytes'],'1048576 bytes (target buffer; patch has separate cap)');self.assertEqual(patch['max_decompressed_bytes'],'2097152 bytes (cumulative decoded control + diff + extra)');self.assertEqual(patch['max_control_instructions'],'16384 instructions')

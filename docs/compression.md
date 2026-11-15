@@ -1,5 +1,12 @@
 # Bounded bzip2 block adapter
 
+Commit 25 adds validated generation levels 1..9, default 9, through independent
+[DiffOptions and CLI preferences](generation-options.md). The same level feeds
+all three standard streams; decoding still reads each BZh header without caller
+options. Engine/decoder source and strict consumption/CRC rules below are
+unchanged. The all-level workspace/emission proof and new parsed level-1
+cross-block evidence are separate from the historical decoder tests below.
+
 ## Scope and integration
 
 `compression.mbt` is private root-library plumbing. `compress_block` calls moonzip 0.3.5 at fixed level 9, including a real empty stream. `decompression_budget(limits)` validates the existing Limits and creates one budget from `max_decompressed_bytes`; apply creates it once and passes the same object to Control, Diff and Extra. `decompress_block` accepts one compressed interval, a per-call output cap (0..2147483647), shared budget, stage, and interval start offset. A zero internal cap or remaining budget permits only zero output. Negative values never mean unlimited.

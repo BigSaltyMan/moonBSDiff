@@ -1,5 +1,22 @@
 # Native command line and file delivery
 
+## Source-only compression option (0.3.0 Unreleased)
+
+`moonbsdiff diff --compression-level 1 OLD NEW PATCH` chooses bzip2 level 1..9,
+default 9. Only diff accepts it. Values are positive ASCII decimal integers
+without byte units; missing/duplicate/inapplicable/invalid values exit 2 before
+IO. The option precedes paths and composes with --manifest, byte/work limits
+and --. `diff --compression-level 6 --show-limits` displays
+`compression_level: 6 (generation option; bzip2)` separately from resource caps.
+No other default cap is enlarged. patch/verify read levels from compressed
+streams; their arguments and manifest schema 1 are unchanged.
+
+This flag requires a build of this unreleased source and is not in the published
+0.2.0 CLI assets. Module-generated version metadata remains 0.2.0; identify
+unreleased features by source SHA. [API, actual display, budget proof and new
+evidence](generation-options.md) describe the precise scope. Existing sections
+below retain their original CLI 0.2.0 contracts.
+
 ## Download, build and commands
 
 [Prebuilt CLI 0.2.0 download, checksums and runtime requirements](cli-install.md)

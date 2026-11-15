@@ -1,0 +1,171 @@
+{
+  "schema_version": 1,
+  "sources": {
+    "apply.mbt": "eded0d07af010395647a101ce7f8f79ab729bddfc45965981fc590c02d73daf3",
+    "compression.mbt": "2426cbe042155a576abd71a029838a989ce0c6fa95e46377df9159a0cc82044e",
+    "diff.mbt": "104ad19b742730fdb9a6944f17896212b99eab4040807b6446a54f9b17b3a720",
+    "diff_index.mbt": "103f9a75e9ee79b7796d461bcac2237ed5fefee4872c16efbbabe6a654475eb3",
+    "diff_options.mbt": "da2f246de8dd79260b41d09f021eb5589be24996c6290bf58276a544562e9f07",
+    "errors.mbt": "ea886eb20e9b47d784a2f89b375973c6050c9a9dac20de417b354cec66593718",
+    "format.mbt": "e6d4189f61191b7d831c93fffbf0739afcc79268e338587e7a08952c51da69d1",
+    "intcodec.mbt": "c24ccdb0e334b9e903a183a20325e976d56ba7b03bfae355afc14fda7b030793",
+    "limits.mbt": "9d2d20c7b0b44bb5cf97395ee56a98622ce2d44042b371d61a965d008d6d1394",
+    "matching.mbt": "5b9ea11d66d08eb6bbd67ac13cbcec5dfe3008d945b0b841c47e7ef87c58d911",
+    "suffix_array.mbt": "024cbe843aefee764d0ebdc6fb9f0078c4fa079a581527139659887b605115d2",
+    "internal/bzip2/bits.mbt": "9ec385129b029be6e3891411c8c12a66acbd02c6e96545526951dce66bcd0e33",
+    "internal/bzip2/bounded.mbt": "8509deddbc234babd2b398f6d5e060a6bacc75f6cafc41bd2e59820c28ec7564",
+    "internal/bzip2/bzip2.mbt": "7972d0b5f949a46defbbcf5f04e49ea739fe44563c8b3ef9f68045698ac26f16",
+    "internal/bzip2/crc.mbt": "baff55ebf8723ee27ad3b7a773eafb0f4e31ab8cbf90c220135bd9a32bae5ef4",
+    "internal/bzip2/decode.mbt": "021a2906dee87db402b24baa716346f13f6b7a752b0550cfb471efb9903152d1",
+    "internal/bzip2/rand.mbt": "9c05bdd91d74a3afedc80a3db748106da93c781a88322faa12f0b50ec268dbdf",
+    "moon.mod": "901a4d2e17c0074190919b37fb844cfca6c08643c4a11744e54f4533161b350f",
+    "moon.pkg": "fd59b5c48224f990388ee5d841ae399b36db6ca46a535452a9972efdc5dc6088"
+  },
+  "encoder": {
+    "module": "moonbitstack/moonzip",
+    "version": "0.3.5",
+    "license": "Apache-2.0",
+    "route": "public Writer, unchanged installed source",
+    "files": {
+      "stream.mbt": "c54969748676396e5b0b98869f9d55314924599d14d243161cabea60096bd441",
+      "encode.mbt": "8dfb6e8968e975159067996846dccf99a58c10ec4306db6415fb21c127bd314a",
+      "bwt.mbt": "88fe89d1ce03992bfe32a3b82c6144b3b1df6afa2234790807883294a1d31980",
+      "bits.mbt": "135fc305e898a0b5deecc6678768dcff0bfb02183668545cf5b8ef80187bd19d",
+      "crc.mbt": "baff55ebf8723ee27ad3b7a773eafb0f4e31ab8cbf90c220135bd9a32bae5ef4",
+      "decode.mbt": "84fedd8d62d259798d9a88a2315f1523a964d30ace1becd55b524c56cc20f649",
+      "bzip2.mbt": "ad9601ca50d02fee238924f8ab0a7c5e0c06e2534d4d4877f1c92f995599a830"
+    }
+  },
+  "platform": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+  "architecture": "x86_64",
+  "cpu": "AMD Ryzen 9 8940HX with Radeon Graphics",
+  "compiler": "cc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0",
+  "toolchain": [
+    "moon 0.1.20261102 (ea07287 2026-11-02)",
+    "moonc v0.10.19+bee578715 (2026-11-02)",
+    "moonrun 0.1.20261102 (ea07287 2026-11-02)"
+  ],
+  "mode": "native release; actual public API in byte-identical source snapshot; default compiler flags",
+  "timing": "one call per level; core monotonic clock around diff_with_options including validation/index/encoding, excluding input construction/apply/assertions/hex/process/build; no warmup; tiny-input noise, not rankings",
+  "repeats": 1,
+  "peak_memory": "not measured",
+  "levels": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9
+  ],
+  "input": {
+    "old_size": 13,
+    "new_size": 25,
+    "old_sha256": "0fd8fa58252cbc18fd2dd78760c58bc3b2a83e6cc100df6aecdbdf2b4631cc18",
+    "new_sha256": "354dd61e608bcf7ae2f4a8ab8a28d53024cc65e929330f7fcd79cb175561c909"
+  },
+  "measurements": [
+    {
+      "level": 1,
+      "patch_size": 169,
+      "patch_sha256": "5135f6e3896a0b222bbfc113abceb4e5ef9dfa5fb38743c64a760fab7b91b57e",
+      "generate_seconds": 6.1617e-05,
+      "byte_equal": true,
+      "streams_complete": true,
+      "controls": 2
+    },
+    {
+      "level": 2,
+      "patch_size": 169,
+      "patch_sha256": "33aab5fdc5a926befe8563b8b2df28a107b547a222e09d6f1adcf06e8e79d518",
+      "generate_seconds": 2.8113e-05,
+      "byte_equal": true,
+      "streams_complete": true,
+      "controls": 2
+    },
+    {
+      "level": 3,
+      "patch_size": 169,
+      "patch_sha256": "30600b94a8bc243ffe3384013d13ea38f5e38d33aa7ad56312c0f51d7325acc7",
+      "generate_seconds": 2.7182e-05,
+      "byte_equal": true,
+      "streams_complete": true,
+      "controls": 2
+    },
+    {
+      "level": 4,
+      "patch_size": 169,
+      "patch_sha256": "0b4a79b3d1d1a89e803b6062ebbf569caee7febd60df90588349fdeac0a3e553",
+      "generate_seconds": 2.3284e-05,
+      "byte_equal": true,
+      "streams_complete": true,
+      "controls": 2
+    },
+    {
+      "level": 5,
+      "patch_size": 169,
+      "patch_sha256": "dc4f4665c71f153cb87566e9c56ac45bb04102fa70d874f2ee294b3a7caa0723",
+      "generate_seconds": 2.3084e-05,
+      "byte_equal": true,
+      "streams_complete": true,
+      "controls": 2
+    },
+    {
+      "level": 6,
+      "patch_size": 169,
+      "patch_sha256": "a78d6df402767e0eb758ee4dacd12b00ef27008af506114a15b860657e531251",
+      "generate_seconds": 2.2663e-05,
+      "byte_equal": true,
+      "streams_complete": true,
+      "controls": 2
+    },
+    {
+      "level": 7,
+      "patch_size": 169,
+      "patch_sha256": "e0570741edc72e120f9c7c0d39a5fed8b28391c813181a28285758738a1d37bb",
+      "generate_seconds": 2.2613e-05,
+      "byte_equal": true,
+      "streams_complete": true,
+      "controls": 2
+    },
+    {
+      "level": 8,
+      "patch_size": 169,
+      "patch_sha256": "e2dbe95e6d22d728d4ef3eaf217b00382790a508d27021bc57c79c7b129bc2f4",
+      "generate_seconds": 2.2442e-05,
+      "byte_equal": true,
+      "streams_complete": true,
+      "controls": 2
+    },
+    {
+      "level": 9,
+      "patch_size": 169,
+      "patch_sha256": "5734a76f7cc21e278fa8f6403ae4bafb07e631d1489d2349df10aff248a6a247",
+      "generate_seconds": 2.2713e-05,
+      "byte_equal": true,
+      "streams_complete": true,
+      "controls": 2
+    }
+  ],
+  "cross": {
+    "level": 1,
+    "new_size": 100010,
+    "new_sha256": "2487cce4ffaf311b802e5804169dc2d1d0b4af0788ae7ed26c6a0f4ca200be63",
+    "patch_size": 1038,
+    "patch_sha256": "10329f4c2eccbb903cab7d251314ffc350400b8d415340b9db48191703c79aae",
+    "extra_blocks": 2,
+    "block_count_method": "strict decoder parsed blocks, not marker search",
+    "byte_equal": true
+  },
+  "oracle": {
+    "cases": [
+      "small-level-6",
+      "cross-level-1"
+    ],
+    "byte_equal": true,
+    "bspatch_sha256": "d37b7c4ec800b4ec8aed6d581cc1ca704a4f51717334915f5e72d495e5976fd4",
+    "rebuilt": false
+  }
+}

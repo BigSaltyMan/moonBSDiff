@@ -1,0 +1,46 @@
+///|
+fn options_hex(data : Bytes) -> String {
+  let text = StringBuilder()
+  for byte in data { text.write_string(byte.to_hex()) }
+  text.to_string()
+}
+
+///|
+test "options-native-nine-levels-and-clock" {
+  let old = b"abracadabra\x00\xff"
+  let new = b"abraCHANGED\x00\xffabracadabra!"
+  for level in 1..=9 {
+    let start = @bench.monotonic_clock_start()
+    let patch = match diff_with_options(old, new, Limits::for_diff(), { compression_level: level, }) {
+      Ok(p) => p
+      Err(e) => { println(@debug.to_string(e)); abort("options native generation") }
+    }
+    let elapsed = @bench.monotonic_clock_end(start)
+    assert_eq(apply(old, patch, Limits::for_diff()), Ok(new))
+    println("OPTIONS:\{level}:\{elapsed}:\{options_hex(patch)}")
+  }
+}
+
+///|
+test "options-native-level-one-actual-block-boundary" {
+  let new = Bytes::makei(100010, i => (i % 251).to_byte())
+  let limits = {
+    ..Limits::for_diff(), max_old_bytes: 1L, max_new_bytes: 100010L,
+    max_output_bytes: 100010L, max_decompressed_bytes: 100034L,
+    max_control_instructions: 1L, max_sort_work: 1L, max_patch_bytes: 65536L,
+  }
+  let patch = match diff_with_options(b"", new, limits, { compression_level: 1, }) {
+    Ok(p) => p
+    Err(e) => { println(@debug.to_string(e)); abort("level-one cross-block generation") }
+  }
+  assert_eq(apply(b"", patch, limits), Ok(new))
+  let ranges = match parse_header(patch, limits) { Ok(r) => r; Err(_) => abort("cross-block header") }
+  let budget = @bounded.Budget::{ remaining: 100034L, emitted: 0L, }
+  let ctl = @bounded.decode(patch[32:ranges.control_end], 24, budget)
+  let difference = @bounded.decode(patch[ranges.control_end:ranges.diff_end], 0, budget)
+  let extra = @bounded.decode(patch[ranges.diff_end:ranges.extra_end], 100010, budget)
+  assert_eq((ctl.blocks, difference.blocks, extra.blocks), (1, 0, 2))
+  assert_eq(extra.output, new)
+  assert_eq(budget.remaining, 0L)
+  println("CROSS:\{extra.blocks}:\{options_hex(patch)}")
+}

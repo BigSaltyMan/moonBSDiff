@@ -35,14 +35,14 @@ def integer(raw):
     assert bytes(canonical)==raw,'noncanonical integer'
     return value
 
-def parse(patch,old,new):
+def parse(patch,old,new,level=9):
     assert len(patch)>=32 and patch[:8]==b'BSDIFF40'
     c,d,size=(integer(patch[i:i+8]) for i in (8,16,24))
     assert c>=0 and d>=0 and size==len(new)
     assert 32+c+d<=len(patch)
     blocks=[]
     for raw in (patch[32:32+c],patch[32+c:32+c+d],patch[32+c+d:]):
-        assert raw[:4]==b'BZh9'
+        assert raw[:4]==b'BZh'+bytes([48+level])
         decoder=bz2.BZ2Decompressor();plain=decoder.decompress(raw)
         assert decoder.eof and not decoder.unused_data,'not one complete stream'
         blocks.append(plain)

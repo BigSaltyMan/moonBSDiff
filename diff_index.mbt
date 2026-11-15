@@ -50,6 +50,21 @@ pub fn DiffIndex::diff(
   new_bytes : Bytes,
   limits : Limits,
 ) -> Result[Bytes, BsdiffError] {
+  self.diff_with_options(new_bytes, limits, DiffOptions::default())
+}
+
+///|
+/// Reuse the index with validated per-target generation preferences.
+pub fn DiffIndex::diff_with_options(
+  self : DiffIndex,
+  new_bytes : Bytes,
+  limits : Limits,
+  options : DiffOptions,
+) -> Result[Bytes, BsdiffError] {
+  match options.validate() {
+    Err(e) => return Err(e)
+    Ok(_) => ()
+  }
   match generation_preflight(self.old_bytes, new_bytes, limits) {
     Err(e) => return Err(e)
     Ok(_) => ()
@@ -58,5 +73,12 @@ pub fn DiffIndex::diff(
     Err(e) => return Err(e)
     Ok(b) => b
   }
-  generate_indexed_patch(self.old_bytes, new_bytes, self.suffixes, limits, work)
+  generate_indexed_patch(
+    self.old_bytes,
+    new_bytes,
+    self.suffixes,
+    limits,
+    work,
+    options~,
+  )
 }

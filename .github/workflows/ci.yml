@@ -124,6 +124,13 @@ jobs:
           done
           moon run examples/index-reuse --target js
 
+      - name: Compact generation preferences on JS and Wasm-GC (native covered above)
+        shell: bash
+        run: |
+          for target in js wasm-gc; do
+            python3 scripts/check_acceptance.py --test-log "options-$target.log" -- moon test diff_options_test.mbt --target "$target" --deny-warn
+          done
+
       - name: Compact generation resource contracts on JS and Wasm-GC
         shell: bash
         run: |
@@ -165,6 +172,7 @@ jobs:
           python3 scripts/test_cli_inspect.py --exe _build/bin/linux/moonbsdiff
           python3 scripts/test_cli_manifest.py --exe _build/bin/linux/moonbsdiff
           python3 scripts/test_cli_verify.py --exe _build/bin/linux/moonbsdiff
+          python3 scripts/test_cli_options.py --exe _build/bin/linux/moonbsdiff
       - name: Real unprivileged ext4 delivery without proc (private mount namespace)
         if: runner.os == 'Linux'
         run: python3 scripts/test_linux_delivery.py --exe _build/bin/linux/moonbsdiff
@@ -181,7 +189,7 @@ jobs:
           $vs = & "${env:ProgramFiles(x86)}/Microsoft Visual Studio/Installer/vswhere.exe" -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
           if (-not $vs) { throw 'MSVC build tools not found' }
           $dev = Join-Path $vs 'VC/Auxiliary/Build/vcvars64.bat'
-          cmd /c "call `"$dev`" >nul && python scripts/build_cli.py && python scripts/test_cli.py --exe _build/bin/windows/moonbsdiff.exe && python scripts/test_cli_limits.py --exe _build/bin/windows/moonbsdiff.exe && python scripts/test_cli_inspect.py --exe _build/bin/windows/moonbsdiff.exe && python scripts/test_cli_manifest.py --exe _build/bin/windows/moonbsdiff.exe && python scripts/test_cli_verify.py --exe _build/bin/windows/moonbsdiff.exe"
+          cmd /c "call `"$dev`" >nul && python scripts/build_cli.py && python scripts/test_cli.py --exe _build/bin/windows/moonbsdiff.exe && python scripts/test_cli_limits.py --exe _build/bin/windows/moonbsdiff.exe && python scripts/test_cli_inspect.py --exe _build/bin/windows/moonbsdiff.exe && python scripts/test_cli_manifest.py --exe _build/bin/windows/moonbsdiff.exe && python scripts/test_cli_verify.py --exe _build/bin/windows/moonbsdiff.exe && python scripts/test_cli_options.py --exe _build/bin/windows/moonbsdiff.exe"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Package and validate Linux release archive once
         if: runner.os == 'Linux'
@@ -239,6 +247,8 @@ jobs:
       - run: moon update
       - name: Build locked oracle once and execute source-bound bidirectional matrix
         run: python3 scripts/check_acceptance.py --reference
+      - name: Nondefault options and one level-1 boundary (cached oracle, no second build)
+        run: python3 scripts/check_diff_options.py --native-evidence --oracle --oracle-record _build/oracle/build.json --output _build/options-evidence-ci.json
 
   generation-scales:
     name: Native larger-input policies (256 KiB then 1 MiB)

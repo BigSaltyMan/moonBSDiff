@@ -1,5 +1,15 @@
 # Generation resources and call isolation
 
+Commit 25 adds [bzip2 generation preferences](generation-options.md), default 9,
+valid 1..9, without changing Limits. The reviewed Writer threshold is 100000*k;
+one 32768-byte feed grows RLE by at most 40960 plus a pending flush, below even
+the level-1 threshold. Block length <=100000*k+4 stays <=900004, so the existing
+level-9 conservative emission bit bound applies at all supported levels. Work,
+copy, raw/control and aggregate patch quotas remain active. This is a structural
+bound, not reuse of level-9 time/peak-memory measurements for other levels; see
+the new small measurements and exact level-1 parsed-block evidence separately.
+No default factory or encoder/decoder source dependency was changed.
+
 Commit 23 adds [explicit 256 KiB/1 MiB source policies](generation-scales.md)
 (0.3.0 Unreleased), with six new native-release measurements and two CLI replays.
 The 64 KiB default factory, algorithms, work-unit definitions and guarantees below

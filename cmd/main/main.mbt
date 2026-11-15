@@ -90,6 +90,9 @@ fn print_help() -> Unit {
   )
   println("With options: moonbsdiff diff|patch [OPTIONS] FILE FILE FILE")
   println(
+    "Diff only: --compression-level VALUE (positive decimal 1..9; default 9; no units).",
+  )
+  println(
     "Display only: moonbsdiff diff|patch [OPTIONS] --show-limits (no files)",
   )
   println(
@@ -184,6 +187,7 @@ fn parse_limit(text : String, bytes : Bool) -> Result[Int64, String] {
 struct CliConfig {
   operation : String
   limits : @moonbsdiff.Limits
+  options : @moonbsdiff.DiffOptions
   show : Bool
   json : Bool
   manifest : String?
@@ -218,6 +222,7 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
       max_patch_bytes: @moonbsdiff.Limits::for_diff().max_patch_bytes,
     }
   }
+  let mut options = @moonbsdiff.DiffOptions::default()
   let seen : Array[String] = []
   let mut show = false
   let mut json = false
@@ -240,6 +245,12 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
       return Err(option + " is not applicable to inspect")
     }
     let bytes = match option {
+      "--compression-level" => {
+        if operation != "diff" {
+          return Err(option + " is only applicable to diff")
+        }
+        false
+      }
       "--manifest" => false
       "--json" => {
         if operation != "inspect" {
@@ -299,6 +310,14 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
       Ok(v) => v
       Err(e) => return Err(option + ": " + e)
     }
+    if option == "--compression-level" {
+      if value < 1L || value > 9L {
+        return Err("--compression-level must be in 1..9")
+      }
+      options = { compression_level: value.to_int(), }
+      i = i + 2
+      continue
+    }
     limits = match option {
       "--max-old-bytes" => { ..limits, max_old_bytes: value, }
       "--max-new-bytes" => { ..limits, max_new_bytes: value, }
@@ -347,7 +366,11 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
     Ok(_) => ()
     Err(e) => return Err(@debug.to_string(e))
   }
-  Ok({ operation, limits, show, json, manifest, files, })
+  match options.validate() {
+    Ok(_) => ()
+    Err(e) => return Err(@debug.to_string(e))
+  }
+  Ok({ operation, limits, options, show, json, manifest, files, })
 }
 
 ///|
@@ -372,6 +395,9 @@ fn show_limits(config : CliConfig) -> Unit {
     "max_control_instructions: \{l.max_control_instructions} instructions",
   )
   if config.operation == "diff" {
+    println(
+      "compression_level: \{config.options.compression_level} (generation option; bzip2)",
+    )
     println("max_sort_work: \{l.max_sort_work} work units")
     println(
       "max_match_work: \{l.max_match_work} work units (matching + generation)",
@@ -499,7 +525,7 @@ fn main {
     },
   )
   let result = if operation == "diff" {
-    @moonbsdiff.diff(old, other, limits)
+    @moonbsdiff.diff_with_options(old, other, limits, config.options)
   } else {
     @moonbsdiff.apply(old, other, limits)
   }

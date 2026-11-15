@@ -500,7 +500,12 @@ fn generate_patch(
   limits : Limits,
   sort_budget : SortBudget,
   match_budget : MatchBudget,
+  options~ : DiffOptions = DiffOptions::default(),
 ) -> Result[Bytes, BsdiffError] {
+  match options.validate() {
+    Err(e) => return Err(e)
+    Ok(_) => ()
+  }
   match generation_preflight(old_bytes, new_bytes, limits) {
     Err(e) => return Err(e)
     Ok(_) => ()
@@ -510,7 +515,14 @@ fn generate_patch(
     Ok(v) => v
   }
 
-  generate_indexed_patch(old_bytes, new_bytes, sa, limits, match_budget)
+  generate_indexed_patch(
+    old_bytes,
+    new_bytes,
+    sa,
+    limits,
+    match_budget,
+    options~,
+  )
 }
 
 ///|
@@ -522,7 +534,12 @@ fn generate_indexed_patch(
   sa : Array[Int32],
   limits : Limits,
   match_budget : MatchBudget,
+  options~ : DiffOptions = DiffOptions::default(),
 ) -> Result[Bytes, BsdiffError] {
+  match options.validate() {
+    Err(e) => return Err(e)
+    Ok(_) => ()
+  }
   let segment_cap = if limits.max_control_instructions < 2147483647L / 24L {
     limits.max_control_instructions
   } else {
@@ -550,17 +567,32 @@ fn generate_indexed_patch(
     limit: limits.max_patch_bytes,
   }
   let control = match
-    compress_generation_block(raw.control, compressed_budget, match_budget) {
+    compress_generation_block(
+      raw.control,
+      compressed_budget,
+      match_budget,
+      level=options.compression_level,
+    ) {
     Err(e) => return Err(e)
     Ok(v) => v
   }
   let difference = match
-    compress_generation_block(raw.difference, compressed_budget, match_budget) {
+    compress_generation_block(
+      raw.difference,
+      compressed_budget,
+      match_budget,
+      level=options.compression_level,
+    ) {
     Err(e) => return Err(e)
     Ok(v) => v
   }
   let extra = match
-    compress_generation_block(raw.extra, compressed_budget, match_budget) {
+    compress_generation_block(
+      raw.extra,
+      compressed_budget,
+      match_budget,
+      level=options.compression_level,
+    ) {
     Err(e) => return Err(e)
     Ok(v) => v
   }
@@ -612,6 +644,21 @@ pub fn diff(
   new_bytes : Bytes,
   limits : Limits,
 ) -> Result[Bytes, BsdiffError] {
+  diff_with_options(old_bytes, new_bytes, limits, DiffOptions::default())
+}
+
+///|
+/// Generate with validated preferences; quotas remain in Limits.
+pub fn diff_with_options(
+  old_bytes : Bytes,
+  new_bytes : Bytes,
+  limits : Limits,
+  options : DiffOptions,
+) -> Result[Bytes, BsdiffError] {
+  match options.validate() {
+    Err(e) => return Err(e)
+    Ok(_) => ()
+  }
   match limits.validate() {
     Err(e) => return Err(e)
     Ok(_) => ()
@@ -624,5 +671,5 @@ pub fn diff(
     Err(e) => return Err(e)
     Ok(v) => v
   }
-  generate_patch(old_bytes, new_bytes, limits, sort, work)
+  generate_patch(old_bytes, new_bytes, limits, sort, work, options~)
 }

@@ -10,6 +10,8 @@ pub fn apply(Bytes, Bytes, Limits) -> Result[Bytes, BsdiffError]
 
 pub fn diff(Bytes, Bytes, Limits) -> Result[Bytes, BsdiffError]
 
+pub fn diff_with_options(Bytes, Bytes, Limits, DiffOptions) -> Result[Bytes, BsdiffError]
+
 pub fn inspect_header(Bytes, Int64) -> Result[PatchInfo, BsdiffError]
 
 // Errors
@@ -34,6 +36,13 @@ pub struct DiffIndex {
 }
 pub fn DiffIndex::build(Bytes, Limits) -> Result[Self, BsdiffError]
 pub fn DiffIndex::diff(Self, Bytes, Limits) -> Result[Bytes, BsdiffError]
+pub fn DiffIndex::diff_with_options(Self, Bytes, Limits, DiffOptions) -> Result[Bytes, BsdiffError]
+
+pub(all) struct DiffOptions {
+  compression_level : Int32
+}
+pub fn DiffOptions::default() -> Self
+pub fn DiffOptions::validate(Self) -> Result[Unit, BsdiffError]
 
 #derive(Eq, @debug.Debug)
 pub(all) enum ErrorKind {

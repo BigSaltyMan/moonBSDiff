@@ -7,6 +7,12 @@ pipeline; sorting and matching algorithms have not been replaced or tuned.
 No CLI command, serialization, file IO, global cache or eviction policy is added.
 This source API is not a claim about published CLI 0.2.0 or Mooncakes 0.2.0.
 
+Commit 25 adds [per-target DiffOptions](generation-options.md): use
+index.diff_with_options(new, limits, options) to choose level 1..9 independently
+on each call. Index construction still has no compression options; index.diff
+retains default level 9. Options are validated before per-target work and are
+not saved on the object. The original reuse evidence below remains its scope.
+
 ```moonbit
 DiffIndex::build(Bytes, Limits) -> Result[DiffIndex, BsdiffError]
 DiffIndex::diff(DiffIndex, Bytes, Limits) -> Result[Bytes, BsdiffError]

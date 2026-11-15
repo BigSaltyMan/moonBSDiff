@@ -13,7 +13,7 @@ fn decompression_budget(
 }
 
 ///|
-// Standard generator encoding is fixed at bzip2 level 9.
+// Default-level one-shot helper retained for compact tests.
 #warnings("-unused_value")
 fn compress_block(data : Bytes) -> Bytes {
   @bzip2.bzip2(data[:], level=9)
@@ -57,8 +57,9 @@ fn append_compressed(
 }
 
 ///|
-// One 32768-byte feed can emit at most one level-9 block (RLE <= 5/4
-// expansion). The fixed Writer retains <=900004 RLE bytes; finish emits
+// At every supported level, a 32768-byte feed expands by at most 40960 RLE
+// bytes, less than the smallest 100000-byte block; at most one block can emit.
+// The fixed Writer retains <=100000*level+4 RLE bytes (<=900004); finish emits
 // at most one block. Each returned emission is <3 MB, independently of input
 // size. See docs/generation-resources.md for the bit and workspace bounds.
 // The quota is shared by all three streams; no whole-input output is built
@@ -67,8 +68,13 @@ fn compress_generation_block(
   data : Bytes,
   quota : PatchBudget,
   work : MatchBudget,
+  level~ : Int32 = 9,
 ) -> Result[Bytes, BsdiffError] {
-  let writer = @bzip2.Writer::new(level=9)
+  match DiffOptions::{ compression_level: level, }.validate() {
+    Err(e) => return Err(e)
+    Ok(_) => ()
+  }
+  let writer = @bzip2.Writer::new(level~)
   let out : Array[Byte] = []
   let mut at = 0
   while at < data.length() {
