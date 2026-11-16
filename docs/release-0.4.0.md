@@ -1,5 +1,75 @@
 # MoonBSDiff 0.4.0 release
 
+## Published identities — post-publication record
+
+Published 2026-11-16. This section and the machine-readable
+[0.4.0 evidence](../testdata/release/0.4.0.json) were added **after** publication;
+they are not members of the frozen public package and do not change its source.
+
+- Release source and annotated v0.4.0 target:
+  `e39e66f1270c0f4e37cb14fcfc5739edc46d1798`.
+- [Source CI 43877720043](https://github.com/BigSaltyMan/moonBSDiff/actions/runs/43877720043):
+  all six jobs passed. CLI binaries came from exactly this run; later documentation
+  CI artifacts are not substituted for those public binaries.
+- [Formal GitHub Release](https://github.com/BigSaltyMan/moonBSDiff/releases/tag/v0.4.0),
+  title MoonBSDiff v0.4.0, neither draft nor prerelease.
+- Public Mooncakes package: **500504 bytes**, **236 files**, SHA-256
+  `2e22054e65ebcb862e67bacb52126b24bdffd34a35564aa533edebf8868fc66d`.
+  Anonymous download, registry checksum and audited Windows-produced candidate
+  agree exactly; all package-member bytes were audited against that source's
+  clean Git export. The registry index records both 0.1.0 and 0.4.0 checksums.
+- Windows external candidate **and registry** consumption passed native, JS and
+  Wasm-GC using fresh caches and independent project/data. Registry consumption
+  had no workspace/path override or copied dependency cache.
+- Linux CI external **candidate** consumption passed all three targets. Its
+  independently produced candidate container SHA is
+  `51e585a81b006dec8d089ed2f15db7109e161f93d63d96a886e8defe36e7acc5`;
+  it is not the public package's container identity.
+- Linux local **registry** consumption remains incomplete: fresh registry-index
+  clone failed with exit 128, `Recv failure: Connection reset by peer`, including
+  a process-scoped HTTP/1.1 retry. It reached no target check/build/run. Linux
+  candidate or CLI success does not substitute for registry consumption.
+
+| Public CLI archive | Bytes | SHA-256 |
+| --- | ---: | --- |
+| moonbsdiff-0.4.0-windows-x86_64.zip | 262237 | b1534a22c38e2ae5eb6ca576ffba92eb5b4e97cf014a85f013422cf78b4fef8e |
+| moonbsdiff-0.4.0-linux-x86_64.tar.gz | 381247 | dd2242550f5cfc0f95b65270a58f38a4edd224987e03cab8f94b8a6dd0c4305f |
+
+Both archives, build-info.json and SHA256SUMS were anonymously re-downloaded
+from the formal Release and matched the verified CI bytes. Archive execution
+was performed once per platform in that CI, including manifest roundtrip and
+stream/JSON recovery. Linux actual ABI requires highest symbol GLIBC_2.34,
+loader /lib64/ld-linux-x86-64.so.2 and libc.so.6, tested on Ubuntu 26.04.1;
+Windows was tested on Server 2025 with the system DLL imports recorded in
+build-info.json. This does not certify all older platforms.
+
+Preparation commit `6f558f35f437f91b97921cb0b6fad780133ea8ee` initially exposed
+missing version-specific Wasm expectations. The release-source fix adds only
+independently compiled 0.4.0 expectations; normalizing its single custom-name
+version string reproduces each fixed 0.2.0 whole-file hash. No module source,
+algorithm or format was changed. A first Windows fresh-index clone failed;
+a new clean attempt passed. These failed attempts are not reported as successes.
+Official publish validation required dependency synchronization in its own fresh
+package extraction; --frozen was therefore not used for the successful dry-run
+or actual publish. The final public package bytes remained unchanged by both.
+
+Old v0.1.0/v0.2.0 tag objects, Release IDs and asset identities were re-read and
+matched the preflight snapshot. The fresh public registry index retains the
+original 0.1.0 checksum. No old release was moved or replaced. No feature, API,
+Limits factory, codec dependency or copied decoder change occurred here.
+
+### Metadata endpoint caution
+
+The website metadata endpoint can return **latest-version** data even when a
+version-like path or query is supplied. Do not use that URL alone as immutable
+old-version evidence. The public versioned ZIP, SHA-256 and version-specific
+registry index entry establish exact package identity. The metadata used for
+this publication actually returned version 0.4.0 with the matching checksum.
+The consumer check rejects an unexpected returned version rather than accepting
+HTTP success. Historic records retain their original observation dates.
+
+## Prepared release scope (included in the package)
+
 Prepared 2026-11-16 from the frozen feature baseline
 `4e9dbe84b4fd67d8e876788767ae1eb1e1236187`. Library and both CLI distributions
 must bind to the same release source commit. This document describes the prepared
@@ -7,7 +77,7 @@ release; it is not itself proof that an upload has happened. Exact source, CI,
 package/container and public-consumer identities will be recorded separately
 following publication without moving the release tag.
 
-- [Exact registry metadata](https://mooncakes.io/api/v0/manifest/BigSaltyMan/moonbsdiff/0.4.0)
+- [Registry metadata — verify actual returned version](https://mooncakes.io/api/v0/manifest/BigSaltyMan/moonbsdiff/0.4.0)
 - [Public Mooncakes ZIP](https://download.mooncakes.io/user/BigSaltyMan/moonbsdiff/0.4.0.zip)
 - [Formal v0.4.0 GitHub Release](https://github.com/BigSaltyMan/moonBSDiff/releases/tag/v0.4.0)
 - [CLI archive installation and runtime requirements](cli-install.md)

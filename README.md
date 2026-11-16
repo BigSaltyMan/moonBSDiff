@@ -1,8 +1,10 @@
 # MoonBSDiff
 
 **0.4.0 release:** [release scope, distribution identities and remaining limits](docs/release-0.4.0.md).
-Library and Windows/Linux CLI are prepared from one source commit; use the registry
-and formal Release linked there to confirm actual publication. The 0.3.0 source
+Mooncakes 0.4.0 and both Windows/Linux CLI archives are published from source
+`e39e66f1270c0f4e37cb14fcfc5739edc46d1798`. See the linked evidence for package,
+CI and public-asset hashes; Linux local registry consumption remains blocked by
+connection resets, while Windows registry consumption passed all three targets. The 0.3.0 source
 work is included in 0.4.0, without a separate 0.3.0 release. Historical 0.1.0 and
 0.2.0 package/tag/assets remain unchanged.
 
@@ -23,16 +25,16 @@ generation/application configurations](docs/generation-scales.md) are available.
 Each scale passed sparse/periodic/random native-release cases and a public CLI
 random replay. The 64 KiB generation default is unchanged; independent work,
 control, raw-data and patch caps may still reject inputs within a size cap.
-This does not modify CLI 0.2.0 downloads or publish any Mooncakes version.
+Those measurements predate the 0.4.0 release; historical CLI 0.2.0 downloads remain unchanged.
 
-The same unreleased source now offers [DiffIndex](docs/diff-index.md) for one old
+Version 0.4.0 also offers [DiffIndex](docs/diff-index.md) for one old
 version and multiple targets: build the suffix index once, then generate with
 fresh per-target budgets. The opaque object retains immutable old bytes and its
 private index; single-use `diff` remains unchanged. No speed factor or concurrent
 use guarantee is claimed. Run `moon run examples/index-reuse --target js` for the
 small public-API example.
 
-Source-only [generation preferences](docs/generation-options.md) now select
+[Generation preferences](docs/generation-options.md) now select
 bzip2 levels 1..9 through DiffOptions, ordinary/indexed option-aware APIs, or
 `diff --compression-level`. Default calls remain level 9 and Limits remain
 resource policy. This option is included in 0.4.0 and absent from historical CLI 0.2.0.

@@ -1,0 +1,946 @@
+{
+  "schema": 1,
+  "module": "BigSaltyMan/moonbsdiff",
+  "version": "0.4.0",
+  "baseline": "4e9dbe84b4fd67d8e876788767ae1eb1e1236187",
+  "source_sha": "e39e66f1270c0f4e37cb14fcfc5739edc46d1798",
+  "publication_date": "2026-11-16",
+  "source_ci": {
+    "run_id": 43877720043,
+    "url": "https://github.com/BigSaltyMan/moonBSDiff/actions/runs/43877720043",
+    "conclusion": "success",
+    "jobs": 6
+  },
+  "audit": {
+    "schema": 1,
+    "source_sha": "e39e66f1270c0f4e37cb14fcfc5739edc46d1798",
+    "module": "BigSaltyMan/moonbsdiff",
+    "version": "0.4.0",
+    "archive_sha256": "7e590b99f88348095684d9a3bc9b191260f1c4c5f69b475f7ca8b03444f9e9c5",
+    "package_sha256": "2e22054e65ebcb862e67bacb52126b24bdffd34a35564aa533edebf8868fc66d",
+    "package_size": 500504,
+    "members": 236,
+    "files": {
+      "CHANGELOG.md": "ed30efb51b830adb7bb66498fd18694b596163ceda10850af7502b79bac18981",
+      "LICENSE": "7ad2ab4ab6a09a1ff0e75dd19d78c56be7e807cb3538246b6b5ac5ea802d018b",
+      "README.md": "586b3a6691f6afc7e523e13026cc118ab49a80f1cf192e65dce997563874e9d0",
+      "apply.mbt": "8fa91836e68aa564c9f39c7d292fb0b7f2630a0e4c4dcf9fa1a16c281ccc84fc",
+      "apply_boundaries_test.mbt": "d2eb1ab76c4241bfe960f7abbc034928dbf032f616a228f14235166455becb4e",
+      "apply_resources_test.mbt": "4d2d73f582f21bc2374e31a01ac75baaaf1e586411f7b3ae56e76895508d0d3f",
+      "apply_test.mbt": "016bbf10904e7d11c8f4a5591fc3a5f86d08aa116a73e2ab73422e0d7e8ea03b",
+      "apply_vectors_test.mbt": "43355c3ce06f4d75bbc1999d5a4cf5f194d6d186b4a2a231daceeff582c6ef40",
+      "cmd/example/main.mbt": "7684d1e3f9474a7cb5ae4921b8ee12e27ea4fe49b79bc2366a22a4fb142b1b34",
+      "cmd/example/moon.pkg": "419c7a196e95960bc52cb2480abebf7e079b254a49d8eff32f66deaac7abd4ed",
+      "cmd/main/inspect.mbt": "dcb9abbfa06d535901cdbd4bb7deea42e159e5f5667f0e68dbb07efec4f3ce6e",
+      "cmd/main/io_wbtest.mbt": "4ef004f71168c14497d030ed218fa288f709e8840be24198855b7c353977613e",
+      "cmd/main/linux_compat_wbtest.mbt": "26819cde39792f3b0b0c95debe1907b924d3c67fc8c6fb64f0ab23486bc217fb",
+      "cmd/main/main.mbt": "9afbc92e23bfb01a1848cc458aa30e70ea6113564c4238cdca65eecde0f94897",
+      "cmd/main/manifest.mbt": "942f1e7ab97bb89842f5d433119b7e903c716ede5e7a32a60db236b7e45b1a7e",
+      "cmd/main/manifest_wbtest.mbt": "a807658f5c325f375b83417b9ea95e7400cf379712984a55b00b1644d01a2bed",
+      "cmd/main/moon.pkg": "70660e3f3d6c50a0dabcf0e0e0a8565ef2324866e59edf68dda1bd0da81b5309",
+      "cmd/main/native_io.c": "9b74b33478186ed65fa9de9dbe183bddf4d1720c1cb76faa4f1eaa6d1bc1f56e",
+      "cmd/main/progress.mbt": "e4b31f25b792253fd8272f723a6ae26b1be2c24e5704827140792d39dba3d294",
+      "cmd/main/stream.mbt": "65a32ff275d63d2780e72c2e44637360497ce6c3a217a1e870dedcc4f47d3710",
+      "cmd/main/stream_wbtest.mbt": "f464b57bef9fd7c40a10cc72cd2b088e1a3b297ecac30678e716cd0458135ce8",
+      "cmd/main/verify.mbt": "64a6db4f9e67490f0c118bee65870237f95d0bec2d9a3cd5921d36db67fc2232",
+      "cmd/main/version.mbt": "24f87162ebc343f10ea4da6b41162bc9d945a62732867d1e123dea9c48ce9a1b",
+      "compression.mbt": "96c13f6b598840b02fdf0e6a4dcfbb2d34af6837a64204df1d71aebb4166d8d2",
+      "compression_vectors_wbtest.mbt": "41142e3ab598ad133dc37bbaf0789647e6ddbc3baeb1c9ae8bea93d583221b73",
+      "compression_wbtest.mbt": "902e1de9e2d47fc3bb226b0e40fec2de7bbeb4b2d93628cbbdd01ac0549320aa",
+      "diff.mbt": "965be37626b8a16b1b7c042d9a28310267cc90fa50f8c6974839adaab8299f17",
+      "diff_index.mbt": "e4fd8917eeadc0c46bd1cac1b8270a51b132a35ed71948d157352f3a828b4c32",
+      "diff_index_test.mbt": "1800b2781df40a0914f01a9d61d5fa2db5516ca5964598a6dbf330f45d07a9e1",
+      "diff_options.mbt": "8acc216d18666f11332156744be030c679a1d668001073ee92949e96ad15ec5e",
+      "diff_options_test.mbt": "9942f190d1d61fdc4dd266d1fdecc6b1d93c5c284b782134c5ed694e53acccfa",
+      "diff_resources_test.mbt": "3d241ee6c8a46cb1f96678de67996113de19bb3758d3c7a3885d37049c3ba64c",
+      "diff_resources_wbtest.mbt": "2b66b75705834145f031fdeff80e99b77e52326cbf2ac95a3c88696fd616c719",
+      "diff_test.mbt": "0601fb20b5625cf88f4af6ce705495eaafef40830108b204b4016d1c62171d5e",
+      "diff_vectors_test.mbt": "5212d1af6b3e50399a0fd28b13db2951765513f2da8a839be2434db58b813fbc",
+      "diff_wbtest.mbt": "d517e07c421988f1cf1e86a55bc0794d442107ccbb6c0caf9c1b42bd46f25cba",
+      "docs/acceptance.md": "7861c8adfe9991023869372b18b3c8640a9bdd67aefdf1a1afdfb2e3d136e70b",
+      "docs/apply-acceptance.md": "21768f46d6638115052c5f180b92e97f4a46784b090c95b69453f5bcd2331217",
+      "docs/apply.md": "e9d94052bca0582e86a935c8958349406bacc8338058246ff5a00a33fdf6c762",
+      "docs/benchmarks.md": "0431430e12b58c9b93eb7ae8d72f5adb40b2860fe6e4448985b2bb08cbbf4f28",
+      "docs/cli-install.md": "c6e0ca77199fc8f561e4bb6c32efd7f7c5cc72267569e5a52931e24d13fe2687",
+      "docs/cli-sdk-credits.txt": "158118856d3993c7e0e1ceff2ef5e640061d16da1ba0a2e78a71017c37aad6a1",
+      "docs/cli.md": "8cd9ea6c71a4d24f331c124d82b8b6eebdcbfcf9c9ad1a873bdbeafffa03ac52",
+      "docs/compatibility.md": "4814e2c9d6d05a0c087d171a55375c86df0d7ee9b97133d30199916e5a52d8bb",
+      "docs/compression.md": "6968f3cf5f7f5053d250819bf06a53ac29b8801c6ad0289f482208d8a99842fc",
+      "docs/development-plan.md": "5217c74b983da5c3c9349a8ec2fbe0d94b267e776a6f35c113ed4489d47969dc",
+      "docs/diff-index.md": "8e6b41ad076b6a56e7cbf68df7d6c05032ea625007a70136a1a2ee43425b8c88",
+      "docs/file-apply.md": "c23565942dc1b34731e47dd4203c503484c8c71fd4452db69a3602a4f0bcbd4b",
+      "docs/format.md": "bb192bdca431ac94e8f7afb8a1f8282c396aca4e92c454c1f41747947955ff8f",
+      "docs/generation-options.md": "68becadafb4adbb6895c864129030d9d5b1d505c2359b222a0f6ee1b00e42bf9",
+      "docs/generation-resources.md": "264b7940feb5ed5ae6903c10490b28f5734f1f95a22cbd700a8a7753fc70d168",
+      "docs/generation-scales.md": "3c20e1e526fa2017dc275126f0f4bcbd4737575a50451a1078bf1d36665bec51",
+      "docs/generation.md": "de8f16a064903e0481ae236e8294ad2aa5449c32a657836fecf95b230221bc08",
+      "docs/inspect.md": "eb245de79a713ec4ca2d5f7b9c32f2ccbf8e52ddc6b0f1cc7b3a6771ec2801f0",
+      "docs/linux-delivery.md": "2fc40e5cf623f8edfd44be147e765174dd160c2ea0ed0dda13b092ab9bfe963a",
+      "docs/manifest.md": "27b7a606e0ee3e7daef70684fe2495df9bb9128a2bb731312042aa2ce5a22ace",
+      "docs/matching.md": "cbe0f35e542b00228ee48beea5857901af098c39492e71204c69fa28f6430277",
+      "docs/release-0.1.0.md": "d967d7b41d3f26594f7f89b3983daa42f361022973d1fd3e3e8eaa188973885b",
+      "docs/release-0.4.0.md": "b36125fb7cf7233ccacb34efec05878a12d07c7a455fe5c7a155179d9a3657a9",
+      "docs/suffix-array.md": "d4ff7d86b71c8c9220ad7dae790effaf8c69dcfb10c1235bb8c48ccb843aafb4",
+      "docs/upstream.md": "6be69e39843b6ba0352c4fd2d6b9437abace634b60f535c777094c57eb8bfa50",
+      "errors.mbt": "a0ceb78c65d01f0142118168b8516a1949f8690fc447f3abe54e6c22aeffb430",
+      "examples/basic/README.md": "cd6094254bac27ccecb381b223a751367483f3f73839475a386667f99622165e",
+      "examples/index-reuse/main.mbt": "106269b6822d95cf08e372e07f85f35e8ad2d5342280adfbe1dea216477f608b",
+      "examples/index-reuse/moon.pkg": "419c7a196e95960bc52cb2480abebf7e079b254a49d8eff32f66deaac7abd4ed",
+      "examples/wasm-update/README.md": "3b9b9ece6c6168a4e6121cecb81d4a0c37bc69213a85f0322498b76a44096b3a",
+      "examples/wasm-update/manifest.json": "ea8004ed3fb27ee53b8632f88cf2f42229789dc677cf360705d0510d27665b6b",
+      "examples/wasm-update/v1/main.mbt": "f6a6a80afe32b9018c1e38d1a97511f7f1a8de2a0dacffd17d2c6ff2ba461699",
+      "examples/wasm-update/v1/moon.pkg": "c83259193dc267c7f22633bbf94ea886cd52e5961129eca1f8a6b67a9acae83d",
+      "examples/wasm-update/v2/main.mbt": "587a4b59c629bfa286127324ce4b03c23626bac6bf235418a4a70d9cc8a9510d",
+      "examples/wasm-update/v2/moon.pkg": "c83259193dc267c7f22633bbf94ea886cd52e5961129eca1f8a6b67a9acae83d",
+      "format.mbt": "9b8d7d1d3615555838caa42bc93e9926204a2a911e0d21536dccd5a4e38b5f86",
+      "format_prefix_test.mbt": "6be96002198b80039816925eaa5ae848e2cb75c6d4b1be0b294884c3136008b2",
+      "format_wbtest.mbt": "6ac7df49a4c9928ead412c5f66d118e8f8da767449f4b33550970a98e6a7477c",
+      "inspect_test.mbt": "73b22be54c4ef5abbc816d24658f15d717d9fa938aad0ced8ed277f6f89b9943",
+      "intcodec.mbt": "385fcaa877b413b21c604f3416478344d6d5cae351bb74a5d48a577c37901089",
+      "internal/bzip2/LICENSE": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "internal/bzip2/README.md": "eb8cef85df62d761dd1548c5c2b51afa7ca4a5ab9c6d0ed56eed73d03e52785a",
+      "internal/bzip2/bits.mbt": "ef9134d64ac8dabc35c120158b70937fb92ccae7574f607cbdc3f71156ea27e6",
+      "internal/bzip2/bounded.mbt": "8509deddbc234babd2b398f6d5e060a6bacc75f6cafc41bd2e59820c28ec7564",
+      "internal/bzip2/bzip2.mbt": "7972d0b5f949a46defbbcf5f04e49ea739fe44563c8b3ef9f68045698ac26f16",
+      "internal/bzip2/changes.patch": "e0645642698baab584e0e40b0723b6f71e8bdac3712f7c30b96aeb1bc09f02a8",
+      "internal/bzip2/crc.mbt": "baff55ebf8723ee27ad3b7a773eafb0f4e31ab8cbf90c220135bd9a32bae5ef4",
+      "internal/bzip2/decode.mbt": "8666834a135faea4b87236452b7de9d425ad0a437a7cc425eabce41d8ba91d24",
+      "internal/bzip2/moon.pkg": "f55457e90e133b551bb83a9ac6b3f26b4d21e6678155f918c885105a723bf059",
+      "internal/bzip2/pkg.generated.mbti": "1b0fcefc652ff59ff6901f6e00136ee584bbe501eba8e5007d02ba8c3e13d63a",
+      "internal/bzip2/rand.mbt": "9c05bdd91d74a3afedc80a3db748106da93c781a88322faa12f0b50ec268dbdf",
+      "internal/bzip2/source-lock.json": "ebe8d6012b1286ca6c0b6d2194de6a19979b73983d78c28e33dba33f464a3933",
+      "internal/bzip2/stream.mbt": "5196242609866c5d603b1f174a85ef989de6eaa2c5be806f66578383a626e546",
+      "internal/bzip2/stream_wbtest.mbt": "6e152e526ee4e71910df0318d1a557a1682bdd856644e3ce18c4b89198052028",
+      "limits.mbt": "70a3c08417dda1cc447e4198891d4440a2eb92f0970af54e5502ab73f8bcc696",
+      "limits_test.mbt": "caf4542b8bddd0cf1fb3e6d10a7857d258bba966430dfe49b3103afa5a9904f1",
+      "matching.mbt": "dee68dacf6eb44f2234701704b599b71e4de69992ef9d39203feae8995441505",
+      "matching_vectors_wbtest.mbt": "8baafc456b3ea2b01d1ba3c7735e4c56ac1acb75bbfc3a12ce3135d7b7099d47",
+      "matching_wbtest.mbt": "38f0afbe75ddba212127322de3c504d68180a192c3475155f13f8821dd483322",
+      "moon.mod": "bc6e1c1763c8a3948fe31e036682a4fa05abf847349567cde9ccca59c31a275a",
+      "moon.pkg": "cc4779753797ddec6b8e0d73ada0fe2c43f972d5fd5459450a8b7ab727a03cd3",
+      "pkg.generated.mbti": "632a89cea9e7430cd5d526d97fc5476caf7039aab5ea06a90ae0a0ded51a5839",
+      "scripts/benchmark.py": "47473d1ac8498c6aceb74487b93002d93f99b69f8e4827ac3482f709c1e59c39",
+      "scripts/build_cli.py": "eea1d99421d1b6407de336ecf3e0908c811286c26f777760b28165e6f124c570",
+      "scripts/check_acceptance.py": "af6cd509612c34313334bfc62c512183bd73cc7c686d5d248c8375f10808312c",
+      "scripts/check_apply.py": "005f2a0d67f9776ce8a52322ab879e37a662c6a0747836dc48155a2beb2c0caa",
+      "scripts/check_apply_boundaries.py": "294dd2c52802a91baef6b962aea0e0613adb9e7d15330b83fcdb22ad69cee0e6",
+      "scripts/check_compression.py": "34df782a1d5aabacee43ced1b7a18a60e9aa4124df171de6a4c154f14eefbf2d",
+      "scripts/check_diff.py": "d1360ab4733dd8a8f27bcd1ce868809d38effb6356ed2a6e293cf372965aaac3",
+      "scripts/check_diff_options.py": "923f1308b1643effd74c88c0ca790a04c69ffda54359be40139fe5b9f0112d9e",
+      "scripts/check_format_vectors.py": "5820280cd2c12c6686dfe6347f6d9d2a7ad63c09cf28c70c0c2f5abd0192a3e5",
+      "scripts/check_matching_vectors.py": "4ad3697e188fb796fbbb6e0659a6ebb8159dd81e30225019dc2839a45d03b715",
+      "scripts/collect_cli_release.py": "858851a85309ca9ea26c0956a499e05c1a94a05fe99ca4355cadccdc38b676c6",
+      "scripts/conformance_cases.py": "2f01d3ae7277ece4ab6e6e2aa29ecd1ca5d59c71176392021fd3a46dbb8dc06e",
+      "scripts/conformance_protocol.py": "4ab7c1fcfefb4da541e7846c968ee2a8aa7fdbce16b44e889b910299e7dd3dd9",
+      "scripts/diff_options.mbt.in": "b8a7a408caa8aad90e833b0a55a514a5d030ad705def3681d8fd80fe87ca3820",
+      "scripts/generate_reference.py": "6557f1eeb238127ed9460276425adbc901c5f32dc498bd596687e31d4485f0e5",
+      "scripts/generation_scale.mbt.in": "3010aba1ff692546c70da654ab1349e5c634350a48d4803448c10e43aead67c7",
+      "scripts/generation_scale.py": "c07fc8f66d4a48fcd3fa8c68f2596b49d4b4ee2545557ca2570e35c0f35f7ad5",
+      "scripts/measure_apply.py": "c3642b06feda98156b973279e23a03a3f72f754944174105dce675667f176a08",
+      "scripts/measure_diff.py": "fc648a903c9309ef9e048262b797b3ef7c190bbc4b1b357a4d5523fc19f20b1f",
+      "scripts/oracle_identity.py": "b337e5718dc5beacfd23f5e4400203fbcb560807149435e18c598a0152baedbf",
+      "scripts/package_cli.py": "d99cc94e9d320d5ef73bac6036f0d4362ea84b57b5308490fd232e8e705529ee",
+      "scripts/progress_probe.mbt.in": "f25e450560857e0a9aa6818c55f0c891a2dfa9f06c37da83a0224d14bd6b6f88",
+      "scripts/release_audit.py": "55d32f8b0d5b9c52d7eda9fae6db926b978a0ca4406e7e248689996014592064",
+      "scripts/release_consumer.mbt.in": "dc743ffed26e30781b970d0c5e9ff3eb6a740ed35eb72ed6c925c9b3d894ddf6",
+      "scripts/release_consumer.py": "5f669fd985eee32157370b60cd65ed5b23510e6795cdafc45e37e54f7110bebf",
+      "scripts/run_conformance.py": "fb5e6b31b1e18283e2d61a85524da7c36d843667adf438988de3ce283a762a1f",
+      "scripts/run_examples.py": "0de2b77ba7fde70389ad61727d1215a6d4e660ad7695abb3fb50c79faaf79b71",
+      "scripts/test_acceptance.py": "e359bbfc638876b601fcd657f5878494cccfd3e0f1dc6dc3f493f86e9c28453f",
+      "scripts/test_cli.py": "3aab44c95c08c6383c8d7506be51e7c135a446b0e17e24b72a6053c312206716",
+      "scripts/test_cli_distribution.py": "5f44067fc0cf1a987c3fac34d8d187c2ace155f6b83c81435e5c5167737ee4a2",
+      "scripts/test_cli_inspect.py": "2494d02df2767a521273cd93323d240745d3077dd446ce67330b844cb9bbde04",
+      "scripts/test_cli_limits.py": "56702f69774b003582573ecd04c367cd98f12a3743e0c128055eed774f7e5286",
+      "scripts/test_cli_manifest.py": "fbcaaca00a3f95244803c1802de370e97eed0e90675afaa3f69fb8890f536907",
+      "scripts/test_cli_options.py": "0b708c228cfc51f6dbd7859f438716d002400540aa29545c048577dcbea6268d",
+      "scripts/test_cli_progress.py": "1989fc310aa998b71fe1f10951edf48a1c50ac2a06927e850b4b39eedef01123",
+      "scripts/test_cli_stream.py": "fdb76e121f3ed52ed2db9ac224349f5223515e40a8673738aca33c350ad15523",
+      "scripts/test_cli_verify.py": "26d27f3f73260b17257cb633e040cade8237b22ac9a56867489bf05e0f88574c",
+      "scripts/test_conformance.py": "961485509e9f3280e25116e94022d28621020289f51bec51efd6a126d0bbc6da",
+      "scripts/test_diff_verifier.py": "f806e5c8215da8e0b403bba9ea901ca2a23f465d202494743f8d3ef054ed99d2",
+      "scripts/test_linux_delivery.py": "aec4e41b440c4d1387999c2da4ecb112e29f1ba5336c94513d92c7c24dbcebf1",
+      "scripts/test_reference.py": "520552bfa428a67bb8769e4acbde31682b75ebc75361bbcc2971265c1287f120",
+      "scripts/test_release_audit.py": "e16287f29c3462041aa676c313356514e8d4e57010bcb1f64c7a912589fe4308",
+      "suffix_array.mbt": "ee617ec0200e4fd96eb916740f829b5037f53c1edf1d613d7a04421d28327ce4",
+      "suffix_array_wbtest.mbt": "fec58bc163732c66088e3070fb899ca4dd88cf00c441d19cee9ef828c4c8bc90",
+      "testdata/apply/README.md": "3f4fc6e42fb780e01323ec12b2ad26a0c3b7739b6556c1d1f47d7082c28ca89e",
+      "testdata/apply/boundaries.json": "3a2e1023acf9deede48aef86e10978983fae4ea5e661c8799c1b5ce9c2fd281c",
+      "testdata/apply/manifest.json": "ae70e88a4165719e11a915c111c6367bc87a5c64a30360699e462884dca8b19b",
+      "testdata/apply/resource-measurements.json": "3091bd6976bc2d9673a1a771abddd8c679f8d33d76ec6e0d524e23b50caec409",
+      "testdata/benchmarks/results.json": "b8d4cd9b61c42791a152bef61b8c175aef8de23c1b4c3afa96a383816ad68231",
+      "testdata/cli/linux-delivery-compat.json": "c051f807ff2333aac3c7cf0c49b403368ca2731eb9aa2188f19d44896cd9b641",
+      "testdata/cli/native-results.json": "af06741484ecb78ceb8ded625d865b0676ef24bd38615ec19ae0ddb7178cf119",
+      "testdata/compression/README.md": "a748f1cf78395d75de5267f6e3428029e1311f57f3badeb141b8c839bbab7231",
+      "testdata/compression/all_1.bz2": "0dd4bcb9e08c5aa4de9394659e21a64330b7d7cda8682597fde72d26a1703867",
+      "testdata/compression/all_9.bz2": "3e0d2be815144b42d7638df42ba7d93cde105aef602f17716f0d0e80a9ab06c2",
+      "testdata/compression/binary_1.bz2": "4150f0659471787474014374431d8a0b6c81dcebe3074c145b8547d558449a84",
+      "testdata/compression/binary_9.bz2": "237e9079ad7a9568d7537a14fd824283a29d50165c83c6807b5ce3c6f1f93a88",
+      "testdata/compression/cross1_1.bz2": "d4cb14e0e5b5b319c230fc772bf7a190b52feac5b657a95e3c70df6f80a2f79b",
+      "testdata/compression/cross9_9.bz2": "022feae5647607cf6f3825f3c5abe6f609dc235f4f683d18ac93bcfa61754542",
+      "testdata/compression/empty_1.bz2": "c82685296a2d914c9acd6f6f6db1d1ad364f502b26af5e6ca8874c09880d5cf9",
+      "testdata/compression/empty_9.bz2": "d3dda84eb03b9738d118eb2be78e246106900493c0ae07819ad60815134a8058",
+      "testdata/compression/manifest.json": "daabf6113fb363bceb8487f9a88917168af0c2d2a5a345621fabfdac97bdaa74",
+      "testdata/compression/near1_1.bz2": "2b531ece249ce43862541a9fddb5a50abdf420b0dedc13b4aaad63e43321b7fb",
+      "testdata/compression/near9_9.bz2": "b0af9d5e3a6cdddc4b4004971631eff24124ffe4ca1fef99eb25533f6d72306d",
+      "testdata/compression/repeat_1.bz2": "3107094a6cf6f412a00f7837c55b07c106619d49859d6633f8a31a1418525297",
+      "testdata/compression/repeat_9.bz2": "00aeabee93afaddc3a5665c97aaa6eb46f1769aac9e47216d794e16db7dfec0b",
+      "testdata/compression/results.json": "012a0eb02f88b1863258723d2481359759684038cf88c37931d4b35d78596ec4",
+      "testdata/conformance/README.md": "e6d7e75d1e04dfd73ac99b9bc5a3e863d66c977762d9e955176ed3e6a24fc861",
+      "testdata/conformance/generation-resources-run.json": "c622547af9de43ae80ca09154aa6439ac271401cb1c9f124a664f96115be69b2",
+      "testdata/conformance/last-run.json": "74d8136bc9cd150d233c797500241c4fcf1199f6c7e634555878f3e5cb25a6f8",
+      "testdata/conformance/manifest.json": "85a90aaa6110650a8bfef2137d100311a869375d922724e0ac1579618914aea8",
+      "testdata/dependency-probe/README.md": "94f86c890d8e3ae8cf59e409004d4a918b061012b47a66a9f1e6ca995d06cae9",
+      "testdata/dependency-probe/main.mbt": "a758ac2118d3ba9a517fcfaaa3998928a2a62fa05c275bfa35b085ca83ec7b57",
+      "testdata/dependency-probe/prior-report.json": "46ef505ef09fe9cbe2c99f337c5c97e18d8930ff1a69095ffb8fc3a6a753bf48",
+      "testdata/dependency-probe/vectors.json": "ea7b65b8ede7003d6c03d8e624933060237d26f9a854c6e802e06325339951c6",
+      "testdata/dependency-probe/verify.py": "9ef2aaf91f21fa7bc74ad02799b75edaf8e4ad2c906ff7afc636e85cea030db9",
+      "testdata/generation/README.md": "70919c5d3f199efd4c3fa35a94496851f3ecbec2490ba89b3809987954b23f09",
+      "testdata/generation/compression-options.json": "319d70a28200caa53bc2ff90f8b0af5c87a3f02c5051388b6233953e0bb34c50",
+      "testdata/generation/encoder-source.json": "ab18619e7c7d54891ee2532fb2a1c1708df935b4d8ce3949f16f495febc892b7",
+      "testdata/generation/native-results.json": "780b3c19c8b067e18e2890314d47da03308147aaec16de5c3eff6f4cb27e592c",
+      "testdata/generation/resource-measurements.json": "71ee21f033d9f5a08f2cafb3786af28020d459f1d90116900ea24d8f7fc3440f",
+      "testdata/generation/scale-cli.json": "7126f391720e5cc38df47b03828c7ad825e1c3c8b7f8a4ac09f90524ecb2af33",
+      "testdata/generation/scale-policies.json": "baabaf5a919cba163fedd0593bbaa976e6c60b20484d3564cfc541874f9fae84",
+      "testdata/generation/scales.json": "b615b08f42fdc6019ab3b6db77928ddb3a200f1d00df929a6c4cc44151c79a4c",
+      "testdata/manifest/README.md": "1f3b6a2b9a9bedab2e67821cb88c057679f85819f99cf6f3a2e6c89cd2c9dc96",
+      "testdata/manifest/new.bin": "0ebd3565334ae7ea8506c274a03ecbec59d38ceef1191d7fd5fb4d1d08cde7d2",
+      "testdata/manifest/old.bin": "77cb6bea091ff250af304a09024b0c526be6a21014a91ab56e788c63a69e811f",
+      "testdata/manifest/update.json": "887eb07fa8cafcde084e6af2ce1968d3ce383ee1d79eed0ff497c3ad037a1047",
+      "testdata/manifest/update.patch": "50e7fad965f39f6a18ecc699e2e8b9b4b083e5544792473b2569ee4a9fb551b6",
+      "testdata/matching/segments.json": "dd51936d63546c4d61ab0b919565643ceb2bf34230eace710f90d75f1eb526a6",
+      "testdata/release/0.1.0.json": "0c9a8bd30ea4604a38df0f063eb094a386febbda13c78b9f2f9fc85671f2eec2",
+      "testdata/upstream/README.md": "65b13984e60e026c094f5c718983cb8e021b55ddb2e5984953535040f9bb5964",
+      "testdata/upstream/all-bytes/new.bin": "14025cad98e1fe9dd06ca112f9d69fe9f7f53f61c097d86f259f28f452b32154",
+      "testdata/upstream/all-bytes/old.bin": "40aff2e9d2d8922e47afd4648e6967497158785fbd1da870e7110266bf944880",
+      "testdata/upstream/all-bytes/patch.bin": "3bae2a0fab6c0f7f4cbb1575aea7240141690cf543370b95a714f66865d8899f",
+      "testdata/upstream/append/new.bin": "48cb942b30d9a5fbd8461bd975d3ff8c799e7573029f5845ddf50f06ea484d9e",
+      "testdata/upstream/append/old.bin": "6bc14bdc4517a7a682c6910de2e2946eb8e1ecd04090728fef6d092a7ceb62c5",
+      "testdata/upstream/append/patch.bin": "57a7b250dca6589f1ac784dad87627bbd911db14f5eb348f8fefd6f447e4af36",
+      "testdata/upstream/block-move/new.bin": "47855f9752d0e2ebe6157ddeafe32f8ec407da9cc7ed8eae969b46e4a0388a80",
+      "testdata/upstream/block-move/old.bin": "a0d19f4883007a07bd84a50c8ec7b5a243235773aa074011fba4132af8b71278",
+      "testdata/upstream/block-move/patch.bin": "d61311bc8a2b13dd717b554519e5fa7848c1fc2c783957e356566ef99f00bca6",
+      "testdata/upstream/both-empty/new.bin": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "testdata/upstream/both-empty/old.bin": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "testdata/upstream/both-empty/patch.bin": "82d27a0bd77c668d2ab2c3ca96aeffae567bd4c8313786c610704410bf2dc42e",
+      "testdata/upstream/delete/new.bin": "ac461b883ccc91b73aa2c89c5bf02c20d35accbb0ffdb9e7c8cfe9537483a196",
+      "testdata/upstream/delete/old.bin": "6bc14bdc4517a7a682c6910de2e2946eb8e1ecd04090728fef6d092a7ceb62c5",
+      "testdata/upstream/delete/patch.bin": "4ebad7cdabae57ae455e00962f888be3159371890fe18e70a7dd438d6af05255",
+      "testdata/upstream/identical/new.bin": "6bc14bdc4517a7a682c6910de2e2946eb8e1ecd04090728fef6d092a7ceb62c5",
+      "testdata/upstream/identical/old.bin": "6bc14bdc4517a7a682c6910de2e2946eb8e1ecd04090728fef6d092a7ceb62c5",
+      "testdata/upstream/identical/patch.bin": "319172215bbb04c6c91106a168c2dd2912dccb7525cd1b1e9f9ea894bbd831e8",
+      "testdata/upstream/insert/new.bin": "c113e1e46bfafc9685a8ed02623f9293695e89d453b5e3b3e5b2459e3bbadc36",
+      "testdata/upstream/insert/old.bin": "6bc14bdc4517a7a682c6910de2e2946eb8e1ecd04090728fef6d092a7ceb62c5",
+      "testdata/upstream/insert/patch.bin": "8dbcab7dfff3fdfbef1bdab6e07acf6c158682bb70a4f4fa9e6742bda839cd1f",
+      "testdata/upstream/manifest.json": "3fc11ecfd5db6c1921d0197badd24f7e8f9e83d5b39e6da4fc5fc73af0e3db60",
+      "testdata/upstream/new-empty/new.bin": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "testdata/upstream/new-empty/old.bin": "6bc14bdc4517a7a682c6910de2e2946eb8e1ecd04090728fef6d092a7ceb62c5",
+      "testdata/upstream/new-empty/patch.bin": "82d27a0bd77c668d2ab2c3ca96aeffae567bd4c8313786c610704410bf2dc42e",
+      "testdata/upstream/old-empty/new.bin": "3454c7ec1e02edce0fe7f4efe362651fbb457bc6d62fdd7a2f8001611bf23cf0",
+      "testdata/upstream/old-empty/old.bin": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "testdata/upstream/old-empty/patch.bin": "8ff6ff724280ef7806814b01b6b3e299e578cdfe00e176fe5f8733d7a1ee104b",
+      "testdata/upstream/periodic/new.bin": "b2f3ef47b023f59acd86772d8a7cad91b9b549bb9a54a8a4914709af8a269647",
+      "testdata/upstream/periodic/old.bin": "c932bc6640bc000b14e0735018f19fa8739a62ef5b70df92bf3af8c234afaf74",
+      "testdata/upstream/periodic/patch.bin": "c31c566b3208aee59fdedfc809679294daeb60dfb2b031487b22ee17f7d003ee",
+      "testdata/upstream/prepend/new.bin": "56a5c83a71a41d14e3a1f1c7dca9315a1361318e6d8877a7ad04d3fb3ccbb663",
+      "testdata/upstream/prepend/old.bin": "6bc14bdc4517a7a682c6910de2e2946eb8e1ecd04090728fef6d092a7ceb62c5",
+      "testdata/upstream/prepend/patch.bin": "dd013587bb034497071b9710428aa657c4afa30159adde603df58908341cae8e",
+      "testdata/upstream/replace/new.bin": "5719410b795aeecf690587cb18dfa92f4bc7c7c9c46662343faaa6dee218fa79",
+      "testdata/upstream/replace/old.bin": "6bc14bdc4517a7a682c6910de2e2946eb8e1ecd04090728fef6d092a7ceb62c5",
+      "testdata/upstream/replace/patch.bin": "cd22b7f1c8031af0f84f610b967771311791007e33914b64d8ef81cfd58a7c6b",
+      "testdata/upstream/seeded-random/new.bin": "ec7c875b594819312410388bd93805e989e4dba1cc68f793ece69352bfe8d6f5",
+      "testdata/upstream/seeded-random/old.bin": "3f1dc5983729c3316f87f580ef435e68507120b7bde1a52f15dbbc93169751d8",
+      "testdata/upstream/seeded-random/patch.bin": "b48d5bd790a5a37b507603284b501f21a6c15c110e96c6cabecd1867f705927b",
+      "tools/oracle/BSDIFF-LICENSE.txt": "39651b55d38b7a9de2cf56dc10cfca65f259dd7803e9c8688f91fb5becb0e5b8",
+      "tools/oracle/BZIP2-LICENSE.txt": "67fc67381a47fe66f07b5f6705472d26314e6bcdf949f92c2cdde64521bbfdce",
+      "tools/oracle/README.md": "8ff5ff21a6ad9f021d8b6d9d1f4f3727576f0e5b513d339c09cefae85bdb7942",
+      "tools/oracle/build.py": "1ec2a473c22efe7c98a5e3b152cad64510e720b79399324a4931d81a1477d579",
+      "tools/oracle/download-record.json": "db3501e03ce8ed4cc7cd4375b2b37baf60f94075d4d8db5adaf5c883c88c534c",
+      "tools/oracle/upstream.lock.json": "5309cae0d696dabaf51f6bf3770189ef022a03b66579a3415acc3e6ac28a6dca",
+      "tools/oracle/verified-build.json": "c9a4f33d31932fe7f122c22535c34d1b9610703157d4cff50c1a382bbb9a09ea"
+    },
+    "dependencies": {
+      "moonbitstack/moonbase": {
+        "version": "0.4.2",
+        "manifest_sha256": "611cfea0a2debf31074691b34754ca0f6b925c813e9087a2389cbadddc2e7178",
+        "license_sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+      },
+      "moonbitstack/mooncrypt": {
+        "version": "0.4.7",
+        "manifest_sha256": "27b3ffb6ba0c479a2583ddc6ddc73dc9b0dd0be2be8ae5ac9cae561e8eb76a6a",
+        "license_sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+      },
+      "moonbitstack/moondate": {
+        "version": "0.1.0",
+        "manifest_sha256": "3cef11ee14648df4b469fb0d2f57b3bdfdd6f42276b8cd7b08079f29eebf60ba",
+        "license_sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+      },
+      "moonbitstack/moonseed": {
+        "version": "0.1.0",
+        "manifest_sha256": "4b3ea9ac9af66c461a07ef7a170cf57b0a157dac5f3d93ab79d9424f7e0d5547",
+        "license_sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+      },
+      "moonbitstack/moonzip": {
+        "version": "0.3.5",
+        "manifest_sha256": "23fe3e06e0b7825dd7c2ea9522eb1c5cb918a5ac6b5ca9c261625888a6d7761b",
+        "license_sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+      }
+    },
+    "toolchain": "moon 0.1.20261102 (ea07287 2026-11-02)\nmoonc v0.10.19+bee578715 (2026-11-02)\nmoonrun 0.1.20261102 (ea07287 2026-11-02)",
+    "commands": [
+      {
+        "command": [
+          "moon",
+          "version",
+          "--all"
+        ],
+        "exit_code": 0
+      },
+      {
+        "command": [
+          "moon",
+          "update"
+        ],
+        "exit_code": 0
+      },
+      {
+        "command": [
+          "moon",
+          "fmt",
+          "--check"
+        ],
+        "exit_code": 0
+      },
+      {
+        "command": [
+          "moon",
+          "info"
+        ],
+        "exit_code": 0
+      },
+      {
+        "command": [
+          "moon",
+          "package",
+          "--list"
+        ],
+        "exit_code": 0
+      }
+    ]
+  },
+  "public_package": {
+    "source_sha": "e39e66f1270c0f4e37cb14fcfc5739edc46d1798",
+    "version": "0.4.0",
+    "package_sha256": "2e22054e65ebcb862e67bacb52126b24bdffd34a35564aa533edebf8868fc66d",
+    "package_size": 500504,
+    "members": 236,
+    "metadata_url": "https://mooncakes.io/api/v0/manifest/BigSaltyMan/moonbsdiff/0.4.0",
+    "package_url": "https://download.mooncakes.io/user/BigSaltyMan/moonbsdiff/0.4.0.zip",
+    "metadata": {
+      "module": "BigSaltyMan/moonbsdiff",
+      "version": "0.4.0",
+      "yanked": false,
+      "yanked_reason": null,
+      "metadata": {
+        "name": "BigSaltyMan/moonbsdiff",
+        "version": "0.4.0",
+        "readme": "README.md",
+        "repository": "https://github.com/BigSaltyMan/moonBSDiff",
+        "license": "BSD-2-Clause",
+        "description": "BSDIFF40 binary diff and patch library with bounded resources and a native CLI",
+        "deps": {
+          "moonbitstack/moonzip": "0.3.5",
+          "moonbitstack/mooncrypt": "0.4.7"
+        },
+        "checksum": "2e22054e65ebcb862e67bacb52126b24bdffd34a35564aa533edebf8868fc66d",
+        "created_at": "2026-11-16T13:42:50.675103+00:00"
+      },
+      "dependents": [],
+      "latest_version": "0.4.0",
+      "build_status": "success",
+      "versions": [
+        {
+          "version": "0.4.0",
+          "yanked": false,
+          "yanked_reason": null
+        },
+        {
+          "version": "0.1.0",
+          "yanked": false,
+          "yanked_reason": null
+        }
+      ],
+      "name": "BigSaltyMan/moonbsdiff/0.4.0",
+      "downloads": 15,
+      "has_package": false
+    }
+  },
+  "windows_candidate_consumer": {
+    "schema": 1,
+    "mode": "candidate",
+    "source_sha": "e39e66f1270c0f4e37cb14fcfc5739edc46d1798",
+    "package_sha256": "2e22054e65ebcb862e67bacb52126b24bdffd34a35564aa533edebf8868fc66d",
+    "package_size": 500504,
+    "candidate_sha256": "2e22054e65ebcb862e67bacb52126b24bdffd34a35564aa533edebf8868fc66d",
+    "member_bytes_equal": true,
+    "targets": [
+      "native",
+      "js",
+      "wasm-gc"
+    ],
+    "byte_equal": true,
+    "toolchain": "moon 0.1.20261102 (ea07287 2026-11-02)\nmoonc v0.10.19+bee578715 (2026-11-02)\nmoonrun 0.1.20261102 (ea07287 2026-11-02)",
+    "dependency_tree": "releasecheck/consumer@0.1.0 (local <external>\\consumer) [workspace member]:\n└─ BigSaltyMan/moonbsdiff -> BigSaltyMan/moonbsdiff@0.4.0 (local <external>\\candidate) [workspace member]\n   ├─ moonbitstack/mooncrypt -> moonbitstack/mooncrypt@0.4.7\n   │  ├─ moonbitstack/moonbase -> moonbitstack/moonbase@0.4.2\n   │  ├─ moonbitstack/moondate -> moonbitstack/moondate@0.1.0\n   │  └─ moonbitstack/moonseed -> moonbitstack/moonseed@0.1.0\n   └─ moonbitstack/moonzip -> moonbitstack/moonzip@0.3.5\n      ├─ moonbitstack/moonbase -> moonbitstack/moonbase@0.4.2\n      └─ moonbitstack/mooncrypt -> moonbitstack/mooncrypt@0.4.7 (*)\n",
+    "commands": [
+      {
+        "command": [
+          "moon",
+          "version",
+          "--all"
+        ],
+        "exit_code": 0
+      },
+      {
+        "command": [
+          "moon",
+          "update"
+        ],
+        "exit_code": 0
+      },
+      {
+        "command": [
+          "moon",
+          "check",
+          "--target",
+          "native",
+          "--deny-warn"
+        ],
+        "exit_code": 0
+      },
+      {
+        "command": [
+          "moon",
+          "build",
+          "--target",
+          "native"
+        ],
+        "exit_code": 0
+      },
+      {
+        "command": [
+          "moon",
+          "run",
+          ".",
+          "--target",
+          "native"
+        ],
+        "exit_code": 0
+      },
+      {
+        "command": [
+          "moon",
+          "check",
+          "--target",
+          "js",
+          "--deny-warn"
+        ],
+        "exit_code": 0
+      },
+      {
+        "command": [
+          "moon",
+          "build",
+          "--target",
+          "js"
+        ],
+        "exit_code": 0
+      },
+      {
+        "command": [
+          "moon",
+          "run",
+          ".",
+          "--target",
+          "js"
+        ],
+        "exit_code": 0
+      },
+      {
+        "command": [
+          "moon",
+          "check",
+          "--target",
+          "wasm-gc",
+          "--deny-warn"
+        ],
+        "exit_code": 0
+      },
+      {
+        "command": [
+          "moon",
+          "build",
+          "--target",
+          "wasm-gc"
+        ],
+        "exit_code": 0
+      },
+      {
+        "command": [
+          "moon",
+          "run",
+          ".",
+          "--target",
+          "wasm-gc"
+        ],
+        "exit_code": 0
+      },
+      {
+        "command": [
+          "moon",
+          "tree"
+        ],
+        "exit_code": 0
+      }
+    ]
+  },
+  "windows_registry_consumer": {
+    "schema": 1,
+    "mode": "registry",
+    "source_sha": "e39e66f1270c0f4e37cb14fcfc5739edc46d1798",
+    "package_sha256": "2e22054e65ebcb862e67bacb52126b24bdffd34a35564aa533edebf8868fc66d",
+    "package_size": 500504,
+    "candidate_sha256": "2e22054e65ebcb862e67bacb52126b24bdffd34a35564aa533edebf8868fc66d",
+    "member_bytes_equal": true,
+    "targets": [
+      "native",
+      "js",
+      "wasm-gc"
+    ],
+    "byte_equal": true,
+    "toolchain": "moon 0.1.20261102 (ea07287 2026-11-02)\nmoonc v0.10.19+bee578715 (2026-11-02)\nmoonrun 0.1.20261102 (ea07287 2026-11-02)",
+    "dependency_tree": "releasecheck/consumer@0.1.0 (local <external>\\consumer):\n└─ BigSaltyMan/moonbsdiff -> BigSaltyMan/moonbsdiff@0.4.0\n   ├─ moonbitstack/mooncrypt -> moonbitstack/mooncrypt@0.4.7\n   │  ├─ moonbitstack/moonbase -> moonbitstack/moonbase@0.4.2\n   │  ├─ moonbitstack/moondate -> moonbitstack/moondate@0.1.0\n   │  └─ moonbitstack/moonseed -> moonbitstack/moonseed@0.1.0\n   └─ moonbitstack/moonzip -> moonbitstack/moonzip@0.3.5\n      ├─ moonbitstack/moonbase -> moonbitstack/moonbase@0.4.2\n      └─ moonbitstack/mooncrypt -> moonbitstack/mooncrypt@0.4.7 (*)\n",
+    "commands": [
+      {
+        "command": [
+          "moon",
+          "version",
+          "--all"
+        ],
+        "exit_code": 0
+      },
+      {
+        "command": [
+          "moon",
+          "update"
+        ],
+        "exit_code": 0
+      },
+      {
+        "command": [
+          "moon",
+          "add",
+          "BigSaltyMan/moonbsdiff@0.4.0"
+        ],
+        "exit_code": 0
+      },
+      {
+        "command": [
+          "moon",
+          "check",
+          "--target",
+          "native",
+          "--deny-warn"
+        ],
+        "exit_code": 0
+      },
+      {
+        "command": [
+          "moon",
+          "build",
+          "--target",
+          "native"
+        ],
+        "exit_code": 0
+      },
+      {
+        "command": [
+          "moon",
+          "run",
+          ".",
+          "--target",
+          "native"
+        ],
+        "exit_code": 0
+      },
+      {
+        "command": [
+          "moon",
+          "check",
+          "--target",
+          "js",
+          "--deny-warn"
+        ],
+        "exit_code": 0
+      },
+      {
+        "command": [
+          "moon",
+          "build",
+          "--target",
+          "js"
+        ],
+        "exit_code": 0
+      },
+      {
+        "command": [
+          "moon",
+          "run",
+          ".",
+          "--target",
+          "js"
+        ],
+        "exit_code": 0
+      },
+      {
+        "command": [
+          "moon",
+          "check",
+          "--target",
+          "wasm-gc",
+          "--deny-warn"
+        ],
+        "exit_code": 0
+      },
+      {
+        "command": [
+          "moon",
+          "build",
+          "--target",
+          "wasm-gc"
+        ],
+        "exit_code": 0
+      },
+      {
+        "command": [
+          "moon",
+          "run",
+          ".",
+          "--target",
+          "wasm-gc"
+        ],
+        "exit_code": 0
+      },
+      {
+        "command": [
+          "moon",
+          "tree"
+        ],
+        "exit_code": 0
+      }
+    ]
+  },
+  "linux_ci_candidate": {
+    "job_id": 133335031873,
+    "targets": [
+      "native",
+      "js",
+      "wasm-gc"
+    ],
+    "byte_equal": true,
+    "package_sha256": "51e585a81b006dec8d089ed2f15db7109e161f93d63d96a886e8defe36e7acc5",
+    "scope": "CI export/package; not the public package container identity"
+  },
+  "linux_registry_consumer": {
+    "status": "blocked",
+    "stage": "moon update / fresh registry index clone",
+    "exit_code": 128,
+    "error": "Recv failure: Connection reset by peer",
+    "process_scoped_http_1_1_retry": true,
+    "targets_executed": []
+  },
+  "github": {
+    "source_sha": "e39e66f1270c0f4e37cb14fcfc5739edc46d1798",
+    "run_id": 43877720043,
+    "tag": "v0.4.0",
+    "tag_object_sha": "9bea628099f58e20a75310f9ee80676240c67e85",
+    "release_url": "https://github.com/BigSaltyMan/moonBSDiff/releases/tag/v0.4.0",
+    "release_id": 447103658,
+    "draft": false,
+    "prerelease": false,
+    "assets": [
+      {
+        "name": "build-info.json",
+        "url": "https://github.com/BigSaltyMan/moonBSDiff/releases/download/v0.4.0/build-info.json",
+        "size_bytes": 7089,
+        "sha256": "a94a85a273d23a713e4d7f81b6cead47d32fff317a284a71968cb050ea37df7c",
+        "byte_equal_ci": true
+      },
+      {
+        "name": "moonbsdiff-0.4.0-linux-x86_64.tar.gz",
+        "url": "https://github.com/BigSaltyMan/moonBSDiff/releases/download/v0.4.0/moonbsdiff-0.4.0-linux-x86_64.tar.gz",
+        "size_bytes": 381247,
+        "sha256": "dd2242550f5cfc0f95b65270a58f38a4edd224987e03cab8f94b8a6dd0c4305f",
+        "byte_equal_ci": true
+      },
+      {
+        "name": "moonbsdiff-0.4.0-windows-x86_64.zip",
+        "url": "https://github.com/BigSaltyMan/moonBSDiff/releases/download/v0.4.0/moonbsdiff-0.4.0-windows-x86_64.zip",
+        "size_bytes": 262237,
+        "sha256": "b1534a22c38e2ae5eb6ca576ffba92eb5b4e97cf014a85f013422cf78b4fef8e",
+        "byte_equal_ci": true
+      },
+      {
+        "name": "SHA256SUMS",
+        "url": "https://github.com/BigSaltyMan/moonBSDiff/releases/download/v0.4.0/SHA256SUMS",
+        "size_bytes": 287,
+        "sha256": "9e8bcd49cf3965d4b22c46919301232d138e1ea4d96a88c5e9b9db2d10b252c9",
+        "byte_equal_ci": true
+      }
+    ],
+    "mooncakes_0_4_0_published": true
+  },
+  "cli_build_info": {
+    "schema_version": 1,
+    "version": "0.4.0",
+    "source_sha": "e39e66f1270c0f4e37cb14fcfc5739edc46d1798",
+    "distributions": [
+      {
+        "schema_version": 1,
+        "version": "0.4.0",
+        "source_sha": "e39e66f1270c0f4e37cb14fcfc5739edc46d1798",
+        "platform": "linux",
+        "architecture": "x86_64",
+        "build_mode": "native release",
+        "build_command": "python scripts/build_cli.py --release",
+        "toolchain": [
+          "moon 0.1.20261102 (ea07287 2026-11-02)",
+          "moonc v0.10.19+bee578715 (2026-11-02)",
+          "moonrun 0.1.20261102 (ea07287 2026-11-02)"
+        ],
+        "dependencies": {
+          "moonbase": "0.4.2",
+          "mooncrypt": "0.4.7",
+          "moondate": "0.1.0",
+          "moonseed": "0.1.0",
+          "moonzip": "0.3.5"
+        },
+        "runtime": {
+          "format": "ELF64 x86_64",
+          "interpreter": "/lib64/ld-linux-x86-64.so.2",
+          "needed": [
+            "libc.so.6"
+          ],
+          "required_glibc_symbols": [
+            "2.2.5",
+            "2.3",
+            "2.3.4",
+            "2.4",
+            "2.14",
+            "2.17",
+            "2.25",
+            "2.33",
+            "2.34"
+          ],
+          "highest_required_glibc_symbol": "GLIBC_2.34",
+          "compiler": "cc (Ubuntu 15.2.0-16ubuntu1) 15.2.0",
+          "build_libc": "ldd (Ubuntu GLIBC 2.43-2ubuntu2.4) 2.43",
+          "os_release": "PRETTY_NAME=\"Ubuntu 26.04.1 LTS\"\nNAME=\"Ubuntu\"\nVERSION_ID=\"26.04\"\nVERSION=\"26.04.1 LTS (Resolute Raccoon)\"\nVERSION_CODENAME=resolute\nID=ubuntu\nID_LIKE=debian\nHOME_URL=\"https://www.ubuntu.com/\"\nSUPPORT_URL=\"https://help.ubuntu.com/\"\nBUG_REPORT_URL=\"https://bugs.launchpad.net/ubuntu/\"\nPRIVACY_POLICY_URL=\"https://www.ubuntu.com/legal/terms-and-policies/privacy-policy\"\nUBUNTU_CODENAME=resolute\nLOGO=ubuntu-logo\n",
+          "runtime_scope": "Dynamically linked; symbol requirement is not a tested minimum distribution guarantee"
+        },
+        "executable": {
+          "name": "moonbsdiff",
+          "size_bytes": 873440,
+          "sha256": "36b56dd8f42ace0c000d1827894f020aba00f9221edb157c56ccbfc5ee0242d0"
+        },
+        "runner_image": "ubuntu26",
+        "runner_image_version": "20261111.196.1",
+        "host": {
+          "system": "Linux",
+          "release": "7.0.0-1019-azure",
+          "architecture": "x86_64"
+        },
+        "licenses": {
+          "LICENSE": "f06c02ed4ca7ed4c494b8d5f5eccbdfb046f934be3957cb82521adbd755933c3",
+          "BSDIFF-LICENSE.txt": "39651b55d38b7a9de2cf56dc10cfca65f259dd7803e9c8688f91fb5becb0e5b8",
+          "Apache-2.0.txt": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+          "core-NOTICE.txt": "a20a618afc132a32e340f567fc2fb4296cfbefda7284422b6085afcd394e478d",
+          "SDK-CREDITS.txt": "7c60a54ee90099da44c35e4f4830c6cf32470f4749f0b508f4d98d592fece99a"
+        },
+        "registry_publication_verified_by_build": false,
+        "bit_reproducibility_claimed": false,
+        "archive": {
+          "name": "moonbsdiff-0.4.0-linux-x86_64.tar.gz",
+          "size_bytes": 381247,
+          "sha256": "dd2242550f5cfc0f95b65270a58f38a4edd224987e03cab8f94b8a6dd0c4305f"
+        },
+        "validation": {
+          "help": true,
+          "exact_version": "0.4.0",
+          "commands": [
+            [
+              "diff",
+              "--manifest",
+              "update.json",
+              "old.bin",
+              "new.bin",
+              "update.patch"
+            ],
+            [
+              "patch",
+              "--manifest",
+              "update.json",
+              "old.bin",
+              "update.patch",
+              "restored.bin"
+            ]
+          ],
+          "byte_equal": true,
+          "stream_json_complete": true,
+          "new_sha256": "0ebd3565334ae7ea8506c274a03ecbec59d38ceef1191d7fd5fb4d1d08cde7d2",
+          "restored_sha256": "0ebd3565334ae7ea8506c274a03ecbec59d38ceef1191d7fd5fb4d1d08cde7d2",
+          "sdk_path_removed": true,
+          "executable_sha256": "36b56dd8f42ace0c000d1827894f020aba00f9221edb157c56ccbfc5ee0242d0"
+        }
+      },
+      {
+        "schema_version": 1,
+        "version": "0.4.0",
+        "source_sha": "e39e66f1270c0f4e37cb14fcfc5739edc46d1798",
+        "platform": "windows",
+        "architecture": "x86_64",
+        "build_mode": "native release",
+        "build_command": "python scripts/build_cli.py --release",
+        "toolchain": [
+          "moon 0.1.20261102 (ea07287 2026-11-02)",
+          "moonc v0.10.19+bee578715 (2026-11-02)",
+          "moonrun 0.1.20261102 (ea07287 2026-11-02)"
+        ],
+        "dependencies": {
+          "moonbase": "0.4.2",
+          "mooncrypt": "0.4.7",
+          "moondate": "0.1.0",
+          "moonseed": "0.1.0",
+          "moonzip": "0.3.5"
+        },
+        "runtime": {
+          "format": "PE32+ x86_64",
+          "dll_imports": [
+            "KERNEL32.dll",
+            "SHELL32.dll",
+            "bcrypt.dll",
+            "dbghelp.dll"
+          ],
+          "compiler": "Microsoft (R) C/C++ Optimizing Compiler Version 19.51.36260 for x64",
+          "runtime_scope": "Tested on this Windows runner; no universal minimum Windows version claimed"
+        },
+        "executable": {
+          "name": "moonbsdiff.exe",
+          "size_bytes": 521728,
+          "sha256": "f9e03403c8fbd64906f91f6f0d7e7257e6a358bc4980d31a2b253aedb21cd9ed"
+        },
+        "runner_image": "win25-vs2026",
+        "runner_image_version": "20261103.298.1",
+        "host": {
+          "system": "Windows",
+          "release": "2025Server",
+          "architecture": "AMD64"
+        },
+        "licenses": {
+          "LICENSE": "7ad2ab4ab6a09a1ff0e75dd19d78c56be7e807cb3538246b6b5ac5ea802d018b",
+          "BSDIFF-LICENSE.txt": "39651b55d38b7a9de2cf56dc10cfca65f259dd7803e9c8688f91fb5becb0e5b8",
+          "Apache-2.0.txt": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+          "core-NOTICE.txt": "a20a618afc132a32e340f567fc2fb4296cfbefda7284422b6085afcd394e478d",
+          "SDK-CREDITS.txt": "158118856d3993c7e0e1ceff2ef5e640061d16da1ba0a2e78a71017c37aad6a1"
+        },
+        "registry_publication_verified_by_build": false,
+        "bit_reproducibility_claimed": false,
+        "archive": {
+          "name": "moonbsdiff-0.4.0-windows-x86_64.zip",
+          "size_bytes": 262237,
+          "sha256": "b1534a22c38e2ae5eb6ca576ffba92eb5b4e97cf014a85f013422cf78b4fef8e"
+        },
+        "validation": {
+          "help": true,
+          "exact_version": "0.4.0",
+          "commands": [
+            [
+              "diff",
+              "--manifest",
+              "update.json",
+              "old.bin",
+              "new.bin",
+              "update.patch"
+            ],
+            [
+              "patch",
+              "--manifest",
+              "update.json",
+              "old.bin",
+              "update.patch",
+              "restored.bin"
+            ]
+          ],
+          "byte_equal": true,
+          "stream_json_complete": true,
+          "new_sha256": "0ebd3565334ae7ea8506c274a03ecbec59d38ceef1191d7fd5fb4d1d08cde7d2",
+          "restored_sha256": "0ebd3565334ae7ea8506c274a03ecbec59d38ceef1191d7fd5fb4d1d08cde7d2",
+          "sdk_path_removed": true,
+          "executable_sha256": "f9e03403c8fbd64906f91f6f0d7e7257e6a358bc4980d31a2b253aedb21cd9ed"
+        }
+      }
+    ],
+    "ci_run_id": "43877720043",
+    "registry_publication_verified_by_build": false
+  },
+  "history_preserved": {
+    "v0.1.0": {
+      "tag_object_sha": "9e7fa8349b526ad1fecda7bc24d3d54d85a641e9",
+      "release_id": 442932236,
+      "assets_unchanged": true
+    },
+    "v0.2.0": {
+      "tag_object_sha": "34e914218811071cbf7df79add6ac88fbc47ea65",
+      "release_id": 445317414,
+      "assets_unchanged": true
+    },
+    "mooncakes_0_1_0_checksum": "d16972902120bc971a118f927cd15612cd0aaf79cc0b48bf8561c9604a8fab63",
+    "registry_index": {
+      "origin": "https://mooncakes.io/git/index",
+      "commit": "9414e0120cb6b041041f92a9e88fcc6c623cc9d5",
+      "path": "user/BigSaltyMan/moonbsdiff.index",
+      "versions": [
+        {
+          "deps": {
+            "moonbitstack/moonzip": "0.3.5"
+          },
+          "name": "BigSaltyMan/moonbsdiff",
+          "readme": "README.md",
+          "yanked": false,
+          "license": "BSD-2-Clause",
+          "version": "0.1.0",
+          "checksum": "d16972902120bc971a118f927cd15612cd0aaf79cc0b48bf8561c9604a8fab63",
+          "created_at": "2026-11-12T07:51:06.024943+00:00",
+          "repository": "https://github.com/BigSaltyMan/moonBSDiff",
+          "description": "BSDIFF40 binary diff and patch library with bounded resources and a native CLI",
+          "yanked_reason": null
+        },
+        {
+          "deps": {
+            "moonbitstack/moonzip": "0.3.5",
+            "moonbitstack/mooncrypt": "0.4.7"
+          },
+          "name": "BigSaltyMan/moonbsdiff",
+          "readme": "README.md",
+          "yanked": false,
+          "license": "BSD-2-Clause",
+          "version": "0.4.0",
+          "checksum": "2e22054e65ebcb862e67bacb52126b24bdffd34a35564aa533edebf8868fc66d",
+          "created_at": "2026-11-16T13:42:50.675103+00:00",
+          "repository": "https://github.com/BigSaltyMan/moonBSDiff",
+          "description": "BSDIFF40 binary diff and patch library with bounded resources and a native CLI",
+          "yanked_reason": null
+        }
+      ]
+    }
+  },
+  "local_validation_scope": "Candidate/package and external consumers, changed release checks, version-specific Wasm direct compile only; no local old full matrix"
+}
