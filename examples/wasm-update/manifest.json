@@ -46,7 +46,18 @@
         "size": 3962,
         "sha256": "c9eeb08749a391adbb92301b1ec0a0b85cf7e7dce11f99f14bbd4c0679edd594"
       }
+    },
+    "0.4.0": {
+      "v1": {
+        "size": 3962,
+        "sha256": "3f50e88def3e5b1b6b1b3d508925a822a6e1a69f0e3bd031d0270bfdc685d2e5"
+      },
+      "v2": {
+        "size": 3962,
+        "sha256": "9333c8f62a8db19d75af106be4114a4b24627841641d9684446622ff0e596ea7"
+      }
     }
   },
-  "version_0_2_0_origin": "Independent direct Linux/WSL compilation, same pinned compiler/flags; each output differs from verified 0.1.0 bytes only at offset 3888 in custom name section (module @0.1.0 -> @0.2.0). No code/data section change and no diff/apply used to derive expectations. Original expected field retains Commit 14/15 history."
+  "version_0_2_0_origin": "Independent direct Linux/WSL compilation, same pinned compiler/flags; each output differs from verified 0.1.0 bytes only at offset 3888 in custom name section (module @0.1.0 -> @0.2.0). No code/data section change and no diff/apply used to derive expectations. Original expected field retains Commit 14/15 history.",
+  "version_0_4_0_origin": "Independent direct WSL native-host compilation with the pinned compiler/wasm-gc --release --strip flags; replacing the single @0.4.0 custom-name string with @0.2.0 reproduces the fixed 0.2.0 whole-file hash for each module. No diff/apply or changed module source used to derive expectations."
 }
