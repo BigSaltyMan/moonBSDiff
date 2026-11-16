@@ -1,6 +1,12 @@
 # MoonBSDiff
 
-**0.4.0 Unreleased source:** explicit native `patch --stream` now reads, decodes
+**0.4.0 release:** [release scope, distribution identities and remaining limits](docs/release-0.4.0.md).
+Library and Windows/Linux CLI are prepared from one source commit; use the registry
+and formal Release linked there to confirm actual publication. The 0.3.0 source
+work is included in 0.4.0, without a separate 0.3.0 release. Historical 0.1.0 and
+0.2.0 package/tag/assets remain unchanged.
+
+**0.4.0 source:** explicit native `patch --stream` now reads, decodes
 and writes bounded segments before safe no-replace delivery. See the
 [file application design and validation](docs/file-apply.md). This path rejects
 `--manifest`, does not promise input snapshots or process peak memory, and is
@@ -12,7 +18,7 @@ output. Bytes restored are not overall completion; block internals are not
 immediately interruptible. See the [event and cancellation contract](docs/file-apply.md#progress-and-cooperative-cancellation-commit-27).
 
 
-**0.3.0 Unreleased source policies:** [measured explicit 256 KiB and 1 MiB
+**Included 0.3.0 source policies:** [measured explicit 256 KiB and 1 MiB
 generation/application configurations](docs/generation-scales.md) are available.
 Each scale passed sparse/periodic/random native-release cases and a public CLI
 random replay. The 64 KiB generation default is unchanged; independent work,
@@ -29,9 +35,9 @@ small public-API example.
 Source-only [generation preferences](docs/generation-options.md) now select
 bzip2 levels 1..9 through DiffOptions, ordinary/indexed option-aware APIs, or
 `diff --compression-level`. Default calls remain level 9 and Limits remain
-resource policy. This 0.3.0 Unreleased option is absent from published CLI 0.2.0.
+resource policy. This option is included in 0.4.0 and absent from historical CLI 0.2.0.
 
-MoonBSDiff is a MoonBit reference port of BSDiff 4.3 for binary diffs and patches. The current stage implements structured errors, `Limits::validate`, internal BSDIFF40 integer/envelope parsing, and a private bounded bzip2 adapter. Public diff and apply APIs now generate and restore strict BSDIFF40 patches. Download the [Windows/Linux CLI 0.2.0](docs/cli-install.md) from the GitHub CLI release (Mooncakes 0.2.0 is not published); see [CLI build and file contracts](docs/cli.md). Compression uses moonzip 0.3.5 at level 9; strict bounded decoding uses its attributed, adapted sources under `internal/bzip2/`.
+MoonBSDiff is a MoonBit reference port of BSDiff 4.3 for binary diffs and patches. The current stage implements structured errors, `Limits::validate`, internal BSDIFF40 integer/envelope parsing, and a private bounded bzip2 adapter. Public diff and apply APIs now generate and restore strict BSDIFF40 patches. See the [Windows/Linux CLI download instructions](docs/cli-install.md) and [0.4.0 publication identities](docs/release-0.4.0.md); see [CLI build and file contracts](docs/cli.md). Compression uses moonzip 0.3.5 at level 9; strict bounded decoding uses its attributed, adapted sources under `internal/bzip2/`.
 
 The `Limits` fields for old, new, patch and output buffer sizes are byte counts in 1..2147483647, bounded for Int indexing. `max_decompressed_bytes` is an aggregate byte count, `max_control_instructions` counts instructions, and `max_sort_work` / `max_match_work` count algorithm-defined work units; each is a positive Int64. Sorting visits accumulate across index rounds; matching/generation visits accumulate across scan, raw encoding, compression-wrapper copies and final assembly; see [generation resources](docs/generation-resources.md). Limits::for_apply() supplies conservative application defaults: old/new/output 1 MiB each, patch 64 KiB, total decompression 2 MiB and 16384 instructions. Sorting/matching fields are unused positive placeholders, not generation defaults; use the separate measured Limits::for_diff() policy for generation. Validation means only that a configuration is legal, not that a complete patch operation has runtime resource protection. The private decoder now enforces per-call and shared decompression budgets. No cross-field relationships are imposed.
 

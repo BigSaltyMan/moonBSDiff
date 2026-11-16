@@ -1,0 +1,33 @@
+///|
+fn main {
+  let old = b"MoonBSDiff\x00version 1\xff"
+  let expected = b"MoonBSDiff\x00version 2!\xff"
+  let patch = match
+    @moonbsdiff.diff(old, expected, @moonbsdiff.Limits::for_diff()) {
+    Ok(value) => value
+    Err(_) => abort("diff failed")
+  }
+  let restored = match
+    @moonbsdiff.apply(old, patch, @moonbsdiff.Limits::for_apply()) {
+    Ok(value) => value
+    Err(_) => abort("apply failed")
+  }
+  if restored != expected {
+    abort("restored bytes differ from predefined new bytes")
+  }
+  let index = @moonbsdiff.DiffIndex::build(old, @moonbsdiff.Limits::for_diff()).unwrap()
+  let options : @moonbsdiff.DiffOptions = {compression_level:1}
+  options.validate().unwrap()
+  for target in [expected,b"second target\x00\xff"] {
+    let indexed=index.diff_with_options(target,@moonbsdiff.Limits::for_diff(),options).unwrap()
+    if @moonbsdiff.apply(old,indexed,@moonbsdiff.Limits::for_apply()).unwrap() != target {abort("indexed consumer mismatch")}
+    let info=@moonbsdiff.inspect_header_prefix(indexed[:32].to_owned(),indexed.length().to_int64(),131072L).unwrap()
+    if info.new_bytes != target.length().to_int64() {abort("prefix consumer mismatch")}
+  }
+  let chosen=@moonbsdiff.diff_with_options(old,expected,@moonbsdiff.Limits::for_diff(),options).unwrap()
+  if @moonbsdiff.apply(old,chosen,@moonbsdiff.Limits::for_apply()).unwrap() != expected {abort("option consumer mismatch")}
+  println("old bytes: \{old.length()}")
+  println("new bytes: \{expected.length()}")
+  println("patch bytes: \{patch.length()}")
+  println("restored bytes equal predefined new bytes: PASS")
+}

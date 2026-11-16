@@ -147,12 +147,16 @@ def smoke(exe, folder, expected_version):
     for args in commands:
         require(not run([str(exe), *args], cwd=folder, env=env), 'unexpected successful-operation stdout')
     require((folder / 'restored.bin').read_bytes() == new, 'archive roundtrip mismatch')
+    streamed = subprocess.run([str(exe), 'patch', '--stream', '--progress', 'json', 'old.bin', 'update.patch', 'streamed.bin'], cwd=folder,env=env,capture_output=True,timeout=30)
+    require(streamed.returncode==0 and not streamed.stdout,'archived stream execution failed')
+    events=[json.loads(line) for line in streamed.stderr.decode('utf8').splitlines()]
+    require(events and events[-1]['event']=='complete' and events[-1]['output_committed'] is True and (folder/'streamed.bin').read_bytes()==new,'archived stream result differs')
     manifest = json.loads((folder / 'update.json').read_bytes())
     require(manifest['producer']['version'] == expected_version, 'wrong manifest producer version')
     for key, raw in [('old', old), ('new', new), ('patch', (folder / 'update.patch').read_bytes())]:
         require(manifest[key] == dict(size_bytes=str(len(raw)), sha256=sha(raw)), 'manifest identity mismatch')
     require((folder / 'old.bin').read_bytes() == old and (folder / 'new.bin').read_bytes() == new, 'input changed')
-    return dict(help=True, exact_version=expected_version, commands=commands, byte_equal=True,
+    return dict(help=True, exact_version=expected_version, commands=commands, byte_equal=True, stream_json_complete=True,
                 new_sha256=sha(new), restored_sha256=sha((folder / 'restored.bin').read_bytes()),
                 sdk_path_removed=True, executable_sha256=sha(exe.read_bytes()))
 
@@ -168,7 +172,7 @@ def main():
     dirty = run(git + ['status', '--porcelain', '--untracked-files=no'], cwd=ROOT)
     require(not dirty, 'tracked source is not clean:\n' + dirty)
     require(not os.environ.get('GITHUB_SHA') or os.environ['GITHUB_SHA'] == source, 'workflow/source SHA mismatch')
-    require(version() == '0.2.0', 'this release entrypoint is for CLI 0.2.0')
+    require(re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+', version()), 'invalid distribution version')
     sdk = pathlib.Path(os.environ['MOON_HOME']) if os.environ.get('MOON_HOME') else pathlib.Path(shutil.which('moon')).resolve().parent.parent
     toolchain = run(['moon', 'version', '--all'], cwd=ROOT)
     require('moon 0.1.20261102 (ea07287 2026-11-02)' in toolchain and 'moonc v0.10.19+bee578715' in toolchain, 'wrong SDK')
@@ -208,7 +212,7 @@ def main():
                 runner_image=os.environ.get('ImageOS'), runner_image_version=os.environ.get('ImageVersion'),
                 host=dict(system=platform.system(), release=platform.release(), architecture=platform.machine()),
                 licenses={name: sha(raw) for name, raw in licenses.items()},
-                mooncakes_0_2_0_published=False, bit_reproducibility_claimed=False)
+                registry_publication_verified_by_build=False, bit_reproducibility_claimed=False)
     files = {exe_name: exe.read_bytes(), **licenses,
              'THIRD-PARTY.txt': ('\n'.join(attribution) + '\n').encode(),
              'build-source.json': (json.dumps(info, indent=2) + '\n').encode(),
@@ -222,8 +226,8 @@ def main():
                             'Linux prefers O_TMPFILE+/proc; guarded local-ext fallback requires protected parent permissions.\n'
                             'No universal filesystem/platform, CPU, peak-memory or durability guarantee.\n'
                             'See build-source.json for actual runtime imports and build environment.\n'
-                            'This is a GitHub CLI distribution. Mooncakes 0.2.0 is not published.\n'
-                            'https://github.com/BigSaltyMan/moonBSDiff/blob/v0.2.0/docs/cli-install.md\n').encode()}
+                            'Registry publication is verified separately from this binary build.\n'
+                            f'https://github.com/BigSaltyMan/moonBSDiff/blob/v{version()}/docs/cli-install.md\n').encode()}
     output = args.output.resolve()
     require(not output.exists(), 'output directory exists; choose a fresh distribution directory')
     output.mkdir(parents=True)

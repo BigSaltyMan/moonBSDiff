@@ -1,6 +1,10 @@
 # Changelog
 
-## 0.4.0 — Unreleased
+## 0.4.0 — 2026-11-16
+
+Publication status and exact package/CLI identities are recorded separately in
+[0.4.0 release notes](docs/release-0.4.0.md); this date identifies the prepared
+release, and does not by itself prove registry or GitHub publication.
 
 - File-only `patch --stream --progress text|json` reports real temporary-write
   bytes, final validation, commit preparation and completion on stderr. JSONL
@@ -25,7 +29,7 @@
   streaming generation and immediate/strict-time interruption are not promised.
 
 
-## 0.3.0 — Unreleased
+### Included from the unissued 0.3.0 source work
 
 - DiffOptions selects bzip2 compression level 1..9 (default 9), with ordinary and
   reusable-index diff_with_options APIs and diff-only CLI --compression-level.

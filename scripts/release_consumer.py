@@ -18,7 +18,8 @@ def main():
     version=run(['moon','version','--all']);require('moonc v0.10.19+bee578715' in version,'wrong consumer compiler')
     (project/'moon.mod').write_text('name = "releasecheck/consumer"\nversion = "0.1.0"\n',encoding='utf8')
     (project/'moon.pkg').write_bytes((ROOT/'cmd/example/moon.pkg').read_bytes())
-    (project/'main.mbt').write_bytes((ROOT/'cmd/example/main.mbt').read_bytes())
+    (project/'main.mbt').write_bytes((ROOT/('scripts/release_consumer.mbt.in' if audit.get('version','0.1.0')=='0.4.0' else 'cmd/example/main.mbt')).read_bytes())
+    target_version=audit.get('version','0.1.0')
     mode='candidate' if a.candidate else 'registry'
     if a.candidate:
         audit_zip(a.candidate,audit['files'])
@@ -32,10 +33,14 @@ def main():
     else:
         # No workspace, path override, copied dependency or prepopulated registry.
         require(not (folder/'moon.work').exists(),'registry workspace override')
-        run(['moon','update']);run(['moon','add','BigSaltyMan/moonbsdiff@0.1.0'])
-        url='https://download.mooncakes.io/user/BigSaltyMan/moonbsdiff/0.1.0.zip'
+        run(['moon','update']);run(['moon','add','BigSaltyMan/moonbsdiff@'+target_version])
+        metadata_url='https://mooncakes.io/api/v0/manifest/BigSaltyMan/moonbsdiff/'+target_version
+        with urllib.request.urlopen(metadata_url,timeout=60) as response:metadata=json.load(response)
+        require(metadata['version']==target_version and not metadata['yanked'],'registry returned another version')
+        url='https://download.mooncakes.io/user/BigSaltyMan/moonbsdiff/'+target_version+'.zip'
         with urllib.request.urlopen(url,timeout=60) as response:package=response.read()
         downloaded=folder/'registry.zip';downloaded.write_bytes(package);audit_zip(downloaded,audit['files'])
+        require(metadata['metadata']['checksum']==sha(package),'registry checksum differs')
         dependency=project/'.mooncakes/BigSaltyMan/moonbsdiff'
         require(dependency.is_dir(),'installed registry dependency missing')
         for name,digest in audit['files'].items():require((dependency/name).is_file() and sha((dependency/name).read_bytes())==digest,'installed registry bytes differ: '+name)

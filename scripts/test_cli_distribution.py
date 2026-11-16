@@ -5,6 +5,7 @@ import tempfile
 import unittest
 
 from collect_cli_release import collect
+from build_cli import version
 from package_cli import archive_bytes, sha, unpack_check
 
 
@@ -31,14 +32,14 @@ class DistributionTests(unittest.TestCase):
             for system in ('linux', 'windows'):
                 exe_name = 'moonbsdiff' if system == 'linux' else 'moonbsdiff.exe'
                 exe = b'synthetic binary, never executed'
-                info = dict(schema_version=1, version='0.2.0', platform=system, architecture='x86_64',
+                info = dict(schema_version=1, version=version(), platform=system, architecture='x86_64',
                             source_sha=source, build_mode='native release',
                             executable=dict(size_bytes=len(exe), sha256=sha(exe)))
-                name = 'moonbsdiff-0.2.0-' + system + '-x86_64' + ('.zip' if system == 'windows' else '.tar.gz')
+                name = 'moonbsdiff-'+version()+'-' + system + '-x86_64' + ('.zip' if system == 'windows' else '.tar.gz')
                 raw = archive_bytes({exe_name: exe, 'build-source.json': json.dumps(info).encode()}, system, 1)
                 (root / name).write_bytes(raw)
                 info['archive'] = dict(name=name, size_bytes=len(raw), sha256=sha(raw))
-                info['validation'] = dict(help=True, exact_version='0.2.0', byte_equal=True,
+                info['validation'] = dict(help=True, exact_version=version(), byte_equal=True, stream_json_complete=True,
                                           new_sha256='b' * 64, restored_sha256='b' * 64,
                                           executable_sha256=sha(exe))
                 (root / ('build-info-' + system + '.json')).write_text(json.dumps(info))

@@ -50,7 +50,7 @@ def main():
         license=p.parent/'LICENSE';require(license.is_file(),'dependency license missing')
         dependencies[name]=dict(version=version_dep,manifest_sha256=sha(p.read_bytes()),license_sha256=sha(license.read_bytes()))
     require(dependencies['moonbitstack/moonzip']['version']=='0.3.5','wrong compression version')
-    report=dict(schema=1,source_sha=revision,archive_sha256=sha(raw),package_sha256=sha(package.read_bytes()),package_size=package.stat().st_size,members=count,files=expected,dependencies=dependencies,toolchain='\n'.join(line.split(' /')[0] for line in version.splitlines() if line and not line.startswith('Feature flags')),commands=commands,source_directory=str(source),package_path=str(package))
+    report=dict(schema=1,source_sha=revision,module='BigSaltyMan/moonbsdiff',version=module_version,archive_sha256=sha(raw),package_sha256=sha(package.read_bytes()),package_size=package.stat().st_size,members=count,files=expected,dependencies=dependencies,toolchain='\n'.join(line.split(' /')[0] for line in version.splitlines() if line and not line.startswith('Feature flags')),commands=commands,source_directory=str(source),package_path=str(package))
     (folder/'audit.json').write_text(json.dumps(report,indent=2)+'\n',encoding='utf8')
     print('RELEASE AUDIT '+json.dumps(dict(report= str(folder/'audit.json'),source_sha=revision,package_sha256=report['package_sha256'],members=count)))
 if __name__=='__main__':main()

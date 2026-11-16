@@ -1,18 +1,17 @@
-# Downloadable MoonBSDiff CLI 0.2.0
+# Downloadable MoonBSDiff CLI 0.4.0
 
-The distribution target is the formal
-[MoonBSDiff CLI v0.2.0 release](https://github.com/BigSaltyMan/moonBSDiff/releases/tag/v0.2.0).
-The release page and its source-bound CI are the authority for publication and
-asset identity; preparing this document alone does not publish anything.
-**This is a GitHub CLI release. Mooncakes 0.2.0 has not been published.**
-The published Mooncakes 0.1.0 package and v0.1.0 source identity are unchanged.
+Use the formal [v0.4.0 Release](https://github.com/BigSaltyMan/moonBSDiff/releases/tag/v0.4.0)
+and its source-bound CI/build-info for actual publication and asset identity.
+[Release evidence](release-0.4.0.md) separates preparation from registry upload and
+public re-download. Historical CLI v0.2.0 and Mooncakes 0.1.0 remain unchanged;
+Mooncakes 0.2.0/0.3.0 are not published by this release.
 
 ## Choose, verify, and extract
 
 The release has four assets:
 
-- `moonbsdiff-0.2.0-windows-x86_64.zip`
-- `moonbsdiff-0.2.0-linux-x86_64.tar.gz`
+- `moonbsdiff-0.4.0-windows-x86_64.zip`
+- `moonbsdiff-0.4.0-linux-x86_64.tar.gz`
 - `SHA256SUMS`
 - `build-info.json`
 
@@ -24,10 +23,10 @@ Linux shell, from the directory containing those downloads:
 
 ```sh
 sha256sum --ignore-missing --check SHA256SUMS
-mkdir moonbsdiff-0.2.0
-tar -xzf moonbsdiff-0.2.0-linux-x86_64.tar.gz -C moonbsdiff-0.2.0
-./moonbsdiff-0.2.0/moonbsdiff --version
-./moonbsdiff-0.2.0/moonbsdiff --help
+mkdir moonbsdiff-0.4.0
+tar -xzf moonbsdiff-0.4.0-linux-x86_64.tar.gz -C moonbsdiff-0.4.0
+./moonbsdiff-0.4.0/moonbsdiff --version
+./moonbsdiff-0.4.0/moonbsdiff --help
 ```
 
 Check that both your archive and build-info.json report OK; `--ignore-missing`
@@ -35,7 +34,7 @@ only permits omitting the other platform's archive. Do not accept a changed or
 missing selected archive. Windows PowerShell, with all three files downloaded:
 
 ```powershell
-$asset = 'moonbsdiff-0.2.0-windows-x86_64.zip'
+$asset = 'moonbsdiff-0.4.0-windows-x86_64.zip'
 $lines = Get-Content -LiteralPath SHA256SUMS
 foreach ($name in @($asset, 'build-info.json')) {
     $entry = @($lines | Where-Object { $_.EndsWith('  ' + $name) })
@@ -43,13 +42,13 @@ foreach ($name in @($asset, 'build-info.json')) {
     $expected = $entry[0].Substring(0, 64)
     if ((Get-FileHash -LiteralPath $name -Algorithm SHA256).Hash.ToLowerInvariant() -ne $expected) { throw "Checksum mismatch: $name" }
 }
-if (Test-Path -LiteralPath moonbsdiff-0.2.0) { throw 'Extraction directory already exists' }
-Expand-Archive -LiteralPath $asset -DestinationPath moonbsdiff-0.2.0
-./moonbsdiff-0.2.0/moonbsdiff.exe --version
-./moonbsdiff-0.2.0/moonbsdiff.exe --help
+if (Test-Path -LiteralPath moonbsdiff-0.4.0) { throw 'Extraction directory already exists' }
+Expand-Archive -LiteralPath $asset -DestinationPath moonbsdiff-0.4.0
+./moonbsdiff-0.4.0/moonbsdiff.exe --version
+./moonbsdiff-0.4.0/moonbsdiff.exe --help
 ```
 
-Version must be exactly `moonbsdiff 0.2.0`. Checksums detect changed content
+Version must be exactly `moonbsdiff 0.4.0`. Checksums detect changed content
 against a trusted expected checksum; they do not authenticate a publisher if
 the archive and checksum are both replaced. Obtain trusted release identities
 through a channel appropriate to your use.
