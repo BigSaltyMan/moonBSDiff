@@ -57,7 +57,7 @@ def events(raw):
         require(set(r)=={'schema_version','event','stage','restored_bytes','total_bytes','output_committed','message'},'event fields differ')
         require(r['schema_version']==1 and isinstance(r['output_committed'],bool) and isinstance(r['message'],str),'event types differ')
         require(r['event'] in ['start','phase','progress','complete','cancelled','error'] and
-                r['stage'] in ['opening','restoring','validating','delivering','complete'],'unknown event/stage')
+                r['stage'] in ['opening','preparing','restoring','validating','delivering','complete'],'unknown event/stage')
         require(isinstance(r['restored_bytes'],str) and r['restored_bytes'].isascii() and r['restored_bytes'].isdigit(),'invalid byte count')
         require(r['total_bytes'] is None or isinstance(r['total_bytes'],str) and r['total_bytes'].isascii() and r['total_bytes'].isdigit(),'invalid total')
     return rows
@@ -101,7 +101,7 @@ class Progress(unittest.TestCase):
         self.assertEqual(rows[-1]['event'],'error');self.assertIn('Checksum',rows[-1]['message']);self.assertNotIn('complete',[r['event'] for r in rows]);self.assertFalse(self.out.exists())
         self.check_files()
     def test_parameter_errors(self):
-        for args in [['patch','--stream','--progress'],['patch','--stream','--progress','xml'],['patch','--stream','--progress','json','--progress','text'],['patch','--progress','json'],['diff','--progress','json'],['verify','--progress','text'],['inspect','--progress','json'],['patch','--stream','--progress','json','--manifest','x']]:
+        for args in [['patch','--stream','--progress'],['patch','--stream','--progress','xml'],['patch','--stream','--progress','json','--progress','text'],['patch','--progress','json'],['diff','--progress','json'],['verify','--progress','text'],['inspect','--progress','json'],['patch','--stream','--progress','json','--show-limits']]:
             r=subprocess.run([str(EXE),*args],capture_output=True,timeout=20)
             self.assertEqual(r.returncode,2);self.assertEqual(r.stdout,b'');self.assertTrue(r.stderr);self.assertFalse(self.out.exists())
 

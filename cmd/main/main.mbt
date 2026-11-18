@@ -68,13 +68,13 @@ fn print_help() -> Unit {
   println("moonbsdiff diff OLD_FILE NEW_FILE PATCH_FILE")
   println("moonbsdiff patch OLD_FILE PATCH_FILE OUTPUT_FILE")
   println(
-    "moonbsdiff patch --stream [--progress text|json] OLD_FILE PATCH_FILE OUTPUT_FILE",
+    "moonbsdiff patch --stream [--manifest MANIFEST_FILE] [--progress text|json] OLD_FILE PATCH_FILE OUTPUT_FILE",
   )
   println(
     "Progress/diagnostics go to stderr. Ctrl+C (Windows also Ctrl+Break) requests cooperative cancellation, exit 130 before commit; no rollback after commit begins.",
   )
   println(
-    "--stream: native bounded file apply; incompatible with --manifest; inputs are not snapshots.",
+    "--stream: native bounded file apply; --manifest verifies private input copies and the restored bytes.",
   )
   println("moonbsdiff --help | --version")
   println(
@@ -391,8 +391,8 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
   if progress != "none" && !stream {
     return Err("--progress requires patch --stream")
   }
-  if stream && (manifest is Some(_) || show) {
-    return Err("--stream cannot be combined with --manifest or --show-limits")
+  if stream && show {
+    return Err("--stream cannot be combined with --show-limits")
   }
   if operation == "verify" && manifest is None {
     return Err("verify requires --manifest MANIFEST_FILE")

@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Native `patch --stream --manifest` verifies private copies of both inputs
+  and hashes the temporary output in bounded chunks. Schema 1, resource limits,
+  progress and cooperative cancellation apply. Delivery requires a matching
+  output hash. Verified inputs use temporary disk space.
+
 ## 0.4.0 — 2026-11-16
 
 Publication status and exact package/CLI identities are recorded separately in

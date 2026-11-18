@@ -6,11 +6,11 @@ fn main {
   let args=cli_args()
   if args.length() > 1 && args[1] == "passthrough" {production_main();return}
   if args.length() < 6 {abort("private probe arguments")}
-  let point=match args[1] {"write"|"wait"=>21;"gate"=>50;"pending"=>52;"late"=>60;_=>abort("private point")}
+  let point=match args[1] {"write"|"wait"=>21;"copy-cancel"|"copy-grow"=>22;"copied"=>23;"gate"=>50;"pending"=>52;"late"=>60;_=>abort("private point")}
   let injected=match args[2] {"none"=>0;"race"=>2;"close"=>5;_=>abort("private fault")}
   let actual=Array::makei(args.length()-2,i=>if i==0 {args[0]} else {args[i+2]})
   let config=match parse_cli(actual) {Ok(v)=>v;Err(e)=>abort(e)}
-  interrupt_test_setup(point,if args[1]=="wait" {1}else{0},injected)
+  interrupt_test_setup(point,match args[1] {"wait"=>1;"copied"|"copy-grow"=>2;"copy-cancel"=>3;_=>0},injected)
   let first=stream_operation(config)
   let first_published=stream_published()!=0
   interrupt_test_setup(0,0,0)

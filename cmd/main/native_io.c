@@ -715,10 +715,16 @@ MOONBIT_FFI_EXPORT int32_t mbsd_compat_contract(int32_t mode) {
 /* Private synchronous streaming adapter. No product fault/configuration hook.
  * Only this compilation unit owns these handles; callbacks never publish paths. */
 #ifdef _WIN32
-static HANDLE stream_inputs[2]={INVALID_HANDLE_VALUE,INVALID_HANDLE_VALUE};
-static HANDLE stream_writer=INVALID_HANDLE_VALUE;
+typedef HANDLE StreamFile;
+#define STREAM_INVALID INVALID_HANDLE_VALUE
 #else
-static int stream_inputs[2]={-1,-1},stream_writer=-1;
+typedef int StreamFile;
+#define STREAM_INVALID (-1)
+#endif
+static StreamFile stream_inputs[2]={STREAM_INVALID,STREAM_INVALID};
+static StreamFile stream_writer=STREAM_INVALID;
+static StreamFile stream_copy=STREAM_INVALID;
+#ifndef _WIN32
 _Static_assert(sizeof(off_t)>=8,"streaming requires 64-bit file offsets");
 #endif
 static int64_t stream_sizes[2];
@@ -728,20 +734,18 @@ static void *stream_gate;
 static int stream_committed;
 static void interrupt_test_checkpoint(int point);
 static size_t stream_written;
-static void stream_close_inputs(void) {
-  for(int i=0;i<2;i++) {
+static void stream_close_file(StreamFile *file,const char *label) {
+  if(*file==STREAM_INVALID) return;
 #ifdef _WIN32
-    if(stream_inputs[i]!=INVALID_HANDLE_VALUE) {
-      if(!CloseHandle(stream_inputs[i])) fail("close stream input",GetLastError());
-      stream_inputs[i]=INVALID_HANDLE_VALUE;
-    }
+  if(!CloseHandle(*file)) fail(label,GetLastError());
 #else
-    if(stream_inputs[i]>=0) {
-      if(close(stream_inputs[i])<0) fail("close stream input",errno);
-      stream_inputs[i]=-1;
-    }
+  if(close(*file)<0) fail(label,errno);
 #endif
-  }
+  *file=STREAM_INVALID;
+}
+static void stream_close_inputs(void) {
+  for(int i=0;i<2;i++) stream_close_file(&stream_inputs[i],"close stream input");
+  stream_close_file(&stream_copy,"close private input copy");
 }
 MOONBIT_FFI_EXPORT int32_t mbsd_stream_open(moonbit_bytes_t old,moonbit_bytes_t patch,int64_t oldcap,int64_t patchcap) {
   problem[0]=0;
@@ -788,6 +792,100 @@ MOONBIT_FFI_EXPORT moonbit_bytes_t mbsd_stream_read(int32_t which,int64_t offset
   }
   return problem[0]?bytes(NULL,0):bytes(buffer,at);
 }
+/* Private scratch files are accessed only by handle after exclusive creation.
+ * Windows denies sharing and removes on handle close. Linux unlinks the entry
+ * in a trusted, anchored /tmp before writing any content. */
+MOONBIT_FFI_EXPORT int32_t mbsd_stream_copy_begin(void) {
+#ifdef _WIN32
+  wchar_t path[32768];
+  DWORD n=GetTempPathW(32768,path);
+  if(!n || n>32000) { fail("resolve input copy directory",GetLastError());return 0; }
+  for(int attempt=0;attempt<128;attempt++) {
+    swprintf(path+n,32768-n,L".moonbsdiff-input-%lu-%u.tmp",(unsigned long)GetCurrentProcessId(),++sequence);
+    stream_copy=CreateFileW(path,GENERIC_READ|GENERIC_WRITE|DELETE,0,NULL,CREATE_NEW,
+                           FILE_ATTRIBUTE_TEMPORARY|FILE_FLAG_DELETE_ON_CLOSE,NULL);
+    if(stream_copy!=STREAM_INVALID) return 1;
+    DWORD error=GetLastError();
+    if(error!=ERROR_FILE_EXISTS && error!=ERROR_ALREADY_EXISTS) {
+      fail("create private input copy",error);return 0;
+    }
+  }
+  fail("input copy name collisions exhausted",ERROR_FILE_EXISTS);
+#else
+  int dir=open("/tmp",O_RDONLY|O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC);
+  if(dir<0) { fail("open input copy directory /tmp",errno);return 0; }
+  struct stat parent;
+  if(fstat(dir,&parent)<0) fail("inspect input copy directory",errno);
+  else if((parent.st_uid!=0 && parent.st_uid!=geteuid()) ||
+          ((parent.st_mode&0022) && !(parent.st_mode&S_ISVTX)))
+    fail("input copy directory must be protected or sticky",EPERM);
+  char name[80];
+  for(int attempt=0;attempt<128 && !problem[0];attempt++) {
+    if(!random_name(name)) break;
+    stream_copy=openat(dir,name,O_RDWR|O_CREAT|O_EXCL|O_NOFOLLOW|O_CLOEXEC,0600);
+    if(stream_copy!=STREAM_INVALID) {
+      if(unlinkat(dir,name,0)<0) {
+        fail("unlink private input copy",errno);
+        retained(name);
+      }
+      break;
+    }
+    if(errno!=EEXIST) { fail("create private input copy",errno);break; }
+  }
+  if(close(dir)<0) fail("close input copy directory",errno);
+  if(stream_copy==STREAM_INVALID && !problem[0]) fail("input copy name collisions exhausted",EEXIST);
+#endif
+  return !problem[0];
+}
+
+MOONBIT_FFI_EXPORT int32_t mbsd_stream_copy_write(moonbit_bytes_t data) {
+  size_t n=Moonbit_array_length(data),at=0;
+  if(n>4096 || stream_copy==STREAM_INVALID) { fail("input copy write range",EINVAL);return 0; }
+  while(at<n && !problem[0]) {
+#ifdef _WIN32
+    DWORD done;
+    if(!WriteFile(stream_copy,data+at,(DWORD)(n-at),&done,NULL) || !done) {
+      fail("write private input copy",GetLastError());break;
+    }
+#else
+    ssize_t done=write(stream_copy,data+at,n-at);
+    if(done<0 && errno==EINTR) continue;
+    if(done<=0) { fail("write private input copy",done<0?errno:EIO);break; }
+#endif
+    at+=(size_t)done;
+  }
+  return !problem[0];
+}
+
+/* Probe EOF without adding to the copy; catch growth beyond the checked length.
+ * Only successful verification transfers the private handle into the reader. */
+MOONBIT_FFI_EXPORT int32_t mbsd_stream_copy_use(int32_t which) {
+  uint8_t extra;
+  if(which<0 || which>1 || stream_copy==STREAM_INVALID) {
+    fail("input copy handle",EINVAL);return 0;
+  }
+#ifdef _WIN32
+  LARGE_INTEGER end;end.QuadPart=stream_sizes[which];
+  DWORD done=0;
+  if(!SetFilePointerEx(stream_inputs[which],end,NULL,FILE_BEGIN) ||
+     !ReadFile(stream_inputs[which],&extra,1,&done,NULL))
+    fail("check input copy EOF",GetLastError());
+  else if(done) fail("input grew beyond verified length",EFBIG);
+#else
+  ssize_t done;
+  do { done=pread(stream_inputs[which],&extra,1,(off_t)stream_sizes[which]); }
+  while(done<0 && errno==EINTR);
+  if(done<0) fail("check input copy EOF",errno);
+  else if(done) fail("input grew beyond verified length",EFBIG);
+#endif
+  if(problem[0]) return 0;
+  stream_close_file(&stream_inputs[which],"close original input");
+  if(problem[0]) return 0;
+  stream_inputs[which]=stream_copy;
+  stream_copy=STREAM_INVALID;
+  return 1;
+}
+
 MOONBIT_FFI_EXPORT int32_t mbsd_stream_write(moonbit_bytes_t data) {
   size_t n=Moonbit_array_length(data),at=0;
   if(n>4096) { fail("stream output chunk",EINVAL);return 0; }
@@ -992,6 +1090,16 @@ static void interrupt_test_checkpoint(int point) {
     printf("INTERRUPT_READY %ld\n",(long)getpid());
 #endif
     fflush(stdout);
+    if(interrupt_test_wait>=2) {
+      if(getchar()!='!') { fail("private checkpoint handshake",EIO);return; }
+      if(interrupt_test_wait==2) return;
+#ifdef _WIN32
+      stream_console_interrupt(CTRL_C_EVENT);
+#else
+      stream_signal_interrupt(SIGINT);
+#endif
+      return;
+    }
     for(int i=0;i<4000 && !interrupt_requested(interrupt_generation);i++) {
 #ifdef _WIN32
       Sleep(5);

@@ -103,7 +103,9 @@ fn stream_execute(
   info : @moonbsdiff.PatchInfo,
   limits : @moonbsdiff.Limits,
   progress : StreamProgress,
+  expected : ContentIdentity?,
 ) -> Unit raise {
+  let hash = expected.map(_ => @sha2.Hasher::new(kind=@sha2.Sha256))
   let budget = @bzip2.Budget::{
     remaining: limits.max_decompressed_bytes,
     emitted: 0L,
@@ -188,12 +190,7 @@ fn stream_execute(
           data[i]
         }
       })
-      progress.checkpoint(20)
-      stream_require(
-        stream_write(Bytes::from_array(out)) != 0,
-        "Applying: write temporary",
-      )
-      progress.written(count)
+      stream_output(Bytes::from_array(out), hash, progress)
       done += count.to_int64()
     }
     newpos += x
@@ -207,9 +204,7 @@ fn stream_execute(
       let count = Int64::min(4096L, y - done).to_int()
       progress.checkpoint(20)
       let data = stream_exact(extra, count, "extra")
-      progress.checkpoint(20)
-      stream_require(stream_write(data) != 0, "Applying: write temporary")
-      progress.written(count)
+      stream_output(data, hash, progress)
       done += count.to_int64()
     }
     newpos += y
@@ -227,6 +222,17 @@ fn stream_execute(
       "Applying InvalidField: unconsumed " + name,
     )
   }
+  if expected is Some(identity) && hash is Some(hasher) {
+    progress.checkpoint(40)
+    stream_require(
+      progress.restored == identity.size,
+      "restored new content size mismatch",
+    )
+    stream_require(
+      digest_hex(hasher.finish()) == identity.hash,
+      "restored new content sha256 mismatch",
+    )
+  }
 }
 
 ///|
@@ -241,6 +247,7 @@ fn stream_run(config : CliConfig, progress : StreamProgress) -> Unit raise {
     0,
     "stream output precheck",
   )
+  let identity = stream_manifest(config, progress)
   progress.checkpoint(2)
   stream_require(
     stream_open(
@@ -253,6 +260,12 @@ fn stream_run(config : CliConfig, progress : StreamProgress) -> Unit raise {
     "stream open",
   )
   progress.checkpoint(2)
+  if identity is Some(manifest) {
+    progress.phase("preparing")
+    verify_stream_copy(0, "old input", manifest.old, progress)
+    verify_stream_copy(1, "patch input", manifest.patch, progress)
+    progress.checkpoint(23)
+  }
   let header = stream_read(1, 0L, Int64::min(32L, stream_size(1)).to_int())
   stream_require(io_failed() == 0, "stream read header")
   let info = match
@@ -274,13 +287,23 @@ fn stream_run(config : CliConfig, progress : StreamProgress) -> Unit raise {
       "Header ResourceLimitExceeded: \{field} value=\{info.new_bytes} limit=\{cap}",
     )
   }
+  if identity is Some(manifest) {
+    stream_require(
+      info.new_bytes == manifest.new.size,
+      "patch header/new size mismatch",
+    )
+  }
   progress.total = Some(info.new_bytes)
   progress.phase("restoring")
   progress.checkpoint(10)
   let ok = stream_deliver(
     path_bytes(config.files[2]),
     fn(f) { f() },
-    fn() { progress.attempt(() => stream_execute(info, limits, progress)) },
+    fn() {
+      progress.attempt(() => {
+        stream_execute(info, limits, progress, identity.map(m => m.new))
+      })
+    },
     fn() {
       progress.attempt(() => {
         progress.phase("delivering")

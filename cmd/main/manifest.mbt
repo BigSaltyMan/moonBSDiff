@@ -1,6 +1,10 @@
 ///|
 fn sha256_hex(data : Bytes) -> String {
-  let digest = @sha2.hash(data[:], kind=@sha2.Sha256)
+  digest_hex(@sha2.hash(data[:], kind=@sha2.Sha256))
+}
+
+///|
+fn digest_hex(digest : Bytes) -> String {
   let hex = StringBuilder(size_hint=64)
   for byte in digest {
     hex.write_string(byte.to_hex())

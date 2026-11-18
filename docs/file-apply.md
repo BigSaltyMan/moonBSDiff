@@ -1,4 +1,4 @@
-# File-based bounded patch application (0.4.0 Unreleased)
+# File-based bounded patch application
 
 This source-only native path is explicit:
 
@@ -17,9 +17,10 @@ Parameter/configuration failures exit 2; read/format/decode/execution/delivery
 failures exit 1 on stderr; confirmed cooperative cancellation exits 130. Success
 exits 0 and remains silent unless progress is explicitly selected.
 
-Only `patch` accepts `--stream`. It rejects `--manifest` and `--show-limits`.
-`verify` and checked `patch --manifest` keep their existing memory path, binding
-hashes to the actual Bytes used by apply. This file path neither authenticates
+Only `patch` accepts `--stream`. It rejects `--show-limits`. The unreleased
+source supports [streaming with a manifest](#streaming-with-a-manifest-unreleased).
+Without `--stream`, checked patch and verify bind hashes to the actual in-memory
+bytes used by apply. This file path neither authenticates
 old data nor claims a consistent input snapshot. File-only progress/cancellation
 are described below; streaming generation and wall-clock deadlines remain
 unsupported. Published CLI 0.2.0
@@ -118,8 +119,8 @@ filesystem support is added.
 
 Concurrent file mutation is outside a consistent-snapshot guarantee: opened
 handles avoid repeatedly resolving inputs, and short reads fail, but contents can
-change between reads where the platform permits writers. This is why manifest
-streaming is refused rather than claiming the old same-Bytes hash guarantee.
+change between reads where the platform permits writers. With a manifest, the
+verified copies provide a stable byte source after the initial read.
 
 ## Narrow validation record
 
@@ -189,8 +190,8 @@ manifest verification or JS asynchronous execution:
 ```
 
 `--progress` accepts exactly `text` or `json`, once, before paths. It requires
-`patch --stream` and follows the existing `--` rule. Manifest and show-limits
-combinations remain rejected. Without it, successful operations stay silent.
+`patch --stream` and follows the existing `--` rule. Show-limits is a separate
+invocation. Without it, successful operations stay silent.
 Runtime progress, cancellation and error diagnostics go to stderr, never stdout.
 Argument/configuration errors exit 2 before an event stream starts and retain
 plain text diagnostics. Runtime failure is 1, confirmed cooperative cancellation
@@ -205,7 +206,7 @@ text is interleaved. Each object contains:
 | --- | --- |
 | schema_version | Number 1 |
 | event | start, phase, progress, complete, cancelled or error |
-| stage | opening, restoring, validating, delivering or complete |
+| stage | opening, preparing, restoring, validating, delivering or complete |
 | restored_bytes | Decimal string: bytes in completed bounded temporary writes |
 | total_bytes | Declared target as decimal string after header check; null before it is known |
 | output_committed | Boolean: this operation actually published its output |
@@ -337,3 +338,37 @@ script added, and retains the existing historical-scale measurement condition.
 This implements only the file-application portion of Commit 27 and remains 0.4.0
 Unreleased; generator progress/cancellation, JS asynchronous execution and any
 new release are outside scope.
+
+## Streaming with a manifest (Unreleased)
+
+~~~text
+moonbsdiff patch --stream --manifest update.json old.bin update.patch restored.bin
+~~~
+
+Use a schema-1 manifest from a trusted channel. SHA-256 checks that the old file,
+patch and restored file match the content named in the manifest. A manifest can
+describe arbitrary content, so the channel that supplies it determines trust.
+
+The CLI checks the manifest's declared sizes against the configured limits before
+copying. It writes each input to a private temporary file in chunks of at most
+4096 bytes and hashes those same chunks. It checks the size, end of input and
+SHA-256, then uses only the verified handles for old-file seeks and compressed
+patch reads. Changes to the original paths after verification cannot change the
+bytes used for recovery. A change during copying can cause a read, length or
+hash error. This operation does not provide an atomic filesystem snapshot.
+
+Reserve temporary space for the old-file and patch copies plus the staged
+restored file. Windows uses the process temporary directory with exclusive
+creation, denied sharing and deletion on close. Linux uses a protected or sticky
+local /tmp directory and unlinks each exclusive mode-0600 file before writing
+content. The restored file uses the existing staging location and no-replace
+delivery. The platform and ownership limits of that delivery still apply.
+
+Progress text and JSON events show the preparing phase with zero restored bytes.
+The output hash counts the bytes of successful writes in order. Delivery requires
+the expected size, output SHA-256, all stream checks and required closes to pass.
+A mismatch can therefore fail after all restored bytes have been written to
+temporary storage. That output is discarded and any existing target is preserved.
+Cancellation while preparing the inputs uses exit 130 and closes the copies.
+The existing commit boundary still governs late cancellation. Verify continues
+to use its existing memory path.

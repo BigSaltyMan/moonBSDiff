@@ -109,7 +109,7 @@ class StreamFiles(unittest.TestCase):
 
     def test_arguments_and_existing_output(self):
         for args in [['diff','--stream'],['verify','--stream'],['inspect','--stream'],
-                     ['patch','--stream','--stream'],['patch','--stream','--manifest','no.json'],['patch','--stream','--show-limits']]:
+                     ['patch','--stream','--stream'],['patch','--stream','--show-limits']]:
             self.run_cli(args,2)
         old,new,streams,_,_=fixture(16384);self.put(old,streams,len(new));self.out.write_bytes(b'keep')
         self.run_cli(['patch','--stream',self.old,self.patch,self.out],1);self.assertEqual(self.out.read_bytes(),b'keep')

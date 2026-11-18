@@ -150,7 +150,7 @@ stderr, with empty stdout. Success exits 0 (checked patch is silent).
 [Full input policy, stages and test evidence](manifest.md#bounded-consumption-and-checked-restoration-commit-20)
 distinguish this content check from publisher authentication. There is no signature,
 network fetch or automatic update in this manifest path. Explicit source-only
-`patch --stream` is separate and rejects manifests; see below.
+The unreleased CLI also supports `patch --stream --manifest`.
 
 ## Dependencies and native isolation
 
@@ -412,7 +412,7 @@ library pipeline may run its normal suite. Product distribution, full platform
 policy, examples and publication remain Commit 13-16.
 
 
-## Explicit file application (0.4.0 Unreleased source)
+## Explicit file application (since 0.4.0)
 
 ```sh
 ./_build/bin/linux/moonbsdiff patch --stream OLD_FILE PATCH_FILE OUTPUT_FILE
@@ -420,7 +420,7 @@ policy, examples and publication remain Commit 13-16.
 ```
 
 Only patch accepts this flag; options/--/duplicates/exit codes follow the existing
-parser. It rejects --manifest and --show-limits. Old, patch and target sizes are
+parser. It rejects --show-limits. Old, patch and target sizes are
 prechecked against the same final Limits used throughout execution. Default
 application caps remain unchanged, including the CLI's independent 128 KiB patch
 cap. No automatic mode switch is made. New/decompressed/instruction limits still
@@ -435,12 +435,16 @@ failure cleans only owned temporary objects; existing post-delivery cleanup-erro
 semantics remain. It does not guarantee snapshots of concurrently modified input,
 process peak memory, power-loss durability, streaming generation or immediate
 interruption. File-only cooperative cancellation is described below.
-Manifest patch/verify keep the memory path and same-Bytes hash guarantee.
+The unreleased `patch --stream --manifest update.json OLD PATCH OUTPUT` uses
+private on-disk copies of both inputs and hashes the output as it is written.
+See [verified streaming](file-apply.md#streaming-with-a-manifest-unreleased) for
+disk requirements and publication behavior. Ordinary manifest patch and verify
+use the memory path and check the same bytes they consume.
 See [design, buffer bounds, supported delivery paths and compact evidence](file-apply.md).
 Published CLI 0.2.0 does not contain this source-only feature.
 
 
-## File progress and cancellation (0.4.0 Unreleased source)
+## File progress and cancellation (since 0.4.0)
 
 ```sh
 ./_build/bin/linux/moonbsdiff patch --stream --progress text OLD PATCH OUTPUT
@@ -448,9 +452,9 @@ Published CLI 0.2.0 does not contain this source-only feature.
 ```
 
 `--progress` accepts exactly text or json, once, only with patch --stream. It
-follows prefix-options/-- rules and remains incompatible with manifests and
-show-limits. Without it, success remains silent. Progress and runtime errors go
-to stderr; stdout remains empty. JSON mode is JSONL throughout runtime, including
+follows prefix-options/-- rules and supports manifests on the unreleased
+streaming path. Show-limits is a separate invocation. Without a progress mode,
+successful commands remain silent. Progress and runtime errors go to stderr; stdout remains empty. JSON mode is JSONL throughout runtime, including
 open/precheck/decode/cancel/delivery errors; parameter errors precede that event
 stream and retain the existing text/exit-2 convention.
 

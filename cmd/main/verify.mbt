@@ -23,43 +23,49 @@ fn manifest_object(
   value : @json.Json,
   keys : Array[String],
   context : String,
-) -> Map[String, @json.Json] {
+) -> Map[String, @json.Json] raise StreamError {
   let fields = match value {
     @json.Object(fields) => fields
-    _ =>
-      return manifest_failure(
-        "manifest schema: " + context + " must be an object",
-      )
+    _ => raise StreamError("manifest schema: " + context + " must be an object")
   }
   for key in keys {
     if fields.get(key) is None {
-      return manifest_failure("manifest schema: missing " + context + "." + key)
+      raise StreamError("manifest schema: missing " + context + "." + key)
     }
   }
   if fields.length() != keys.length() {
-    return manifest_failure("manifest schema: unknown fields in " + context)
+    raise StreamError("manifest schema: unknown fields in " + context)
   }
   fields
 }
 
 ///|
-fn manifest_field(fields : Map[String, @json.Json], key : String) -> @json.Json {
+fn manifest_field(
+  fields : Map[String, @json.Json],
+  key : String,
+) -> @json.Json raise StreamError {
   match fields.get(key) {
     Some(value) => value
-    None => manifest_failure("manifest schema: missing " + key)
+    None => raise StreamError("manifest schema: missing " + key)
   }
 }
 
 ///|
-fn manifest_string(value : @json.Json, context : String) -> String {
+fn manifest_string(
+  value : @json.Json,
+  context : String,
+) -> String raise StreamError {
   match value {
     @json.String(value) => value
-    _ => manifest_failure("manifest schema: " + context + " must be a string")
+    _ => raise StreamError("manifest schema: " + context + " must be a string")
   }
 }
 
 ///|
-fn content_identity(value : @json.Json, context : String) -> ContentIdentity {
+fn content_identity(
+  value : @json.Json,
+  context : String,
+) -> ContentIdentity raise StreamError {
   let fields = manifest_object(value, ["size_bytes", "sha256"], context)
   let text = manifest_string(
     manifest_field(fields, "size_bytes"),
@@ -67,20 +73,20 @@ fn content_identity(value : @json.Json, context : String) -> ContentIdentity {
   )
   let raw = @utf8.encode(text[:])
   if raw.length() == 0 {
-    return manifest_failure("manifest size: " + context + " is empty")
+    raise StreamError("manifest size: " + context + " is empty")
   }
   let mut size = 0L
   for byte in raw {
     let digit = byte.to_int() - 48
     if digit < 0 || digit > 9 {
-      return manifest_failure(
+      raise StreamError(
         "manifest size: " +
         context +
         " requires nonnegative ASCII decimal digits",
       )
     }
     if size > (9223372036854775807L - digit.to_int64()) / 10L {
-      return manifest_failure("manifest size: " + context + " overflows Int64")
+      raise StreamError("manifest size: " + context + " overflows Int64")
     }
     size = size * 10L + digit.to_int64()
   }
@@ -90,14 +96,14 @@ fn content_identity(value : @json.Json, context : String) -> ContentIdentity {
   )
   let encoded = @utf8.encode(hash[:])
   if encoded.length() != 64 {
-    return manifest_failure(
+    raise StreamError(
       "manifest sha256: " + context + " requires 64 lowercase hex digits",
     )
   }
   for byte in encoded {
     let code = byte.to_int()
     if !((code >= 48 && code <= 57) || (code >= 97 && code <= 102)) {
-      return manifest_failure(
+      raise StreamError(
         "manifest sha256: " + context + " requires lowercase hex digits",
       )
     }
@@ -106,9 +112,9 @@ fn content_identity(value : @json.Json, context : String) -> ContentIdentity {
 }
 
 ///|
-fn parse_manifest(data : Bytes) -> ManifestIdentity {
+fn parse_manifest(data : Bytes) -> ManifestIdentity raise StreamError {
   let text = @utf8.decode(data[:], ignore_bom=false) catch {
-    _ => return manifest_failure("manifest encoding: expected valid UTF-8")
+    _ => raise StreamError("manifest encoding: expected valid UTF-8")
   }
   let json = @json.parse(
     text[:],
@@ -116,7 +122,7 @@ fn parse_manifest(data : Bytes) -> ManifestIdentity {
     reject_duplicate_keys=true,
     preserve_number_repr=true,
   ) catch {
-    e => return manifest_failure("manifest JSON: " + @debug.to_string(e))
+    e => raise StreamError("manifest JSON: " + @debug.to_string(e))
   }
   let fields = manifest_object(
     json,
@@ -125,11 +131,11 @@ fn parse_manifest(data : Bytes) -> ManifestIdentity {
   )
   if !(manifest_field(fields, "schema_version")
     is @json.Number(_, repr=Some("1"))) {
-    return manifest_failure("manifest schema_version: expected integer 1")
+    raise StreamError("manifest schema_version: expected integer 1")
   }
   if manifest_string(manifest_field(fields, "patch_format"), "patch_format") !=
     "BSDIFF40" {
-    return manifest_failure("manifest patch_format: only BSDIFF40 is supported")
+    raise StreamError("manifest patch_format: only BSDIFF40 is supported")
   }
   let producer = manifest_object(
     manifest_field(fields, "producer"),
@@ -147,14 +153,37 @@ fn parse_manifest(data : Bytes) -> ManifestIdentity {
 }
 
 ///|
-fn manifest_cap(name : String, size : Int64, limit : Int64) -> Unit {
+fn manifest_cap(
+  name : String,
+  size : Int64,
+  limit : Int64,
+) -> Unit raise StreamError {
   if size > limit {
-    failure(
+    raise StreamError(
       "manifest limits: " +
       name +
       " declared size \{size} exceeds limit \{limit}",
     )
   }
+}
+
+///|
+fn check_manifest_caps(
+  identity : ManifestIdentity,
+  limits : @moonbsdiff.Limits,
+) -> Unit raise StreamError {
+  manifest_cap("old/max_old_bytes", identity.old.size, limits.max_old_bytes)
+  manifest_cap(
+    "patch/max_patch_bytes",
+    identity.patch.size,
+    limits.max_patch_bytes,
+  )
+  manifest_cap("new/max_new_bytes", identity.new.size, limits.max_new_bytes)
+  manifest_cap(
+    "new/max_output_bytes",
+    identity.new.size,
+    limits.max_output_bytes,
+  )
 }
 
 ///|
@@ -179,23 +208,17 @@ fn verified_restore(config : CliConfig) -> Bytes {
     Some(path) => path
     None => return manifest_failure("verify requires --manifest")
   }
-  let identity = parse_manifest(
-    read_input("read manifest (limit=16384 bytes)", manifest_path, 16384L),
-  )
   let limits = config.limits
-  // All declarations are parsed/limited before acquiring old or patch buffers.
-  manifest_cap("old/max_old_bytes", identity.old.size, limits.max_old_bytes)
-  manifest_cap(
-    "patch/max_patch_bytes",
-    identity.patch.size,
-    limits.max_patch_bytes,
+  let data = read_input(
+    "read manifest (limit=16384 bytes)", manifest_path, 16384L,
   )
-  manifest_cap("new/max_new_bytes", identity.new.size, limits.max_new_bytes)
-  manifest_cap(
-    "new/max_output_bytes",
-    identity.new.size,
-    limits.max_output_bytes,
-  )
+  let identity = try {
+    let identity = parse_manifest(data)
+    check_manifest_caps(identity, limits)
+    identity
+  } catch {
+    StreamError(message) => return manifest_failure(message)
+  }
   let old = read_input(
     "verified read old (max_old_bytes=\{limits.max_old_bytes})",
     config.files[0],

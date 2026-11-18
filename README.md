@@ -8,11 +8,11 @@ connection resets, while Windows registry consumption passed all three targets. 
 work is included in 0.4.0, without a separate 0.3.0 release. Historical 0.1.0 and
 0.2.0 package/tag/assets remain unchanged.
 
-**0.4.0 source:** explicit native `patch --stream` now reads, decodes
+**File-based application:** explicit native `patch --stream` now reads, decodes
 and writes bounded segments before safe no-replace delivery. See the
-[file application design and validation](docs/file-apply.md). This path rejects
-`--manifest`, does not promise input snapshots or process peak memory, and is
-not included in the released CLI 0.2.0 assets. Memory APIs/defaults are unchanged.
+[file application design and validation](docs/file-apply.md). The unreleased
+source accepts `patch --stream --manifest update.json OLD PATCH OUTPUT`. It stages
+verified input copies on disk and checks the restored hash before publication.
 Use `patch --stream --progress text OLD PATCH OUTPUT` (or `json`) for stderr
 progress. Ctrl+C requests cooperative cancellation (Windows also Ctrl+Break):
 confirmed pre-commit cancellation exits 130, with no publication of this call's

@@ -2,7 +2,7 @@
 
 This CLI feature is not part of published 0.1.0. The patch remains plain
 BSDIFF40: no custom header, trailer or embedded JSON. Commit 20 adds bounded manifest reading, verify, and checked patch delivery.
-Signatures, network fetching, automatic updates and streaming remain unimplemented.
+For the unreleased streaming patch command, see [verified file application](file-apply.md#streaming-with-a-manifest-unreleased). The manifest describes content identity. Obtain it through a trusted channel.
 
 ```sh
 moonbsdiff diff --manifest update.json old.bin new.bin update.patch
@@ -255,6 +255,6 @@ rerun. Root .mbti, default factories, native IO and dependencies are unchanged.
 Content consistency against a supplied manifest still does not authenticate its
 publisher. If an attacker replaces both patch and expected manifest, ordinary
 hashes do not supply authenticity. Expected manifests must come from a trusted
-channel. There is no signature, network acquisition, automatic update or streaming
-promise. These CLI 0.2.0 additions are absent from published Mooncakes 0.1.0;
+channel. The Commit 20 implementation described above covers memory-based
+verification. These CLI 0.2.0 additions are absent from published Mooncakes 0.1.0;
 Mooncakes 0.2.0 has not been published.
