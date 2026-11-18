@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- `manifest create` checks an existing BSDIFF40 patch against an independently
+  supplied target before writing a schema 1 manifest. It preserves the original
+  patch and produces a manifest that `verify --stream` can consume.
+
 - `inspect --deep` checks all BSDIFF40 streams and controls within explicit
   limits, and reports control counts and Diff, Extra and total expanded bytes
   in text or JSON. It needs only the patch.

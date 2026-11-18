@@ -81,6 +81,12 @@ fn print_help() -> Unit {
     "moonbsdiff verify [--stream] --manifest MANIFEST_FILE [LIMITS] OLD_FILE PATCH_FILE",
   )
   println(
+    "moonbsdiff manifest create [LIMITS] OLD_FILE NEW_FILE PATCH_FILE MANIFEST_FILE",
+  )
+  println(
+    "manifest create applies the existing patch in memory and writes a manifest only if the result matches NEW_FILE byte for byte. The patch is unchanged.",
+  )
+  println(
     "moonbsdiff patch --manifest MANIFEST_FILE [LIMITS] OLD_FILE PATCH_FILE OUTPUT_FILE",
   )
   println(
@@ -113,13 +119,13 @@ fn print_help() -> Unit {
     "Options precede all paths; -- ends options and allows leading '-' paths.",
   )
   println(
-    "Byte options (diff/patch): --max-old-bytes, --max-new-bytes, --max-output-bytes, --max-patch-bytes, --max-expanded-bytes VALUE",
+    "Byte options (diff/patch/verify/manifest create): --max-old-bytes, --max-new-bytes, --max-output-bytes, --max-patch-bytes, --max-expanded-bytes VALUE",
   )
   println(
     "Bytes: positive ASCII decimal with optional case-sensitive B, KiB or MiB; no spaces or signs.",
   )
   println(
-    "Count (diff/patch): --max-controls VALUE. Diff only: --max-sort-work, --max-match-work VALUE.",
+    "Count (diff/patch/verify/manifest create): --max-controls VALUE. Diff only: --max-sort-work, --max-match-work VALUE.",
   )
   println(
     "Counts/work: positive decimal integers, no units. Each option occurs at most once; use separate values, not '='.",
@@ -224,13 +230,22 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
       args[1] != "diff" &&
       args[1] != "patch" &&
       args[1] != "inspect" &&
-      args[1] != "verify"
+      args[1] != "verify" &&
+      args[1] != "manifest"
     ) {
     return Err(
-      "expected diff OLD NEW PATCH, patch OLD PATCH OUTPUT, inspect PATCH, or verify --manifest MANIFEST OLD PATCH; use --help",
+      "expected diff, patch, inspect, verify or manifest create; use --help",
     )
   }
   let operation = args[1]
+  let mut i = if operation == "manifest" {
+    if args.length() < 3 || args[2] != "create" {
+      return Err("manifest requires the create subcommand; use --help")
+    }
+    3
+  } else {
+    2
+  }
   let mut limits = if operation == "diff" {
     @moonbsdiff.Limits::for_diff()
   } else {
@@ -248,7 +263,6 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
   let mut deep = false
   let mut manifest : String? = None
   let mut escaped = false
-  let mut i = 2
   while i < args.length() {
     let option = args[i]
     if option == "--" {
@@ -287,7 +301,12 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
         }
         false
       }
-      "--manifest" => false
+      "--manifest" => {
+        if operation == "manifest" {
+          return Err("manifest create takes MANIFEST_FILE as a file argument")
+        }
+        false
+      }
       "--deep" => {
         if operation != "inspect" {
           return Err("--deep is only applicable to inspect")
@@ -301,8 +320,13 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
         false
       }
       "--show-limits" => {
-        if operation == "verify" {
-          return Err("--show-limits is not applicable to verify")
+        if operation == "verify" || operation == "manifest" {
+          let command = if operation == "manifest" {
+            "manifest create"
+          } else {
+            operation
+          }
+          return Err(option + " is not applicable to " + command)
         }
         false
       }
@@ -431,6 +455,8 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
     1
   } else if operation == "verify" {
     2
+  } else if operation == "manifest" {
+    4
   } else {
     3
   }
@@ -523,6 +549,10 @@ fn main {
   }
   if config.operation == "verify" {
     verify_command(config)
+    return
+  }
+  if config.operation == "manifest" {
+    manifest_create_command(config)
     return
   }
   let operation = config.operation

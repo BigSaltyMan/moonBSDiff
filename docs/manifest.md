@@ -1,4 +1,4 @@
-# External content manifest (CLI 0.2.0)
+# External content manifests
 
 This CLI feature is not part of published 0.1.0. The patch remains plain
 BSDIFF40: no custom header, trailer or embedded JSON. Commit 20 adds bounded manifest reading, verify, and checked patch delivery.
@@ -30,6 +30,41 @@ for positional operands. Duplicate/missing/inapplicable flags and combining
 apply. Without this flag diff emits no manifest and plain patch retains its original
 unchecked-identity behavior. Success is silent on stdout/stderr, exit 0;
 operational/output failures use stderr and exit 1.
+
+## Create a manifest for an existing patch (Unreleased)
+
+Use `diff --manifest` when generating a new patch. Use `manifest create` when
+you already have a BSDIFF40 patch and an independently obtained expected target.
+Run this example from the repository root against the fixed BSDiff 4.3 fixture.
+Choose a new output path if `update.json` already exists.
+
+```sh
+moonbsdiff manifest create testdata/upstream/replace/old.bin testdata/upstream/replace/new.bin testdata/upstream/replace/patch.bin update.json
+moonbsdiff verify --stream --manifest update.json testdata/upstream/replace/old.bin testdata/upstream/replace/patch.bin
+```
+
+The command applies the supplied patch in memory and compares the entire
+restored result with `NEW_FILE` before writing the manifest. The original patch
+stays byte-for-byte unchanged. `patch.sha256` identifies that patch, and
+`new.sha256` identifies the independently supplied target. In schema 1,
+`producer` identifies the MoonBSDiff tool and version that wrote the manifest.
+The original patch generator may be unknown.
+
+Place application limits before the four paths. Supported options are
+`--max-old-bytes`, `--max-new-bytes`, `--max-output-bytes`, `--max-patch-bytes`,
+`--max-expanded-bytes` and `--max-controls`. The CLI uses the same defaults as
+`patch`. The expected new file is subject to both target byte limits. Use `--`
+before the paths if a name starts with `-`. The operation may hold the old file,
+original patch, expected target and restored bytes in memory at the same time.
+The old and expected new paths may refer to the same file.
+
+The command writes only the manifest. Success is silent with exit `0`.
+Invalid arguments exit `2`. Reading, applying, comparing or delivering the
+manifest can fail with exit `1`. On apply or comparison failure no manifest
+is delivered. Existing destinations, including links to inputs, are preserved.
+`manifest create` requires a CLI built with these changes and is absent from
+the public v0.4.0 archives. Use a trusted target and share the resulting manifest
+through a trusted channel.
 
 ## Schema 1 and real example
 
