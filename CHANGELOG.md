@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- `diff-many OLD (NEW PATCH MANIFEST)...` generates multiple patch bundles
+  from one old index. It checks batch paths before writing and reports which
+  files were delivered if a group fails.
+
 - `manifest.BundleIndex` reuses one old version's suffix index and SHA-256
   across patch bundles while applying fresh generation budgets to every target.
 

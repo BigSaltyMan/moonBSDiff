@@ -1,0 +1,4 @@
+///|
+fn main {
+  production_main()
+}

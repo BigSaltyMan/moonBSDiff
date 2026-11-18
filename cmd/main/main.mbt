@@ -66,6 +66,13 @@ fn cli_args() -> Array[String] {
 ///|
 fn print_help() -> Unit {
   println("moonbsdiff diff OLD_FILE NEW_FILE PATCH_FILE")
+  println("moonbsdiff diff-many [OPTIONS] OLD (NEW PATCH MANIFEST)...")
+  println(
+    "Example: moonbsdiff diff-many --compression-level 6 stable.bin beta.bin beta.patch beta.json rc.bin rc.patch rc.json",
+  )
+  println(
+    "Each diff-many group names one input and two outputs. Earlier files remain if a later delivery fails.",
+  )
   println("moonbsdiff patch OLD_FILE PATCH_FILE OUTPUT_FILE")
   println(
     "moonbsdiff patch --stream [--manifest MANIFEST_FILE] [--progress text|json] OLD_FILE PATCH_FILE OUTPUT_FILE",
@@ -110,7 +117,7 @@ fn print_help() -> Unit {
   )
   println("With options: moonbsdiff diff|patch [OPTIONS] FILE FILE FILE")
   println(
-    "Diff only: --compression-level VALUE (positive decimal 1..9; default 9; no units).",
+    "Diff and diff-many: --compression-level VALUE (positive decimal 1..9; default 9; no units).",
   )
   println(
     "Display only: moonbsdiff diff|patch [OPTIONS] --show-limits (no files)",
@@ -119,13 +126,13 @@ fn print_help() -> Unit {
     "Options precede all paths; -- ends options and allows leading '-' paths.",
   )
   println(
-    "Byte options (diff/patch/verify/manifest create): --max-old-bytes, --max-new-bytes, --max-output-bytes, --max-patch-bytes, --max-expanded-bytes VALUE",
+    "Byte options (diff/diff-many/patch/verify/manifest create): --max-old-bytes, --max-new-bytes, --max-output-bytes, --max-patch-bytes, --max-expanded-bytes VALUE",
   )
   println(
     "Bytes: positive ASCII decimal with optional case-sensitive B, KiB or MiB; no spaces or signs.",
   )
   println(
-    "Count (diff/patch/verify/manifest create): --max-controls VALUE. Diff only: --max-sort-work, --max-match-work VALUE.",
+    "Count (diff/diff-many/patch/verify/manifest create): --max-controls VALUE. Diff and diff-many: --max-sort-work, --max-match-work VALUE.",
   )
   println(
     "Counts/work: positive decimal integers, no units. Each option occurs at most once; use separate values, not '='.",
@@ -228,16 +235,18 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
   if args.length() < 2 ||
     (
       args[1] != "diff" &&
+      args[1] != "diff-many" &&
       args[1] != "patch" &&
       args[1] != "inspect" &&
       args[1] != "verify" &&
       args[1] != "manifest"
     ) {
     return Err(
-      "expected diff, patch, inspect, verify or manifest create; use --help",
+      "expected diff, diff-many, patch, inspect, verify or manifest create; use --help",
     )
   }
   let operation = args[1]
+  let generation = operation == "diff" || operation == "diff-many"
   let mut i = if operation == "manifest" {
     if args.length() < 3 || args[2] != "create" {
       return Err("manifest requires the create subcommand; use --help")
@@ -246,7 +255,7 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
   } else {
     2
   }
-  let mut limits = if operation == "diff" {
+  let mut limits = if generation {
     @moonbsdiff.Limits::for_diff()
   } else {
     {
@@ -296,14 +305,17 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
         false
       }
       "--compression-level" => {
-        if operation != "diff" {
-          return Err(option + " is only applicable to diff")
+        if !generation {
+          return Err(option + " is only applicable to diff and diff-many")
         }
         false
       }
       "--manifest" => {
         if operation == "manifest" {
           return Err("manifest create takes MANIFEST_FILE as a file argument")
+        }
+        if operation == "diff-many" {
+          return Err("diff-many takes a MANIFEST file argument per group")
         }
         false
       }
@@ -320,7 +332,9 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
         false
       }
       "--show-limits" => {
-        if operation == "verify" || operation == "manifest" {
+        if operation == "verify" ||
+          operation == "manifest" ||
+          operation == "diff-many" {
           let command = if operation == "manifest" {
             "manifest create"
           } else {
@@ -337,7 +351,7 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
       | "--max-expanded-bytes" => true
       "--max-controls" => false
       "--max-sort-work" | "--max-match-work" => {
-        if operation != "diff" {
+        if !generation {
           return Err(option + " is not applicable to " + operation)
         }
         false
@@ -460,7 +474,13 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
   } else {
     3
   }
-  if !show && files.length() != expected {
+  if operation == "diff-many" {
+    if files.length() < 4 || (files.length() - 1) % 3 != 0 {
+      return Err(
+        "diff-many requires OLD followed by complete NEW PATCH MANIFEST groups; use --help",
+      )
+    }
+  } else if !show && files.length() != expected {
     return Err("expected exactly \{expected} file arguments; use --help")
   }
   match limits.validate() {
@@ -553,6 +573,10 @@ fn main {
   }
   if config.operation == "manifest" {
     manifest_create_command(config)
+    return
+  }
+  if config.operation == "diff-many" {
+    diff_many_command(config)
     return
   }
   let operation = config.operation

@@ -37,6 +37,12 @@ static int stream_populate(int writer);
 static int stream_stopped;
 static int stream_prepare_commit(void);
 static void stream_mark_published(void);
+/* The last synchronous delivery may have published before reporting an error. */
+static int delivery_committed;
+static void mark_delivery(moonbit_bytes_t data) {
+  delivery_committed=1;
+  if(!data) stream_mark_published();
+}
 static char problem[256];
 /* Set only by the private white-box entrypoint below. No environment/CLI hook. */
 static int fault;
@@ -57,6 +63,7 @@ static moonbit_bytes_t bytes(const void *p, size_t n) {
 }
 MOONBIT_FFI_EXPORT moonbit_bytes_t mbsd_io_error(void) { return bytes(problem,strlen(problem)); }
 MOONBIT_FFI_EXPORT int32_t mbsd_io_failed(void) { return problem[0]!=0; }
+MOONBIT_FFI_EXPORT int32_t mbsd_delivery_committed(void) { return delivery_committed; }
 MOONBIT_FFI_EXPORT void mbsd_stderr(moonbit_bytes_t data) {
   size_t n=Moonbit_array_length(data),at=0;
   while(at<n) { size_t k=fwrite(data+at,1,n-at,stderr); if(!k) break; at+=k; }
@@ -383,7 +390,7 @@ static int compat_deliver(int dir,const char *leaf,moonbit_bytes_t data) {
   int committed=0;
   if(!problem[0]) {
     if(linkat(private_fd,"payload",dir,leaf,0)<0) fail("compatibility deliver without replacement",errno);
-    else { committed=1; if(!data) stream_mark_published(); }
+    else { committed=1; mark_delivery(data); }
   }
   /* These deletes rely on the protected parent and uid-private directory, NOT
    * on an atomic check/unlink illusion. Malicious same-uid/root control is out
@@ -419,7 +426,7 @@ static int anonymous_unavailable(int error) {
 /* Never removes final caller paths. Primary cleanup uses held identities;
  * compatibility cleanup uses only the protected private namespace above. */
 MOONBIT_FFI_EXPORT int32_t mbsd_deliver(moonbit_bytes_t name,moonbit_bytes_t data) {
-  problem[0]=0; size_t n=data?Moonbit_array_length(data):0,at=0;
+  delivery_committed=0; problem[0]=0; size_t n=data?Moonbit_array_length(data):0,at=0;
 #ifdef _WIN32
   wchar_t *relative=wide((char*)name); if(!relative) return 0;
   wchar_t full[32768],temp[32768];
@@ -462,7 +469,7 @@ MOONBIT_FFI_EXPORT int32_t mbsd_deliver(moonbit_bytes_t name,moonbit_bytes_t dat
       rename->ReplaceIfExists=FALSE; rename->RootDirectory=NULL; rename->FileNameLength=length*sizeof(wchar_t);
       memcpy(rename->FileName,full,length*sizeof(wchar_t));
       if(!SetFileInformationByHandle(keeper,FileRenameInfo,rename,(DWORD)size)) fail("deliver without replacement",GetLastError());
-      else if(!data) stream_mark_published();
+      else mark_delivery(data);
       free(rename);
     }
   }
@@ -522,7 +529,7 @@ MOONBIT_FFI_EXPORT int32_t mbsd_deliver(moonbit_bytes_t name,moonbit_bytes_t dat
   if(!problem[0]) {
     snprintf(reference,sizeof(reference),"/proc/self/fd/%d",keeper);
     if(linkat(AT_FDCWD,reference,dir,leaf,AT_SYMLINK_FOLLOW)<0) fail("deliver without replacement",errno);
-    else if(!data) stream_mark_published();
+    else mark_delivery(data);
   }
   if(keeper>=0 && close(keeper)<0) fail("close temporary identity",errno);
   if(close(dir)<0) fail("close output directory",errno);

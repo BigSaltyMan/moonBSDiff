@@ -3,7 +3,7 @@
 ## Source-only compression option (0.3.0 Unreleased)
 
 `moonbsdiff diff --compression-level 1 OLD NEW PATCH` chooses bzip2 level 1..9,
-default 9. Only diff accepts it. Values are positive ASCII decimal integers
+default 9. `diff-many` also accepts it. Values are positive ASCII decimal integers
 without byte units; missing/duplicate/inapplicable/invalid values exit 2 before
 IO. The option precedes paths and composes with --manifest, byte/work limits
 and --. `diff --compression-level 6 --show-limits` displays
@@ -78,6 +78,44 @@ operation errors use stderr, with operation, relevant paths and core kind/stage/
 field/value/limit metadata where available. Successful diff/patch are silent.
 No overwrite switch, stdin protocol, network update or directory synchronization
 is provided.
+
+## Batch generation from one old version (Unreleased)
+
+```sh
+moonbsdiff diff-many --compression-level 6 stable.bin beta.bin beta.patch beta.json rc.bin rc.patch rc.json
+moonbsdiff verify --stream --manifest beta.json stable.bin beta.patch
+```
+
+Use `diff-many [OPTIONS] OLD (NEW PATCH MANIFEST)...` with at least one complete
+group. Place generation limits and `--compression-level` before paths, and use
+`--` before paths that begin with a hyphen. Each group supplies its manifest
+output, so `--manifest` is an argument error. The same file may be used in
+multiple input positions, including as both `OLD` and `NEW`.
+
+Before reading the old file, the command checks all output paths against inputs
+and against each other. It rejects existing outputs and equivalent destinations,
+including aliases of a parent directory. It can also reject a missing input path
+that coincides with a proposed output. Preflight checks path metadata and does
+not reserve filenames. The no-replace check still applies during delivery.
+
+The command reads the old file and builds its `BundleIndex` once. The sorting
+budget is used at index construction. Each target has fresh matching and
+generation budgets and its own size caps. The command reads and processes one
+target at a time. Total runtime and output size grow with the number of targets.
+
+Each group delivers its patch first and its manifest second. Exit `0` means all
+groups finished, `2` means invalid arguments or configuration, and `1` means an
+operation failed. The batch is not atomic. On failure, read the one-based group
+number, the count of groups with both files delivered, and `group patch delivered`
+in stderr. For example, with `completed groups: 1, group patch delivered: yes`
+on group 2, both files from group 1 and group 2's patch were delivered. The rest
+of the diagnostic gives the manifest status or the operation that failed.
+If publication succeeds before a close or cleanup error, the diagnostic still
+counts the published file. The command stops after the error and keeps delivered
+files. Use fresh output paths when retrying.
+
+This command requires a CLI built from source containing this change. The
+published 0.4.0 CLI predates it.
 
 ## Patch inspection (CLI 0.2.0)
 
