@@ -204,7 +204,7 @@ fn stream_execute(
   info : @moonbsdiff.PatchInfo,
   limits : @moonbsdiff.Limits,
   progress : StreamProgress,
-  expected : ContentIdentity?,
+  expected : @manifest.ContentIdentity?,
   consume : (Bytes) -> Unit raise StreamError,
 ) -> Unit raise {
   let hash = expected.map(_ => @sha2.Hasher::new(kind=@sha2.Sha256))
@@ -284,7 +284,7 @@ fn stream_execute(
       "restored new content size mismatch",
     )
     stream_require(
-      digest_hex(hasher.finish()) == identity.hash,
+      @manifest_support.digest_hex(hasher.finish()) == identity.hash,
       "restored new content sha256 mismatch",
     )
   }

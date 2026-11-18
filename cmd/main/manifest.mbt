@@ -1,22 +1,8 @@
 ///|
-fn sha256_hex(data : Bytes) -> String {
-  digest_hex(@sha2.hash(data[:], kind=@sha2.Sha256))
-}
-
-///|
-fn digest_hex(digest : Bytes) -> String {
-  let hex = StringBuilder(size_hint=64)
-  for byte in digest {
-    hex.write_string(byte.to_hex())
-  }
-  hex.to_string()
-}
-
-///|
 fn manifest_entry(data : Bytes) -> @json.Json {
   @json.Json::object({
     "size_bytes": @json.Json::string("\{data.length()}"),
-    "sha256": @json.Json::string(sha256_hex(data)),
+    "sha256": @json.Json::string(@manifest_support.sha256_hex(data)),
   })
 }
 

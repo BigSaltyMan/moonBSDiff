@@ -1,0 +1,7 @@
+import {
+  "BigSaltyMan/moonbsdiff",
+  "BigSaltyMan/moonbsdiff/internal/manifest" @manifest_support,
+  "moonbitlang/core/debug",
+  "moonbitlang/core/encoding/utf8",
+  "moonbitlang/core/json",
+}

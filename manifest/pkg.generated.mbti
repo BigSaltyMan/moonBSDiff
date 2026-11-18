@@ -1,0 +1,67 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "BigSaltyMan/moonbsdiff/manifest"
+
+import {
+  "BigSaltyMan/moonbsdiff",
+  "moonbitlang/core/debug",
+}
+
+// Values
+pub fn apply(Bytes, Bytes, Bytes, @moonbsdiff.Limits) -> Result[Bytes, ManifestError]
+
+pub fn prepare(Bytes, @moonbsdiff.Limits) -> Result[PreparedManifest, ManifestError]
+
+// Errors
+
+// Types and methods
+pub struct ContentIdentity {
+  size : Int64
+  hash : String
+}
+
+#derive(Eq, @debug.Debug)
+pub(all) enum ContentObject {
+  Old
+  Patch
+  PatchTarget
+  Restored
+}
+pub fn ContentObject::equal(Self, Self) -> Bool
+pub fn ContentObject::not_equal(Self, Self) -> Bool
+pub fn ContentObject::to_repr(Self) -> @debug.Repr
+
+#derive(Eq, @debug.Debug)
+pub(all) enum IdentityDifference {
+  Size(expected~ : Int64, actual~ : Int64)
+  Sha256
+}
+pub fn IdentityDifference::equal(Self, Self) -> Bool
+pub fn IdentityDifference::not_equal(Self, Self) -> Bool
+pub fn IdentityDifference::to_repr(Self) -> @debug.Repr
+
+#derive(Eq, @debug.Debug)
+pub(all) enum ManifestError {
+  InvalidLimits(@moonbsdiff.BsdiffError)
+  InvalidEncoding
+  InvalidJson(field~ : String?, detail~ : String)
+  InvalidSchema(field~ : String, detail~ : String)
+  LimitExceeded(field~ : String, value~ : Int64, limit~ : Int64)
+  IdentityMismatch(object~ : ContentObject, difference~ : IdentityDifference)
+  HeaderError(@moonbsdiff.BsdiffError)
+  ApplyError(@moonbsdiff.BsdiffError)
+}
+pub fn ManifestError::equal(Self, Self) -> Bool
+pub fn ManifestError::not_equal(Self, Self) -> Bool
+pub fn ManifestError::to_repr(Self) -> @debug.Repr
+
+pub struct PreparedManifest {
+  old : ContentIdentity
+  new : ContentIdentity
+  patch : ContentIdentity
+  // private fields
+}
+pub fn PreparedManifest::restore(Self, Bytes, Bytes) -> Result[Bytes, ManifestError]
+
+// Type aliases
+
+// Traits

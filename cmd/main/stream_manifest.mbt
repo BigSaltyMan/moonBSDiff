@@ -13,7 +13,7 @@ fn stream_manifest(
   config : CliConfig,
   output : String?,
   progress : StreamProgress,
-) -> ManifestIdentity? raise {
+) -> @manifest.PreparedManifest? raise {
   guard config.manifest is Some(path) else { return None }
   if output is Some(target) {
     stream_require(
@@ -27,18 +27,19 @@ fn stream_manifest(
     )
   }
   progress.checkpoint(2)
-  let data = io_read(path_bytes(path), 16384)
+  let data = io_read(path_bytes(path), @manifest_support.MAX_MANIFEST_BYTES)
   stream_require(io_failed() == 0, "read manifest (limit=16384 bytes)")
-  let identity = parse_manifest(data)
-  check_manifest_caps(identity, config.limits)
-  Some(identity)
+  match @manifest.prepare(data, config.limits) {
+    Ok(identity) => Some(identity)
+    Err(error) => raise StreamError(manifest_diagnostic(error))
+  }
 }
 
 ///|
 fn verify_stream_copy(
   which : Int32,
   name : String,
-  expected : ContentIdentity,
+  expected : @manifest.ContentIdentity,
   progress : StreamProgress,
 ) -> Unit raise {
   let actual = stream_size(which)
@@ -67,7 +68,7 @@ fn verify_stream_copy(
     progress.checkpoint(22)
   }
   stream_require(
-    digest_hex(hash.finish()) == expected.hash,
+    @manifest_support.digest_hex(hash.finish()) == expected.hash,
     "\{name} sha256 mismatch",
   )
   progress.checkpoint(2)

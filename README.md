@@ -238,10 +238,29 @@ Verify requires a manifest, bounds its read to 16 KiB, rejects malformed schema/
 duplicate/unknown keys, checks old/patch identities, actually applies in memory,
 and checks restored size/hash without writing a final file. Checked patch reuses
 that pipeline and delivers only after success. Input hashing and apply share the
-same buffers. Inspect remains header-only, and unmanifested patch is unchanged.
+same buffers.
 [Manifest policy](docs/manifest.md) defines limits, strict decimal-string sizes,
 metadata handling and failure stages. Hashes establish supplied-content consistency,
 not publisher authenticity; trusted expected manifests are still required.
+
+**Verified restoration from MoonBit (Unreleased)**
+
+Import `BigSaltyMan/moonbsdiff/manifest` as `@manifest`, the root package as
+`@moonbsdiff`, and `moonbitlang/core/debug` as `@debug`. The source API works
+on native, JS and Wasm-GC. The published 0.4.0 package predates this entry point.
+
+```moonbit
+fn restore_update(old : Bytes, patch : Bytes, trusted_manifest : Bytes) -> Result[Bytes, String] {
+  match @manifest.apply(old, patch, trusted_manifest, @moonbsdiff.Limits::for_apply()) {
+    Ok(restored) => Ok(restored)
+    Err(IdentityMismatch(object=Old, ..)) =>
+      Err("Installed bytes do not match the required old version")
+    Err(error) => Err(@debug.to_string(error))
+  }
+}
+```
+
+The manifest must come from a trusted channel. [API and error handling](docs/manifest.md#verified-restoration-from-moonbit-unreleased)
 
 Paths containing Chinese characters or spaces must be quoted similarly.
 Our order is `patch OLD PATCH OUTPUT`; upstream is `bspatch OLD NEW PATCH`.

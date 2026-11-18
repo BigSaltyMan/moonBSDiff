@@ -1,6 +1,8 @@
 import {
   "BigSaltyMan/moonbsdiff",
   "BigSaltyMan/moonbsdiff/internal/bzip2",
+  "BigSaltyMan/moonbsdiff/internal/manifest" @manifest_support,
+  "BigSaltyMan/moonbsdiff/manifest",
   "moonbitlang/core/env",
   "moonbitlang/core/encoding/utf8",
   "moonbitlang/core/debug",

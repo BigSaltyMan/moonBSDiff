@@ -66,6 +66,56 @@ is delivered. Existing destinations, including links to inputs, are preserved.
 the public v0.4.0 archives. Use a trusted target and share the resulting manifest
 through a trusted channel.
 
+## Verified restoration from MoonBit (Unreleased)
+
+Applications can use the same schema 1 manifest emitted by `manifest create`
+or `diff --manifest`. This API first appears in the source change that adds the
+`manifest` subpackage. The public Mooncakes 0.4.0 package predates it.
+
+```moonbit
+import {
+  "BigSaltyMan/moonbsdiff" @moonbsdiff,
+  "BigSaltyMan/moonbsdiff/manifest" @manifest,
+  "moonbitlang/core/debug" @debug,
+}
+```
+
+```moonbit
+fn restore_update(old : Bytes, patch : Bytes, trusted_manifest : Bytes) -> Result[Bytes, String] {
+  match @manifest.apply(old, patch, trusted_manifest, @moonbsdiff.Limits::for_apply()) {
+    Ok(restored) => Ok(restored)
+    Err(IdentityMismatch(object=Old, ..)) =>
+      Err("Installed bytes do not match the required old version")
+    Err(error) => Err(@debug.to_string(error))
+  }
+}
+```
+
+`apply(Bytes, Bytes, Bytes, Limits) -> Result[Bytes, ManifestError]` runs on
+native, JS and Wasm-GC. It holds the inputs and restored bytes in memory. It
+validates `Limits`, checks the 16 KiB manifest cap before decoding UTF-8, then
+checks the schema and declared sizes. It checks actual lengths before hashing
+their bytes and uses the same verified input buffers for restoration. The
+restored bytes are returned only after their length and SHA-256 match. Supply
+the expected manifest through a trusted channel to establish the expected content.
+
+| Error variant | What the caller can inspect |
+| --- | --- |
+| `InvalidLimits` | Original configuration `BsdiffError` |
+| `InvalidEncoding`, `InvalidJson`, `InvalidSchema` | Stage of manifest rejection. JSON reports the key for duplicates and schema errors report the applicable field. |
+| `LimitExceeded` | Named cap, requested value, and actual limit |
+| `IdentityMismatch` | `Old`, `Patch`, `PatchTarget` (header declaration), or `Restored`, with `Size` or `Sha256` as the difference |
+| `HeaderError`, `ApplyError` | Original `BsdiffError`, including kind, stage, and location where available |
+
+The native CLI shares the schema and size preflight. Its in-memory commands
+also share checked restoration. Streaming commands retain bounded, file-based
+reads, private input copies and incremental hashing.
+
+Callers that acquire input bytes after reading a manifest can use `prepare`
+first. Its `PreparedManifest` exposes read-only declared identities and keeps
+the checked limits. `PreparedManifest::restore` verifies the inputs and result
+using those limits. Successful preflight alone checks declarations.
+
 ## Schema 1 and real example
 
 Historical Commit 19 capture from the command above with old bytes abc/00/ff (5 bytes) and new bytes

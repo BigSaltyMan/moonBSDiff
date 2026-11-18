@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- `BigSaltyMan/moonbsdiff/manifest` verifies a trusted schema 1 manifest and
+  returns checked restored bytes on native, JS and Wasm-GC. Structured errors
+  distinguish invalid manifests, limits, content mismatches and BSDIFF40 failures.
+
 - The library exposes `inspect_deep(Bytes, Limits)` on native, JS and Wasm-GC.
   It returns read-only `DeepPatchInfo` or a structured `BsdiffError`.
   `inspect --deep` uses the same implementation and retains its success schema.
