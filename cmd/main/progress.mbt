@@ -28,6 +28,7 @@ priv struct StreamProgress {
   mut reported : Int64
   mut cancelled : Bool
   mut committing : Bool
+  delivers_output : Bool
   mut detail : String
   mut chain_step : Int32
   chain_count : Int32?
@@ -114,7 +115,12 @@ fn StreamProgress::recovered(
     self.total == Some(self.restored) {
     self.reported = self.restored
     self.emit(
-      "progress", "Temporary bytes; final validation/delivery still pending",
+      "progress",
+      if self.delivers_output {
+        "Temporary bytes; final validation/delivery still pending"
+      } else {
+        "Restored bytes; validation still pending"
+      },
     )
   }
   self.checkpoint(21)
@@ -161,7 +167,13 @@ fn StreamProgress::attempt(
 // One operation owns its session, counters, decision and result. No exit inside
 // the operation lets private tests prove a cancelled call can be followed by one.
 fn stream_operation(config : CliConfig) -> Int32 {
-  let chain = config.operation == "patch-chain"
+  let paths = if is_chain(config.operation) {
+    Some(chain_paths(config))
+  } else {
+    None
+  }
+  let delivering = config.operation == "patch" ||
+    config.operation == "patch-chain"
   let state = StreamProgress::{
     mode: config.progress,
     session: 0,
@@ -171,13 +183,10 @@ fn stream_operation(config : CliConfig) -> Int32 {
     reported: 0L,
     cancelled: false,
     committing: false,
+    delivers_output: delivering,
     detail: "",
     chain_step: 0,
-    chain_count: if chain {
-      Some((config.files.length() - 2) / 2)
-    } else {
-      None
-    },
+    chain_count: paths.map(chain => chain.pairs.length()),
   }
   // Begin resets the native publication/notification identity before any event.
   state.session = interrupt_begin()
@@ -186,8 +195,8 @@ fn stream_operation(config : CliConfig) -> Int32 {
   if state.session > 0 {
     ok = state.attempt(() => {
       state.checkpoint(1)
-      if chain {
-        stream_chain(config, state)
+      if paths is Some(chain) {
+        stream_chain(config, chain, state)
       } else {
         stream_run(config, state)
       }
@@ -196,7 +205,7 @@ fn stream_operation(config : CliConfig) -> Int32 {
     state.detail = "Install interrupt notification failed"
   }
   stream_abort()
-  if config.operation == "verify" && ok != 0 {
+  if !delivering && ok != 0 {
     ok = state.attempt(() => {
       state.checkpoint(0)
       stream_require(io_failed() == 0, "Closing verification inputs failed")
@@ -215,7 +224,6 @@ fn stream_operation(config : CliConfig) -> Int32 {
     1
   }
   // A cancellation request is never reclassified after the commit gate.
-  let delivering = config.operation == "patch" || chain
   if delivering && code == 0 && !published {
     code = 1
     state.detail = "Delivery returned without publication"
@@ -224,14 +232,16 @@ fn stream_operation(config : CliConfig) -> Int32 {
     state.stage = "complete"
     if delivering {
       state.emit("complete", "All checks and delivery completed")
+    } else if paths is Some(_) {
+      state.emit("complete", "Chain verification completed")
     }
   } else {
-    let context = if !chain {
+    let context = if paths is None {
       ""
     } else if state.chain_step == 0 {
-      "patch-chain: "
+      "\{config.operation}: "
     } else {
-      "patch-chain step \{state.chain_step}: "
+      "\{config.operation} step \{state.chain_step}: "
     }
     let native = if io_failed() != 0 {
       "; " + @utf8.decode_lossy(io_error()[:])

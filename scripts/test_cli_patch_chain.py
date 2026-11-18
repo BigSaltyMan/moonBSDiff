@@ -14,9 +14,10 @@ from build_cli import ROOT
 from test_cli_manifest_create import identity
 from test_cli_manifest_plan import prepare_two_hop
 from test_cli_progress import snapshot
+from test_cli_verify_stream import guard_output_paths
 
 
-EXE = PROBE = None
+EXE = None
 FIRST = ("v1-to-v2.patch", "v1-to-v2.json")
 SECOND = ("v2-to-v3.patch", "v2-to-v3.json")
 
@@ -37,7 +38,9 @@ MOONBIT_FFI_EXPORT int32_t mbsd_probe_chain_clean(void) {
 """
 
 
-class PatchChain(unittest.TestCase):
+class ChainFixture(unittest.TestCase):
+    probe = None
+
     def setUp(self):
         folder = tempfile.TemporaryDirectory(prefix="moonbsdiff-chain-")
         self.addCleanup(folder.cleanup)
@@ -47,11 +50,11 @@ class PatchChain(unittest.TestCase):
         self.env = {**os.environ, "TMP": str(self.scratch), "TEMP": str(self.scratch)}
         self.start, self.middle, self.target = prepare_two_hop(self.write, self.invoke)
 
-    def invoke(self, *args, code=0, exe=None, progress=False):
+    def invoke(self, *args, code=0, exe=None, progress=False, stdout=()):
         result = subprocess.run([exe or EXE, *args], cwd=self.folder, env=self.env,
                                 capture_output=True, timeout=30)
         self.assertEqual(result.returncode, code, result.stderr.decode(errors="replace"))
-        self.assertEqual(result.stdout, b"")
+        self.assertEqual(tuple(result.stdout.splitlines()), stdout)
         if code == 0 and not progress:
             self.assertEqual(result.stderr, b"")
         else:
@@ -64,16 +67,12 @@ class PatchChain(unittest.TestCase):
     def read(self, name):
         return (self.folder / name).read_bytes()
 
-    def args(self, *pairs, output="restored.bin", options=()):
-        return ["patch-chain", "--target-manifest", SECOND[1], *options,
-                "installed.bin", output, *pairs]
-
     def files(self):
         self.assertEqual(list(self.scratch.iterdir()), [])
         return {p.name: p.read_bytes() for p in self.folder.iterdir() if p != self.scratch}
 
     def synchronize(self, mode, change=None):
-        args = [PROBE, mode, *self.args(*FIRST, *SECOND, options=("--progress", "json"))]
+        args = [self.probe, mode, *self.args(*FIRST, *SECOND, options=("--progress", "json"))]
         with subprocess.Popen(args, cwd=self.folder, env=self.env, stdin=subprocess.PIPE,
                               stdout=subprocess.PIPE, stderr=subprocess.PIPE) as child:
             ready = queue.Queue()
@@ -117,6 +116,12 @@ class PatchChain(unittest.TestCase):
         verified = [row for row in rows if row["event"] == "step_verified"]
         self.assertEqual([(row["stage"], row["step"], row["restored_bytes"], row["total_bytes"])
                           for row in verified], [("validating", 1, "2048", "2048")])
+
+
+class PatchChain(ChainFixture):
+    def args(self, *pairs, output="restored.bin", options=()):
+        return ["patch-chain", "--target-manifest", SECOND[1], *options,
+                "installed.bin", output, *pairs]
 
     def test_two_real_steps_publish_only_final_bytes(self):
         expected = self.files()
@@ -174,7 +179,7 @@ class PatchChain(unittest.TestCase):
         self.write(SECOND[0], intact[:-1] + bytes([intact[-1] ^ 1]))
         expected = self.files()
         options = ("--progress", "json")
-        error = self.invoke("clean", *self.args(*FIRST, *SECOND, options=options), code=1, exe=PROBE)
+        error = self.invoke("clean", *self.args(*FIRST, *SECOND, options=options), code=1, exe=self.probe)
         rows = self.chain_events(error)
         self.terminal(rows, "error", False)
         self.assertIn("patch-chain step 2: patch input sha256 mismatch", rows[-1]["message"])
@@ -198,20 +203,97 @@ class PatchChain(unittest.TestCase):
         self.assertIn("deliver without replacement", rows[-1]["message"])
         self.assertEqual(self.files(), {**expected, "restored.bin": b"competing target"})
         error = self.invoke("post-commit", *self.args(*FIRST, *SECOND, output="published.bin", options=options),
-                            code=1, exe=PROBE)
+                            code=1, exe=self.probe)
         rows = self.chain_events(error)
         self.terminal(rows, "error", True)
         self.assertIn("injected post-commit error", rows[-1]["message"])
         self.assertEqual(self.files(), {**expected, "restored.bin": b"competing target", "published.bin": self.target})
 
 
+class VerifyChain(ChainFixture):
+    def args(self, *pairs, options=()):
+        return ["verify-chain", "--target-manifest", SECOND[1], *options, "--",
+                "installed.bin", *pairs]
+
+    def test_two_real_steps_verify_without_final_output(self):
+        before = self.files()
+        # This binary aborts on final output creation, writes, or commit.
+        raw = self.invoke(
+            *self.args(*FIRST, *SECOND, options=("--progress", "json", "--max-output-bytes", "2048")),
+            exe=self.probe, progress=True,
+            stdout=(b"Chain verification succeeded: all steps match the supplied manifests.",),
+        )
+        rows = self.chain_events(raw)
+        self.terminal(rows, "complete", False)
+        self.assertNotIn("delivering", [row["stage"] for row in rows])
+        second = next(row for row in rows if row["step"] == 2)
+        self.assertEqual((second["stage"], second["restored_bytes"], second["total_bytes"]),
+                         ("preparing", "0", None))
+        self.assertEqual((rows[-1]["stage"], rows[-1]["restored_bytes"], rows[-1]["total_bytes"]),
+                         ("complete", "2048", "2048"))
+        self.assertEqual(self.files(), before)
+        print("Verified the two-step chain with final output and commit functions guarded")
+        print(raw.decode().splitlines()[-1])
+
+    def test_final_hash_is_checked_after_restoring_all_bytes(self):
+        # The second step and target marker share this manifest. The mutated
+        # identity passes chain preflight but cannot match the restored bytes.
+        manifest = json.loads(self.read(SECOND[1]))
+        self.assertEqual(manifest["new"], identity(self.target))
+        manifest["new"]["sha256"] = identity(self.middle)["sha256"]
+        self.write(SECOND[1], json.dumps(manifest).encode("utf-8"))
+        before = self.files()
+        raw = self.invoke(
+            *self.args(*FIRST, *SECOND, options=("--progress", "json")), code=1, exe=self.probe,
+        )
+        rows = self.chain_events(raw)
+        self.terminal(rows, "error", False)
+        self.assertEqual((rows[-1]["stage"], rows[-1]["restored_bytes"], rows[-1]["total_bytes"]),
+                         ("validating", "2048", "2048"))
+        self.assertIn("verify-chain step 2:", rows[-1]["message"])
+        self.assertIn("sha256 mismatch", rows[-1]["message"])
+        self.assertEqual(self.files(), before)
+        print(raw.decode().splitlines()[-1])
+
+    def test_cancel_between_steps_and_require_complete_arguments(self):
+        before = self.files()
+        code, raw = self.synchronize("cancel")
+        self.assertEqual(code, 130, raw)
+        rows = self.chain_events(raw)
+        self.terminal(rows, "cancelled", False)
+        self.assertEqual((rows[-1]["stage"], rows[-1]["restored_bytes"], rows[-1]["total_bytes"]),
+                         ("preparing", "0", None))
+        self.assertIn("verify-chain step 2: Cancellation confirmed", rows[-1]["message"])
+        for argv in [
+            ["verify-chain", "installed.bin", *FIRST],
+            self.args(),
+            self.args(FIRST[0]),
+        ]:
+            self.assertIn(b"complete PATCH MANIFEST pairs", self.invoke(*argv, code=2))
+        self.assertEqual(self.files(), before)
+        print(raw.decode().splitlines()[-1])
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--exe", type=Path, required=True)
-    EXE = parser.parse_args().exe.resolve(strict=True)
-    with tempfile.TemporaryDirectory(prefix="chain-probe-", dir=ROOT / "_build") as folder:
-        PROBE = snapshot(Path(folder), template="patch_chain_probe.mbt.in", native_transform=probe_handoffs)
-        result = unittest.TextTestRunner(verbosity=2).run(
-            unittest.defaultTestLoader.loadTestsFromTestCase(PatchChain))
-    if not result.wasSuccessful() or result.testsRun != 4 or result.skipped:
-        raise SystemExit(1)
+    parser.add_argument("--verify-only", action="store_true")
+    args = parser.parse_args()
+    EXE = args.exe.resolve(strict=True)
+    with tempfile.TemporaryDirectory(prefix="chain-probe-", dir=ROOT / "_build") as workdir:
+        folder = Path(workdir)
+        for name, test_case, transform, count in [
+            ("patch", PatchChain, probe_handoffs, 4),
+            ("verify", VerifyChain, lambda source: guard_output_paths(probe_handoffs(source)), 3),
+        ]:
+            if args.verify_only and test_case == PatchChain:
+                continue
+            probe_dir = folder / name
+            probe_dir.mkdir()
+            test_case.probe = snapshot(
+                probe_dir, template="patch_chain_probe.mbt.in", native_transform=transform,
+            )
+            result = unittest.TextTestRunner(verbosity=2).run(
+                unittest.defaultTestLoader.loadTestsFromTestCase(test_case))
+            if not result.wasSuccessful() or result.testsRun != count or result.skipped:
+                raise SystemExit(1)

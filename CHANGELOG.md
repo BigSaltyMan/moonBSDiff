@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- `verify-chain` checks a local patch chain through the final target hash.
+  It keeps private intermediate files and hashes the last step in chunks
+  without saving the final version.
+
 - `patch-chain --progress text|json` emits step-aware progress to stderr,
   including verified intermediates and the final publication status.
 

@@ -238,6 +238,48 @@ successful cleanup. Failure or cancellation emits `error` or `cancelled` as
 the terminal event. `output_committed` reflects whether final publication took
 place, including when cleanup fails after publication.
 
+## Verify a local patch chain (Unreleased)
+
+Use `verify-chain` to check a planned route before distributing it. Supply the
+installed file and at least one local patch and manifest pair in plan order.
+Use a trusted target manifest, which may also be the last step's manifest.
+
+```sh
+moonbsdiff verify-chain --progress json --target-manifest v2-to-v3.json -- installed.bin v1-to-v2.patch v1-to-v2.json v2-to-v3.patch v2-to-v3.json
+```
+
+Both chain commands check every link against the next manifest and the last
+step against the requested target. Each step checks all three compressed
+streams, the restored size and SHA-256. Application limits apply to each
+step, including the output byte limit for the final step.
+
+Private input copies and intermediate versions still use temporary disk
+space. The final step passes restored chunks of up to 4096 bytes to SHA-256
+and discards them. It uses the stream decoder's block workspaces and
+bounded transfer buffers throughout, and needs no final output path.
+
+With the 2048-byte two-step fixture, stdout contains this one line on success.
+
+```text
+Chain verification succeeded: all steps match the supplied manifests.
+```
+
+Progress and runtime diagnostics go to stderr. Choose `--progress text` for
+terminal output or `--progress json` for JSONL. Intermediate steps emit
+`step_verified`. The final `complete` event confirms content verification
+and cleanup. It has `output_committed: false`, and the chain has no
+`delivering` phase. This is the actual terminal event from the fixture.
+
+```jsonl
+{"schema_version":1,"event":"complete","stage":"complete","restored_bytes":"2048","total_bytes":"2048","output_committed":false,"message":"Chain verification completed","step":2,"step_count":2}
+```
+
+Success exits `0`. Argument errors exit `2`. Runtime failures exit `1` and
+confirmed cancellation exits `130`. Only a successful run prints the success
+line. Ctrl+C (also Ctrl+Break on Windows) requests cancellation, checked
+during processing and once more after closing the private inputs. The
+published 0.4.0 CLI predates this command.
+
 ## Create a manifest for an existing patch (Unreleased)
 
 Use `diff --manifest` when generating a new patch. Use `manifest create` when

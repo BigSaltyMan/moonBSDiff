@@ -6,6 +6,46 @@ extern "C" fn stream_open_next_patch(patch : Bytes, cap : Int64) -> Int32 = "mbs
 extern "C" fn stream_use_intermediate(size : Int64) -> Int32 = "mbsd_stream_use_intermediate"
 
 ///|
+priv struct ChainPaths {
+  old : String
+  output : String?
+  pairs : Array[(String, String)]
+}
+
+///|
+fn is_chain(operation : String) -> Bool {
+  operation == "patch-chain" || operation == "verify-chain"
+}
+
+///|
+fn chain_first_pair(operation : String) -> Int32 {
+  if operation == "patch-chain" {
+    2
+  } else {
+    1
+  }
+}
+
+///|
+fn chain_paths(config : CliConfig) -> ChainPaths {
+  let files = config.files
+  let first_pair = chain_first_pair(config.operation)
+  let pairs = Array::makei((files.length() - first_pair) / 2, i => {
+    let offset = first_pair + i * 2
+    (files[offset], files[offset + 1])
+  })
+  {
+    old: files[0],
+    output: if first_pair == 2 {
+      Some(files[1])
+    } else {
+      None
+    },
+    pairs,
+  }
+}
+
+///|
 fn chain_check_identity(
   actual : @manifest.ContentIdentity,
   expected : @manifest.ContentIdentity,
@@ -26,26 +66,31 @@ fn chain_check_output(output : Bytes, path : String) -> Unit raise StreamError {
 ///|
 fn chain_preflight(
   config : CliConfig,
+  paths : ChainPaths,
   progress : StreamProgress,
 ) -> Array[@manifest.PreparedManifest] raise {
-  let files = config.files
   let target_path = config.target_manifest.unwrap()
-  let output = path_bytes(files[1])
-  stream_require(
-    io_check(path_bytes(files[0]), path_bytes(target_path), output) != 0,
-    "output precheck for '\{files[1]}'",
-  )
-  chain_check_output(output, files[0])
-  chain_check_output(output, target_path)
+  let output = if paths.output is Some(target) {
+    let out = path_bytes(target)
+    stream_require(
+      io_check(path_bytes(paths.old), path_bytes(target_path), out) != 0,
+      "output precheck for '\{target}'",
+    )
+    chain_check_output(out, paths.old)
+    chain_check_output(out, target_path)
+    Some(out)
+  } else {
+    None
+  }
   let target = stream_read_manifest(target_path, config.limits, progress)
   let prepared : Array[@manifest.PreparedManifest] = []
-  for i = 2; i < files.length(); i = i + 2 {
+  for (patch_path, manifest_path) in paths.pairs {
     progress.chain_step = prepared.length() + 1
     progress.checkpoint(2)
-    let patch_path = files[i]
-    let manifest_path = files[i + 1]
-    chain_check_output(output, patch_path)
-    chain_check_output(output, manifest_path)
+    if output is Some(out) {
+      chain_check_output(out, patch_path)
+      chain_check_output(out, manifest_path)
+    }
     let step = if manifest_path == target_path {
       target
     } else {
@@ -69,9 +114,12 @@ fn chain_preflight(
 }
 
 ///|
-fn stream_chain(config : CliConfig, progress : StreamProgress) -> Unit raise {
-  let prepared = chain_preflight(config, progress)
-  let files = config.files
+fn stream_chain(
+  config : CliConfig,
+  paths : ChainPaths,
+  progress : StreamProgress,
+) -> Unit raise {
+  let prepared = chain_preflight(config, paths, progress)
   let limits = config.limits
   for i in 0..<prepared.length() {
     progress.chain_step = i + 1
@@ -83,11 +131,11 @@ fn stream_chain(config : CliConfig, progress : StreamProgress) -> Unit raise {
     // this checkpoint. A cancelled next step never opens its patch.
     progress.checkpoint(if i == 0 { 2 } else { 24 })
     let step = prepared[i]
-    let patch_path = files[2 + i * 2]
+    let (patch_path, _) = paths.pairs[i]
     if i == 0 {
       stream_require(
         stream_open(
-          path_bytes(files[0]),
+          path_bytes(paths.old),
           path_bytes(patch_path),
           limits.max_old_bytes,
           limits.max_patch_bytes,
@@ -110,7 +158,11 @@ fn stream_chain(config : CliConfig, progress : StreamProgress) -> Unit raise {
     let expected = Some(step.new)
     let info = stream_prepare_patch(limits, expected, progress)
     if i + 1 == prepared.length() {
-      stream_restore_output(files[1], info, limits, progress, expected)
+      if paths.output is Some(target) {
+        stream_restore_output(target, info, limits, progress, expected)
+      } else {
+        stream_execute(info, limits, progress, expected, _ => ())
+      }
     } else {
       stream_require(stream_copy_begin() != 0, "create private intermediate")
       stream_execute(info, limits, progress, expected, data => {

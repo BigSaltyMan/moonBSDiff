@@ -421,5 +421,11 @@ fn stream_command(config : CliConfig) -> Unit {
   let outcome = stream_operation(config)
   if outcome != 0 {
     @env.exit(outcome)
+    return
+  }
+  if config.operation == "verify-chain" {
+    println(
+      "Chain verification succeeded: all steps match the supplied manifests.",
+    )
   }
 }
