@@ -30,7 +30,8 @@ def snapshot(folder, *, template='progress_probe.mbt.in', native_transform=None)
     for p in ROOT.glob('*.mbt'):
         if not p.name.endswith(('_test.mbt','_wbtest.mbt')):shutil.copy2(p,source/p.name)
     for name in ['moon.mod','moon.pkg']:shutil.copy2(ROOT/name,source/name)
-    shutil.copytree(ROOT/'internal',source/'internal',ignore=shutil.ignore_patterns('*_test.mbt','*_wbtest.mbt'))
+    for name in ('internal', 'manifest'):
+        shutil.copytree(ROOT/name, source/name, ignore=shutil.ignore_patterns('*_test.mbt', '*_wbtest.mbt'))
     shutil.copytree(ROOT/'.mooncakes',source/'.mooncakes')
     cli=source/'cmd/main';cli.mkdir(parents=True)
     identities={}
