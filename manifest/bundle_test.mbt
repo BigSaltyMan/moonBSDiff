@@ -44,6 +44,69 @@ fn bundle_hex(bytes : Bytes) -> String {
 }
 
 ///|
+test "manifest public bundle index two targets" {
+  let old = b"ABCDE"
+  let new_a = b"ABXDE"
+  let new_b = b"prefix-ABCDE!"
+  let limits = @moonbsdiff.Limits::for_diff()
+  let index = @manifest.BundleIndex::build(old, limits).unwrap()
+  let bundle_a = index.diff(new_a, limits).unwrap()
+  let bundle_b = index.diff(new_b, limits).unwrap()
+  // Read the first bundle only after generating the second.
+  let apply_limits = @moonbsdiff.Limits::for_apply()
+  assert_eq(
+    @manifest.apply(old, bundle_a.patch, bundle_a.manifest, apply_limits),
+    Ok(new_a),
+  )
+  assert_eq(
+    @manifest.apply(old, bundle_b.patch, bundle_b.manifest, apply_limits),
+    Ok(new_b),
+  )
+}
+
+///|
+test "manifest bundle index budgets and options" {
+  let old = b"ABCDE"
+  let new = b"ABXDE"
+  let limits = @moonbsdiff.Limits::for_diff()
+  let reuse = { ..limits, max_sort_work: 1L, }
+  match @manifest.BundleIndex::build(old, reuse) {
+    Ok(_) => abort("insufficient sorting budget built an index")
+    Err(error) => {
+      assert_eq(error, @moonbsdiff.DiffIndex::build(old, reuse).unwrap_err())
+      assert_eq(error.kind, @moonbsdiff.ResourceLimitExceeded)
+      assert_eq(error.stage, @moonbsdiff.Sorting)
+      assert_eq(error.field, Some("sort_remaining"))
+      assert_eq(error.value, Some(281L))
+      assert_eq(error.limit, Some(1L))
+    }
+  }
+  let index = @manifest.BundleIndex::build(old, limits).unwrap()
+  let options : @moonbsdiff.DiffOptions = { compression_level: 1, }
+  let indexed = bundle_or_abort(index.diff_with_options(new, reuse, options))
+  let single = bundle_or_abort(
+    @manifest.diff_with_options(old, new, limits, options),
+  )
+  assert_eq(indexed.patch, single.patch)
+  assert_eq(indexed.manifest, single.manifest)
+
+  let restricted = { ..reuse, max_old_bytes: 4L, }
+  match index.diff_with_options(new, restricted, options) {
+    Ok(_) => abort("indexed generation ignored its old input limit")
+    Err(error) => {
+      assert_eq(error.kind, @moonbsdiff.ResourceLimitExceeded)
+      assert_eq(error.stage, @moonbsdiff.Header)
+      assert_eq(error.field, Some("max_old_bytes"))
+      assert_eq(error.value, Some(5L))
+      assert_eq(error.limit, Some(4L))
+    }
+  }
+  let retried = bundle_or_abort(index.diff_with_options(new, reuse, options))
+  assert_eq(retried.patch, indexed.patch)
+  assert_eq(retried.manifest, indexed.manifest)
+}
+
+///|
 test "manifest bundle matches root options" {
   let old = b"abc\x00\xff"
   let new = b"abC\x00\xff!"

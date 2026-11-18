@@ -110,6 +110,50 @@ additional to the sorting and matching budgets in `Limits`. The native CLI's
 These generation interfaces are available from this source change on native,
 JS and Wasm-GC. The public Mooncakes 0.4.0 package predates them.
 
+## Reuse one old version for multiple patch bundles (Unreleased)
+
+Use the same `@moonbsdiff` and `@manifest` imports as in the example above.
+Each call returns a bundle that can be sent or stored independently.
+
+```moonbit
+test "manifest public bundle index two targets" {
+  let old = b"ABCDE"
+  let new_a = b"ABXDE"
+  let new_b = b"prefix-ABCDE!"
+  let limits = @moonbsdiff.Limits::for_diff()
+  let index = @manifest.BundleIndex::build(old, limits).unwrap()
+  let bundle_a = index.diff(new_a, limits).unwrap()
+  let bundle_b = index.diff(new_b, limits).unwrap()
+  // Read the first bundle only after generating the second.
+  let apply_limits = @moonbsdiff.Limits::for_apply()
+  assert_eq(
+    @manifest.apply(old, bundle_a.patch, bundle_a.manifest, apply_limits),
+    Ok(new_a),
+  )
+  assert_eq(
+    @manifest.apply(old, bundle_b.patch, bundle_b.manifest, apply_limits),
+    Ok(new_b),
+  )
+}
+```
+
+`BundleIndex::build` retains the immutable old bytes and suffix array through
+the root `DiffIndex`, together with the old length and SHA-256. It hashes the old
+bytes once after the index builds successfully. No separate copy of the old
+bytes or history of generated bundles is retained.
+
+`index.diff` uses the default generation options. Use
+`index.diff_with_options(new, limits, options)` to select a compression level.
+Each target call revalidates its limits, including the old byte cap, and uses
+fresh matching and generation budgets. Sorting work is charged at build time.
+After generating each patch, the call hashes that target and patch. A failed
+call leaves the index and previously returned bundles usable. Build and
+generation return the root `BsdiffError` on failure.
+
+Reuse saves repeated sorting and hashing of the old version. Actual time
+depends on the inputs and options. This API is available from this source
+change on native, JS and Wasm-GC. The public 0.4.0 package predates it.
+
 ## Verified restoration from MoonBit (Unreleased)
 
 Applications can use the same schema 1 manifest emitted by `manifest create`

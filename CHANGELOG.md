@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- `manifest.BundleIndex` reuses one old version's suffix index and SHA-256
+  across patch bundles while applying fresh generation budgets to every target.
+
 - `manifest.diff` and `manifest.diff_with_options` return a standard BSDIFF40
   patch and its schema 1 manifest on native, JS and Wasm-GC. `diff --manifest`
   uses the same generation path.

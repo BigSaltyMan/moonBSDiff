@@ -10,6 +10,8 @@ pub fn digest_hex(Bytes) -> String
 
 pub fn make_manifest(Bytes, Bytes, Bytes) -> Bytes
 
+pub fn make_manifest_with_old_identity(Int64, String, Bytes, Bytes) -> Bytes
+
 pub fn sha256_hex(Bytes) -> String
 
 // Errors
