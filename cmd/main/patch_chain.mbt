@@ -78,12 +78,12 @@ fn stream_chain(config : CliConfig, progress : StreamProgress) -> Unit raise {
     progress.restored = 0L
     progress.reported = 0L
     progress.total = None
+    progress.phase("preparing")
     // The intermediate was fully checked and transferred by handle before
     // this checkpoint. A cancelled next step never opens its patch.
     progress.checkpoint(if i == 0 { 2 } else { 24 })
     let step = prepared[i]
     let patch_path = files[2 + i * 2]
-    progress.phase("preparing")
     if i == 0 {
       stream_require(
         stream_open(
@@ -123,6 +123,9 @@ fn stream_chain(config : CliConfig, progress : StreamProgress) -> Unit raise {
       stream_require(
         stream_use_intermediate(step.new.size) != 0,
         "retain verified private intermediate",
+      )
+      progress.emit(
+        "step_verified", "Intermediate verified and ready for the next step",
       )
     }
   }

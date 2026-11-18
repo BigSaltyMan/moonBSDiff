@@ -30,6 +30,7 @@ priv struct StreamProgress {
   mut committing : Bool
   mut detail : String
   mut chain_step : Int32
+  chain_count : Int32?
 }
 
 ///|
@@ -49,7 +50,7 @@ fn StreamProgress::emit(
     None => @json.Json::null()
   }
   let line = if self.mode == "json" {
-    @json.Json::object({
+    let fields : Map[String, @json.Json] = {
       "schema_version": @json.Json::number(1.0),
       "event": @json.Json::string(event),
       "stage": @json.Json::string(self.stage),
@@ -57,9 +58,29 @@ fn StreamProgress::emit(
       "total_bytes": total,
       "output_committed": @json.Json::boolean(stream_published() != 0),
       "message": @json.Json::string(message),
-    }).stringify()
+    }
+    if self.chain_count is Some(count) {
+      fields["step"] = if self.chain_step == 0 {
+        @json.Json::null()
+      } else {
+        @json.Json::number(self.chain_step.to_double())
+      }
+      fields["step_count"] = @json.Json::number(count.to_double())
+    }
+    @json.Json::object(fields).stringify()
   } else {
-    "moonbsdiff: \{event} stage=\{self.stage} restored_bytes=\{self.restored} total_bytes=\{total.stringify()} output_committed=\{stream_published() != 0} \{message}"
+    let step = match self.chain_count {
+      Some(count) => {
+        let current = if self.chain_step == 0 {
+          "-"
+        } else {
+          "\{self.chain_step}"
+        }
+        " step=\{current}/\{count}"
+      }
+      None => ""
+    }
+    "moonbsdiff: \{event} stage=\{self.stage}\{step} restored_bytes=\{self.restored} total_bytes=\{total.stringify()} output_committed=\{stream_published() != 0} \{message}"
   }
   stderr(@utf8.encode((line + "\n")[:]))
 }
@@ -140,6 +161,7 @@ fn StreamProgress::attempt(
 // One operation owns its session, counters, decision and result. No exit inside
 // the operation lets private tests prove a cancelled call can be followed by one.
 fn stream_operation(config : CliConfig) -> Int32 {
+  let chain = config.operation == "patch-chain"
   let state = StreamProgress::{
     mode: config.progress,
     session: 0,
@@ -151,6 +173,11 @@ fn stream_operation(config : CliConfig) -> Int32 {
     committing: false,
     detail: "",
     chain_step: 0,
+    chain_count: if chain {
+      Some((config.files.length() - 2) / 2)
+    } else {
+      None
+    },
   }
   // Begin resets the native publication/notification identity before any event.
   state.session = interrupt_begin()
@@ -159,7 +186,7 @@ fn stream_operation(config : CliConfig) -> Int32 {
   if state.session > 0 {
     ok = state.attempt(() => {
       state.checkpoint(1)
-      if config.operation == "patch-chain" {
+      if chain {
         stream_chain(config, state)
       } else {
         stream_run(config, state)
@@ -188,8 +215,7 @@ fn stream_operation(config : CliConfig) -> Int32 {
     1
   }
   // A cancellation request is never reclassified after the commit gate.
-  let delivering = config.operation == "patch" ||
-    config.operation == "patch-chain"
+  let delivering = config.operation == "patch" || chain
   if delivering && code == 0 && !published {
     code = 1
     state.detail = "Delivery returned without publication"
@@ -200,7 +226,7 @@ fn stream_operation(config : CliConfig) -> Int32 {
       state.emit("complete", "All checks and delivery completed")
     }
   } else {
-    let context = if config.operation != "patch-chain" {
+    let context = if !chain {
       ""
     } else if state.chain_step == 0 {
       "patch-chain: "

@@ -7,7 +7,7 @@ extern "C" fn probe_chain_clean() -> Int32 = "mbsd_probe_chain_clean"
 ///|
 fn main {
   let args = cli_args()
-  if args.length() < 2 || (args[1] != "cancel" && args[1] != "race" && args[1] != "clean") {
+  if args.length() < 2 || (args[1] != "cancel" && args[1] != "race" && args[1] != "clean" && args[1] != "post-commit") {
     production_main()
     return
   }
@@ -19,6 +19,7 @@ fn main {
   match args[1] {
     "cancel" => interrupt_test_setup(24, 3, 0)
     "race" => interrupt_test_setup(50, 2, 0)
+    "post-commit" => interrupt_test_setup(0, 0, 39)
     "clean" => ()
     _ => abort("unknown private chain probe mode")
   }

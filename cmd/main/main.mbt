@@ -75,7 +75,7 @@ fn print_help() -> Unit {
   )
   println("moonbsdiff patch OLD_FILE PATCH_FILE OUTPUT_FILE")
   println(
-    "moonbsdiff patch-chain --target-manifest FILE [LIMITS] OLD OUTPUT (PATCH MANIFEST)...",
+    "moonbsdiff patch-chain --target-manifest FILE [--progress text|json] [LIMITS] OLD OUTPUT (PATCH MANIFEST)...",
   )
   println(
     "Apply verified local patches in order and deliver only the final file. Confirmed cancellation exits 130.",
@@ -332,8 +332,10 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
     }
     let bytes = match option {
       "--progress" => {
-        if operation != "patch" {
-          return Err("--progress is only applicable to patch --stream")
+        if operation != "patch" && operation != "patch-chain" {
+          return Err(
+            "--progress is only applicable to patch --stream or patch-chain",
+          )
         }
         false
       }
@@ -504,7 +506,7 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
   if show && manifest is Some(_) {
     return Err("--manifest cannot be combined with --show-limits")
   }
-  if progress != "none" && !stream {
+  if progress != "none" && !stream && operation != "patch-chain" {
     return Err("--progress requires patch --stream")
   }
   if stream && show {

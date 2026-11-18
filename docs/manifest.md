@@ -202,12 +202,41 @@ temporary storage or Linux `/tmp`, and final staging uses the destination
 directory. Total work grows with the number and sizes of the steps, and the
 same destination filesystem requirements as streaming patch still apply.
 
-Success is silent and exits `0`. Invalid arguments exit `2`. Failure exits
+By default, success is silent and exits `0`. Invalid arguments exit `2`. Failure exits
 `1` with a diagnostic on stderr that names the step when applicable. Ctrl+C
 uses one cancellation session for the chain. Confirmed cancellation before
 the final publication gate exits `130` and releases the private files. An
 error after publication can leave the fully verified final file in place.
 The published 0.4.0 CLI predates this command.
+
+### Chain progress on stderr
+
+```sh
+moonbsdiff patch-chain --progress json --target-manifest v2-to-v3.json -- installed.bin restored.bin v1-to-v2.patch v1-to-v2.json v2-to-v3.patch v2-to-v3.json
+```
+
+Use `--progress text` for terminal output such as `step=2/2`. JSON mode
+writes one schema 1 object per line to stderr. Stdout remains empty. Chain
+events add a one-based `step` and an integer `step_count`; `step` is `null`
+before an event belongs to a step. Each step resets `restored_bytes` to `"0"`
+and `total_bytes` to `null` until the target size is known. Byte counts use
+decimal strings. The single-hop `patch --stream` event schema stays the same.
+
+Actual excerpt from the two-hop test:
+
+```jsonl
+{"schema_version":1,"event":"step_verified","stage":"validating","restored_bytes":"2048","total_bytes":"2048","output_committed":false,"message":"Intermediate verified and ready for the next step","step":1,"step_count":2}
+{"schema_version":1,"event":"phase","stage":"preparing","restored_bytes":"0","total_bytes":null,"output_committed":false,"message":"","step":2,"step_count":2}
+{"schema_version":1,"event":"phase","stage":"delivering","restored_bytes":"2048","total_bytes":"2048","output_committed":false,"message":"","step":2,"step_count":2}
+{"schema_version":1,"event":"complete","stage":"complete","restored_bytes":"2048","total_bytes":"2048","output_committed":true,"message":"All checks and delivery completed","step":2,"step_count":2}
+```
+
+Reaching the byte total is followed by verification. `step_verified` marks
+successful validation and transfer of a private intermediate. `delivering`
+marks the start of final delivery. `complete` confirms publication and
+successful cleanup. Failure or cancellation emits `error` or `cancelled` as
+the terminal event. `output_committed` reflects whether final publication took
+place, including when cleanup fails after publication.
 
 ## Create a manifest for an existing patch (Unreleased)
 

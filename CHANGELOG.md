@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- `patch-chain --progress text|json` emits step-aware progress to stderr,
+  including verified intermediates and the final publication status.
+
 - `patch-chain` checks a trusted chain of local patches and manifests,
   restores intermediate versions privately, and publishes the verified final file.
 
