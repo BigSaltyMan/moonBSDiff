@@ -1,4 +1,53 @@
 ///|
+#derive(Eq, Hash, Compare)
+priv struct ManifestIdentity {
+  size : Int64
+  hash : String
+}
+
+///|
+fn manifest_identity(identity : @manifest.ContentIdentity) -> ManifestIdentity {
+  { size: identity.size, hash: identity.hash, }
+}
+
+///|
+fn manifest_identity_json(identity : ManifestIdentity) -> @json.Json {
+  @json.Json::object({
+    "size_bytes": @json.Json::string("\{identity.size}"),
+    "sha256": @json.Json::string(identity.hash),
+  })
+}
+
+///|
+fn installed_identity(
+  operation : String,
+  path : String,
+  limits : @moonbsdiff.Limits,
+) -> ManifestIdentity {
+  let old = read_input(
+    "\{operation} read old (max_old_bytes=\{limits.max_old_bytes} bytes)",
+    path,
+    limits.max_old_bytes,
+  )
+  { size: old.length().to_int64(), hash: @manifest_support.sha256_hex(old), }
+}
+
+///|
+fn read_prepared_manifest(
+  operation : String,
+  path : String,
+  limits : @moonbsdiff.Limits,
+) -> @manifest.PreparedManifest {
+  let cap = @manifest_support.MAX_MANIFEST_BYTES.to_int64()
+  let data = read_input("\{operation} read (limit=\{cap} bytes)", path, cap)
+  match @manifest.prepare(data, limits) {
+    Ok(value) => value
+    Err(error) =>
+      manifest_failure("\{operation} '\{path}': " + manifest_diagnostic(error))
+  }
+}
+
+///|
 fn manifest_create_command(config : CliConfig) -> Unit {
   let old_path = config.files[0]
   let new_path = config.files[1]

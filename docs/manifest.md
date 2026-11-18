@@ -87,6 +87,80 @@ with a diagnostic on stderr and empty stdout. Missing arguments and inapplicable
 options exit `2`. This command requires a CLI built from source containing this
 change. The published 0.4.0 CLI predates it.
 
+## Plan a multi-hop update (Unreleased)
+
+Use a trusted target manifest to identify the final bytes. Pass trusted
+candidate manifests after the installed file, in the desired traversal order.
+
+```sh
+moonbsdiff manifest plan --target-manifest v2-to-v3.json installed.bin v1-to-v2.json v2-to-v3.json v1-to-v3.json
+```
+
+The planner reads the installed file once and computes its SHA-256 once. It
+applies the same 16 KiB cap, strict schema, and declaration limits as
+`manifest select` to the target and every candidate manifest. The same four
+byte-limit options apply. Only positional manifests supply directed edges.
+The target manifest identifies the destination by `new.size_bytes` and
+`new.sha256`, and it can also be supplied as a positional candidate.
+
+A route minimizes the sum of declared patch bytes, then the step count.
+The planner visits outgoing edges in positional order. At equal cost and step
+count it processes the earliest queued state first and retains the first route
+to an identity at that score. Two versions join only when both size and SHA-256
+agree. A route can use several versions even when their byte counts are equal.
+
+This example used the `testdata/upstream/seeded-random` old and new files as
+v1 and v2. The fixture flips the last bit of v2 for v3. The deliberate
+full-target direct patch was 2532 bytes. The tested command produced this
+response, pretty-printed for readability.
+
+```json
+{
+  "schema_version": 1,
+  "start": {
+    "size_bytes": "2048",
+    "sha256": "3f1dc5983729c3316f87f580ef435e68507120b7bde1a52f15dbbc93169751d8"
+  },
+  "target": {
+    "size_bytes": "2048",
+    "sha256": "66da6542f8276608790055ac88e6af6bf3af76b88bf3aedbcb517c2ce98ab1a6"
+  },
+  "total_patch_bytes": "368",
+  "steps": [
+    {
+      "manifest_path": "v1-to-v2.json",
+      "old": {"size_bytes": "2048", "sha256": "3f1dc5983729c3316f87f580ef435e68507120b7bde1a52f15dbbc93169751d8"},
+      "new": {"size_bytes": "2048", "sha256": "ec7c875b594819312410388bd93805e989e4dba1cc68f793ece69352bfe8d6f5"},
+      "patch": {"size_bytes": "204", "sha256": "b48d5bd790a5a37b507603284b501f21a6c15c110e96c6cabecd1867f705927b"}
+    },
+    {
+      "manifest_path": "v2-to-v3.json",
+      "old": {"size_bytes": "2048", "sha256": "ec7c875b594819312410388bd93805e989e4dba1cc68f793ece69352bfe8d6f5"},
+      "new": {"size_bytes": "2048", "sha256": "66da6542f8276608790055ac88e6af6bf3af76b88bf3aedbcb517c2ce98ab1a6"},
+      "patch": {"size_bytes": "164", "sha256": "3470eb1ac7e7d52c7402d5ee6d142132760e079ba524f8aca8f3bf279959e57e"}
+    }
+  ]
+}
+```
+
+The cost comes from the trusted manifest declarations. The caller looks up
+and downloads the patches, then applies each step with its original manifest.
+Use a separate output for each step and pass that file as the next step's old
+input. Both commands below succeeded in the test, and `restored-v3.bin` matched
+the independent 2048-byte target byte for byte.
+
+```sh
+moonbsdiff patch --stream --manifest v1-to-v2.json installed.bin v1-to-v2.patch restored-v2.bin
+moonbsdiff patch --stream --manifest v2-to-v3.json restored-v2.bin v2-to-v3.patch restored-v3.bin
+```
+
+If the installed identity already equals the target, success reports
+`"total_patch_bytes": "0"` and an empty `steps` array. The candidate list can
+be empty. All supplied manifests still need to pass preflight. An unreachable
+target, read or manifest error exits `1` with a diagnostic and empty stdout.
+Invalid arguments exit `2`. This command requires a CLI built from source
+containing this change. The published 0.4.0 CLI predates it.
+
 ## Create a manifest for an existing patch (Unreleased)
 
 Use `diff --manifest` when generating a new patch. Use `manifest create` when

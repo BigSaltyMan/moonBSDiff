@@ -103,6 +103,12 @@ fn print_help() -> Unit {
     "Manifest select limits: --max-old-bytes, --max-new-bytes, --max-output-bytes, --max-patch-bytes.",
   )
   println(
+    "moonbsdiff manifest plan --target-manifest FILE [LIMITS] OLD_FILE [MANIFEST_FILE...]",
+  )
+  println(
+    "Plan the fewest patch bytes, then the fewest steps, to the target manifest's new identity. Prints JSON and reads no patches.",
+  )
+  println(
     "moonbsdiff patch --manifest MANIFEST_FILE [LIMITS] OLD_FILE PATCH_FILE OUTPUT_FILE",
   )
   println(
@@ -230,6 +236,7 @@ struct CliConfig {
   json : Bool
   deep : Bool
   manifest : String?
+  target_manifest : String?
   files : Array[String]
 }
 
@@ -251,22 +258,25 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
       args[1] != "manifest"
     ) {
     return Err(
-      "expected diff, diff-many, patch, inspect, verify, manifest create or manifest select; use --help",
+      "expected diff, diff-many, patch, inspect, verify, or manifest create/select/plan; use --help",
     )
   }
   let (operation, options_start) = if args[1] == "manifest" {
     if args.length() < 3 {
-      return Err("manifest requires create or select; use --help")
+      return Err("manifest requires create, select or plan; use --help")
     }
     match args[2] {
       "create" => ("manifest", 3)
       "select" => ("manifest select", 3)
-      _ => return Err("manifest requires create or select; use --help")
+      "plan" => ("manifest plan", 3)
+      _ => return Err("manifest requires create, select or plan; use --help")
     }
   } else {
     (args[1], 2)
   }
   let generation = operation == "diff" || operation == "diff-many"
+  let manifest_lookup = operation == "manifest select" ||
+    operation == "manifest plan"
   let mut i = options_start
   let mut limits = if generation {
     @moonbsdiff.Limits::for_diff()
@@ -284,6 +294,7 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
   let mut json = false
   let mut deep = false
   let mut manifest : String? = None
+  let mut target_manifest : String? = None
   let mut escaped = false
   while i < args.length() {
     let option = args[i]
@@ -304,12 +315,13 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
       option != "--max-controls" {
       return Err(option + " is not applicable to inspect")
     }
-    if operation == "manifest select" &&
+    if manifest_lookup &&
       option != "--max-old-bytes" &&
       option != "--max-new-bytes" &&
       option != "--max-output-bytes" &&
-      option != "--max-patch-bytes" {
-      return Err(option + " is not applicable to manifest select")
+      option != "--max-patch-bytes" &&
+      !(operation == "manifest plan" && option == "--target-manifest") {
+      return Err(option + " is not applicable to " + operation)
     }
     let bytes = match option {
       "--progress" => {
@@ -336,6 +348,12 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
         }
         if operation == "diff-many" {
           return Err("diff-many takes a MANIFEST file argument per group")
+        }
+        false
+      }
+      "--target-manifest" => {
+        if operation != "manifest plan" {
+          return Err(option + " is only applicable to manifest plan")
         }
         false
       }
@@ -414,14 +432,19 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
       i += 2
       continue
     }
-    if option == "--manifest" {
+    if option == "--manifest" || option == "--target-manifest" {
       let path = args[i + 1]
       if path.length() == 0 || leading_dash(path) {
         return Err(
-          "--manifest requires a nonempty path value; use ./ for a leading '-' name",
+          option +
+          " requires a nonempty path value; use ./ for a leading '-' name",
         )
       }
-      manifest = Some(path)
+      if option == "--manifest" {
+        manifest = Some(path)
+      } else {
+        target_manifest = Some(path)
+      }
       i = i + 2
       continue
     }
@@ -506,6 +529,12 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
         "manifest select requires OLD_FILE and at least one MANIFEST_FILE; use --help",
       )
     }
+  } else if operation == "manifest plan" {
+    if files.length() == 0 || target_manifest is None {
+      return Err(
+        "manifest plan requires --target-manifest FILE and OLD_FILE; use --help",
+      )
+    }
   } else if !show && files.length() != expected {
     return Err("expected exactly \{expected} file arguments; use --help")
   }
@@ -527,6 +556,7 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
     json,
     deep,
     manifest,
+    target_manifest,
     files,
   })
 }
@@ -603,6 +633,10 @@ fn main {
   }
   if config.operation == "manifest select" {
     manifest_select_command(config)
+    return
+  }
+  if config.operation == "manifest plan" {
+    manifest_plan_command(config)
     return
   }
   if config.operation == "diff-many" {

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- `manifest plan` finds a directed update route with the smallest total
+  declared patch size to a trusted target and returns the steps as JSON.
+
 - `manifest select` matches the installed file by size and SHA-256 and returns
   JSON for the smallest applicable patch among trusted manifests for one target.
 
