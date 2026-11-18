@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- `manifest select` matches the installed file by size and SHA-256 and returns
+  JSON for the smallest applicable patch among trusted manifests for one target.
+
 - `diff-many OLD (NEW PATCH MANIFEST)...` generates multiple patch bundles
   from one old index. It checks batch paths before writing and reports which
   files were delivered if a group fails.

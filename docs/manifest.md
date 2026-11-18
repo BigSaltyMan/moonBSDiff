@@ -31,6 +31,62 @@ apply. Without this flag diff emits no manifest and plain patch retains its orig
 unchecked-identity behavior. Success is silent on stdout/stderr, exit 0;
 operational/output failures use stderr and exit 1.
 
+## Select a patch for the installed version (Unreleased)
+
+When several trusted manifests describe updates to the same target, pass the
+installed file and the candidate manifests in preference order.
+
+```sh
+moonbsdiff manifest select installed.bin v1-to-v3.json v2-to-v3.json
+```
+
+The command reads the old file once and computes its SHA-256 once. It reads
+each manifest within the 16 KiB cap and checks the schema and declared limits.
+All candidates must agree on both target size and target SHA-256. A candidate's
+`old` must match the installed file by size and hash. Among those matches,
+the smallest declared `patch.size_bytes` wins. Equal sizes favor the first
+argument. Success writes one JSON object to stdout and exits `0`.
+
+This response was produced by the command above with old versions `ABCDE` and
+`ABXDE` and the common target `prefix-ABCDE!`. The installed bytes were `ABXDE`.
+
+```json
+{
+  "schema_version": 1,
+  "manifest_path": "v2-to-v3.json",
+  "patch": {
+    "size_bytes": "138",
+    "sha256": "d76b2e40a6d6bbebf10d76f65ce276993fe270090fbc7bf78154a4ecb706dfef"
+  },
+  "new": {
+    "size_bytes": "13",
+    "sha256": "909d4a1c494cec5f86a7518e74ecf70e5b4e9fb909003c15c9d121f6f938f89d"
+  }
+}
+```
+
+The response preserves the path passed on the command line. Use your update
+catalog to locate the patch associated with that manifest. After downloading
+the patch, check the declared size and SHA-256 against `patch`, then pass the
+original selected manifest to streaming verification or checked delivery.
+
+```sh
+moonbsdiff verify --stream --manifest v2-to-v3.json installed.bin v2-to-v3.patch
+moonbsdiff patch --stream --manifest v2-to-v3.json installed.bin v2-to-v3.patch restored-v3.bin
+```
+
+Selection only reads the installed file and candidate manifests. Use trusted
+manifests and verify the downloaded patch before installing its target. The
+existing verification and delivery commands also recheck the actual old file.
+
+The defaults match CLI application limits. Only `--max-old-bytes`,
+`--max-new-bytes`, `--max-output-bytes`, and `--max-patch-bytes` are applicable.
+Put options before paths or use `--` before a path beginning with `-`. A missing
+match, mixed target, invalid manifest, read error or cap violation exits `1`
+with a diagnostic on stderr and empty stdout. Missing arguments and inapplicable
+options exit `2`. This command requires a CLI built from source containing this
+change. The published 0.4.0 CLI predates it.
+
 ## Create a manifest for an existing patch (Unreleased)
 
 Use `diff --manifest` when generating a new patch. Use `manifest create` when

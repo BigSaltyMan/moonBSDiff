@@ -94,6 +94,15 @@ fn print_help() -> Unit {
     "manifest create applies the existing patch in memory and writes a manifest only if the result matches NEW_FILE byte for byte. The patch is unchanged.",
   )
   println(
+    "moonbsdiff manifest select [LIMITS] OLD_FILE MANIFEST_FILE [MANIFEST_FILE...]",
+  )
+  println(
+    "Select the smallest matching patch from manifests for one target. Equal sizes favor the first. Prints JSON and reads no patches.",
+  )
+  println(
+    "Manifest select limits: --max-old-bytes, --max-new-bytes, --max-output-bytes, --max-patch-bytes.",
+  )
+  println(
     "moonbsdiff patch --manifest MANIFEST_FILE [LIMITS] OLD_FILE PATCH_FILE OUTPUT_FILE",
   )
   println(
@@ -242,19 +251,23 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
       args[1] != "manifest"
     ) {
     return Err(
-      "expected diff, diff-many, patch, inspect, verify or manifest create; use --help",
+      "expected diff, diff-many, patch, inspect, verify, manifest create or manifest select; use --help",
     )
   }
-  let operation = args[1]
-  let generation = operation == "diff" || operation == "diff-many"
-  let mut i = if operation == "manifest" {
-    if args.length() < 3 || args[2] != "create" {
-      return Err("manifest requires the create subcommand; use --help")
+  let (operation, options_start) = if args[1] == "manifest" {
+    if args.length() < 3 {
+      return Err("manifest requires create or select; use --help")
     }
-    3
+    match args[2] {
+      "create" => ("manifest", 3)
+      "select" => ("manifest select", 3)
+      _ => return Err("manifest requires create or select; use --help")
+    }
   } else {
-    2
+    (args[1], 2)
   }
+  let generation = operation == "diff" || operation == "diff-many"
+  let mut i = options_start
   let mut limits = if generation {
     @moonbsdiff.Limits::for_diff()
   } else {
@@ -290,6 +303,13 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
       option != "--max-expanded-bytes" &&
       option != "--max-controls" {
       return Err(option + " is not applicable to inspect")
+    }
+    if operation == "manifest select" &&
+      option != "--max-old-bytes" &&
+      option != "--max-new-bytes" &&
+      option != "--max-output-bytes" &&
+      option != "--max-patch-bytes" {
+      return Err(option + " is not applicable to manifest select")
     }
     let bytes = match option {
       "--progress" => {
@@ -480,6 +500,12 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
         "diff-many requires OLD followed by complete NEW PATCH MANIFEST groups; use --help",
       )
     }
+  } else if operation == "manifest select" {
+    if files.length() < 2 {
+      return Err(
+        "manifest select requires OLD_FILE and at least one MANIFEST_FILE; use --help",
+      )
+    }
   } else if !show && files.length() != expected {
     return Err("expected exactly \{expected} file arguments; use --help")
   }
@@ -573,6 +599,10 @@ fn main {
   }
   if config.operation == "manifest" {
     manifest_create_command(config)
+    return
+  }
+  if config.operation == "manifest select" {
+    manifest_select_command(config)
     return
   }
   if config.operation == "diff-many" {
