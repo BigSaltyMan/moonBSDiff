@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- `manifest.diff` and `manifest.diff_with_options` return a standard BSDIFF40
+  patch and its schema 1 manifest on native, JS and Wasm-GC. `diff --manifest`
+  uses the same generation path.
+
 - `BigSaltyMan/moonbsdiff/manifest` verifies a trusted schema 1 manifest and
   returns checked restored bytes on native, JS and Wasm-GC. Structured errors
   distinguish invalid manifests, limits, content mismatches and BSDIFF40 failures.

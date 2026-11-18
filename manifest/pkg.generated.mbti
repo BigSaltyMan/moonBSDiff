@@ -9,6 +9,10 @@ import {
 // Values
 pub fn apply(Bytes, Bytes, Bytes, @moonbsdiff.Limits) -> Result[Bytes, ManifestError]
 
+pub fn diff(Bytes, Bytes, @moonbsdiff.Limits) -> Result[PatchBundle, @moonbsdiff.BsdiffError]
+
+pub fn diff_with_options(Bytes, Bytes, @moonbsdiff.Limits, @moonbsdiff.DiffOptions) -> Result[PatchBundle, @moonbsdiff.BsdiffError]
+
 pub fn prepare(Bytes, @moonbsdiff.Limits) -> Result[PreparedManifest, ManifestError]
 
 // Errors
@@ -53,6 +57,11 @@ pub(all) enum ManifestError {
 pub fn ManifestError::equal(Self, Self) -> Bool
 pub fn ManifestError::not_equal(Self, Self) -> Bool
 pub fn ManifestError::to_repr(Self) -> @debug.Repr
+
+pub struct PatchBundle {
+  patch : Bytes
+  manifest : Bytes
+}
 
 pub struct PreparedManifest {
   old : ContentIdentity

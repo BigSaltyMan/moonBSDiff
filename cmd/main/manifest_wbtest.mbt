@@ -11,7 +11,7 @@ test "manifest-sha256-vectors-and-buffer-binding" {
   let old = b"\x00\xff"
   let new = b"abc"
   let patch = b"fixed patch buffer"
-  let first = make_manifest(old, new, patch)
-  assert_eq(first, make_manifest(old, new, patch))
-  assert_true(first != make_manifest(new, old, patch))
+  let first = @manifest_support.make_manifest(old, new, patch)
+  assert_eq(first, @manifest_support.make_manifest(old, new, patch))
+  assert_true(first != @manifest_support.make_manifest(new, old, patch))
 }

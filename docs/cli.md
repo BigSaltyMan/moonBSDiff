@@ -38,8 +38,9 @@ python scripts/build_cli.py --check-version
 
 On Windows initialize the MSVC developer environment first (the verified local
 script is `C:\Program Files\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvars64.bat`).
-The script generates `cmd/main/version.mbt` from the module's `version` field,
-builds `cmd/main` for native, and copies the actual artifact to:
+The script generates `internal/manifest/version.mbt` from the module's `version`
+field. The CLI and manifest serializer share that version. The script then
+builds `cmd/main` for native and copies the artifact to:
 
 - Windows: `_build/bin/windows/moonbsdiff.exe`
 - Linux: `_build/bin/linux/moonbsdiff`

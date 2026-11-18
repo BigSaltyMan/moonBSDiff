@@ -66,6 +66,50 @@ is delivered. Existing destinations, including links to inputs, are preserved.
 the public v0.4.0 archives. Use a trusted target and share the resulting manifest
 through a trusted channel.
 
+## Generate a patch bundle from MoonBit (Unreleased)
+
+Import the root library and the manifest subpackage in `moon.pkg`.
+
+```moonbit
+import {
+  "BigSaltyMan/moonbsdiff" @moonbsdiff,
+  "BigSaltyMan/moonbsdiff/manifest" @manifest,
+}
+```
+
+The publisher receives two read-only `Bytes` fields. It sends the standard
+BSDIFF40 patch and the schema 1 manifest separately. The client takes the manifest
+from a trusted channel and verifies the restored content.
+
+```moonbit
+fn publish_update(old : Bytes, new : Bytes) -> Result[@manifest.PatchBundle, @moonbsdiff.BsdiffError] {
+  @manifest.diff(old, new, @moonbsdiff.Limits::for_diff())
+}
+
+fn restore_bundle(old : Bytes, patch : Bytes, trusted_manifest : Bytes) -> Result[Bytes, @manifest.ManifestError] {
+  @manifest.apply(old, patch, trusted_manifest, @moonbsdiff.Limits::for_apply())
+}
+
+test "publish and restore in memory" {
+  let old = b"abc\x00\xff"
+  let new = b"abC\x00\xff!"
+  match publish_update(old, new) {
+    Ok(bundle) => assert_eq(restore_bundle(old, bundle.patch, bundle.manifest), Ok(new))
+    Err(_) => abort("generation failed")
+  }
+}
+```
+
+`diff` uses the default generation options. `diff_with_options(old, new, limits,
+options)` accepts the root library's `DiffOptions`. Both generate one patch and
+return the root `BsdiffError` on failure. After generation succeeds, the manifest
+hashes the two input buffers and the returned patch once each. That work is
+additional to the sorting and matching budgets in `Limits`. The native CLI's
+`diff --manifest` uses the same code and delivers the patch before the manifest.
+
+These generation interfaces are available from this source change on native,
+JS and Wasm-GC. The public Mooncakes 0.4.0 package predates them.
+
 ## Verified restoration from MoonBit (Unreleased)
 
 Applications can use the same schema 1 manifest emitted by `manifest create`
@@ -148,7 +192,7 @@ The actual file is compact UTF-8 JSON plus one LF (405 bytes); pretty-printed he
 
 Required top-level members are schema_version (JSON integer 1), patch_format
 (string BSDIFF40), producer, old, new, patch. The generator emits producer name=moonbsdiff and
-version from the actual generated cli_version/module build metadata; the consumer
+version from the shared constant generated from `moon.mod`; the consumer
 treats those required strings only as provenance information. The historical example above reports that build's 0.1.0 metadata; CLI 0.2.0 now
 reports 0.2.0 from the same generated module source. No unverified source SHA is
 embedded. GitHub CLI distribution is distinct from the immutable published

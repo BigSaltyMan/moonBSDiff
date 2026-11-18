@@ -528,7 +528,7 @@ fn main {
     @env.exit(0)
   }
   if args.length() == 2 && args[1] == "--version" {
-    println("moonbsdiff \{cli_version}")
+    println("moonbsdiff \{@manifest_support.PRODUCER_VERSION}")
     @env.exit(0)
   }
   let config = match parse_cli(args) {
@@ -641,12 +641,18 @@ fn main {
       limits.max_patch_bytes
     },
   )
-  let result = if operation == "diff" {
-    @moonbsdiff.diff_with_options(old, other, limits, config.options)
+  let result = if operation == "diff" && config.manifest is Some(_) {
+    @manifest.diff_with_options(old, other, limits, config.options).map(bundle => {
+      (bundle.patch, Some(bundle.manifest))
+    })
+  } else if operation == "diff" {
+    @moonbsdiff.diff_with_options(old, other, limits, config.options).map(patch => {
+      (patch, None)
+    })
   } else {
-    @moonbsdiff.apply(old, other, limits)
+    @moonbsdiff.apply(old, other, limits).map(restored => (restored, None))
   }
-  let value = match result {
+  let (value, manifest_data) = match result {
     Ok(v) => v
     Err(e) => {
       failure(
@@ -660,13 +666,8 @@ fn main {
         "': " +
         @debug.to_string(e),
       )
-      b""
+      return
     }
-  }
-  // All hashes refer to these exact buffers; no path is reopened for hashing.
-  let manifest_data = match config.manifest {
-    Some(_) => Some(make_manifest(old, other, value))
-    None => None
   }
   if io_deliver(path_bytes(output), value) == 0 {
     failure(

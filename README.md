@@ -243,24 +243,25 @@ same buffers.
 metadata handling and failure stages. Hashes establish supplied-content consistency,
 not publisher authenticity; trusted expected manifests are still required.
 
-**Verified restoration from MoonBit (Unreleased)**
+**Generate and verify patch bundles from MoonBit (Unreleased)**
 
 Import `BigSaltyMan/moonbsdiff/manifest` as `@manifest`, the root package as
-`@moonbsdiff`, and `moonbitlang/core/debug` as `@debug`. The source API works
+`@moonbsdiff`. The source API works
 on native, JS and Wasm-GC. The published 0.4.0 package predates this entry point.
 
 ```moonbit
-fn restore_update(old : Bytes, patch : Bytes, trusted_manifest : Bytes) -> Result[Bytes, String] {
-  match @manifest.apply(old, patch, trusted_manifest, @moonbsdiff.Limits::for_apply()) {
-    Ok(restored) => Ok(restored)
-    Err(IdentityMismatch(object=Old, ..)) =>
-      Err("Installed bytes do not match the required old version")
-    Err(error) => Err(@debug.to_string(error))
-  }
+fn publish_update(old : Bytes, new : Bytes) -> Result[@manifest.PatchBundle, @moonbsdiff.BsdiffError] {
+  @manifest.diff(old, new, @moonbsdiff.Limits::for_diff())
+}
+
+fn restore_bundle(old : Bytes, patch : Bytes, trusted_manifest : Bytes) -> Result[Bytes, @manifest.ManifestError] {
+  @manifest.apply(old, patch, trusted_manifest, @moonbsdiff.Limits::for_apply())
 }
 ```
 
-The manifest must come from a trusted channel. [API and error handling](docs/manifest.md#verified-restoration-from-moonbit-unreleased)
+Send `bundle.patch` and `bundle.manifest` as separate byte buffers. The client
+passes the patch and the manifest from a trusted channel to `restore_bundle`.
+[Complete example and error handling](docs/manifest.md#generate-a-patch-bundle-from-moonbit-unreleased)
 
 Paths containing Chinese characters or spaces must be quoted similarly.
 Our order is `patch OLD PATCH OUTPUT`; upstream is `bspatch OLD NEW PATCH`.

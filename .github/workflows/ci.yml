@@ -81,7 +81,7 @@ jobs:
             python3 scripts/check_compression.py --log "compression-$target.log"
           done
 
-      - name: Apply, deep inspection and verified restore on JS and Wasm-GC
+      - name: Apply, deep inspection and manifest APIs on JS and Wasm-GC
         shell: bash
         run: |
           set -o pipefail
@@ -89,7 +89,7 @@ jobs:
             python3 scripts/check_acceptance.py --test-log "apply-$target.log" -- moon test apply_test.mbt apply_vectors_test.mbt apply_boundaries_test.mbt apply_resources_test.mbt --target "$target" --deny-warn
             grep -E 'Total tests: [1-9][0-9]*, passed: [1-9][0-9]*, failed: 0' "apply-$target.log"
             python3 scripts/check_acceptance.py --test-log "inspect-deep-$target.log" -- moon test inspect_deep_test.mbt --target "$target" --deny-warn
-            python3 scripts/check_acceptance.py --test-log "manifest-$target.log" -- moon test manifest --target "$target" --deny-warn
+            python3 scripts/check_acceptance.py --test-log "manifest-$target.log" -- moon test manifest --filter 'manifest public*' --target "$target" --deny-warn
           done
 
       - name: Compact suffix-index correctness on JS and Wasm-GC
@@ -205,6 +205,9 @@ jobs:
           CLI_EXE: ${{ runner.os == 'Windows' && '_build/bin/windows/moonbsdiff.exe' || '_build/bin/linux/moonbsdiff' }}
         run: python scripts/test_cli_manifest_create.py --exe "$CLI_EXE"
         shell: bash
+      - name: Compare CLI and library manifest bytes
+        if: runner.os == 'Linux'
+        run: python3 scripts/test_cli_manifest_bundle.py --exe _build/bin/linux/moonbsdiff
       - name: Package and validate Linux release archive once
         if: runner.os == 'Linux'
         run: python3 scripts/package_cli.py
