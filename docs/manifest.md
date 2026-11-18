@@ -161,6 +161,54 @@ target, read or manifest error exits `1` with a diagnostic and empty stdout.
 Invalid arguments exit `2`. This command requires a CLI built from source
 containing this change. The published 0.4.0 CLI predates it.
 
+## Apply a local patch chain (Unreleased)
+
+First obtain the route for the installed file, then fetch the patches through
+your update catalog. Supply the local patch and its original manifest for each
+step in the plan's order.
+
+```sh
+moonbsdiff manifest plan --target-manifest v2-to-v3.json installed.bin v1-to-v2.json v2-to-v3.json
+moonbsdiff patch-chain --target-manifest v2-to-v3.json -- installed.bin restored.bin v1-to-v2.patch v1-to-v2.json v2-to-v3.patch v2-to-v3.json
+```
+
+This uses the two-hop fixture from the planning section. A single chain call
+delivered `restored.bin` with all 2048 bytes matching the independent target.
+The source files and both patches remained unchanged. The target manifest may
+also be the last step's manifest. If `manifest plan` returns an empty route,
+the installed file is already the target and the caller can skip recovery.
+
+`patch-chain --target-manifest FILE [LIMITS] OLD OUTPUT (PATCH MANIFEST)...`
+requires at least one complete pair. The application limits accepted by
+`patch --stream` apply. Put options before paths and use `--` before a path
+starting with a hyphen. Use trusted manifests. Each manifest goes through the
+16 KiB read cap and strict schema checks. The command retains the validated
+identities for this call and checks every link and the final target, matching
+both size and SHA-256 before any patch is applied. The actual output path
+must be fresh and distinct from the inputs. The final publication again
+checks for a competing destination and never replaces it.
+
+The first old file and each patch are copied into private files while being
+hashed. Each step decodes from verified handles using at most 4096 bytes per
+stream read or write, then checks the streams, restored size and SHA-256.
+An intermediate stays private and becomes the next old input by handle once
+verified. Only the last output can be published to the named destination.
+
+Byte caps, the expanded-byte budget and the instruction budget apply afresh to
+each step. At most the current old input copy or intermediate, the current
+patch copy and the next private output are needed together. The current old
+and patch handles are closed before advancing. Private copies use Windows
+temporary storage or Linux `/tmp`, and final staging uses the destination
+directory. Total work grows with the number and sizes of the steps, and the
+same destination filesystem requirements as streaming patch still apply.
+
+Success is silent and exits `0`. Invalid arguments exit `2`. Failure exits
+`1` with a diagnostic on stderr that names the step when applicable. Ctrl+C
+uses one cancellation session for the chain. Confirmed cancellation before
+the final publication gate exits `130` and releases the private files. An
+error after publication can leave the fully verified final file in place.
+The published 0.4.0 CLI predates this command.
+
 ## Create a manifest for an existing patch (Unreleased)
 
 Use `diff --manifest` when generating a new patch. Use `manifest create` when

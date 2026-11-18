@@ -9,6 +9,26 @@ extern "C" fn stream_copy_write(data : Bytes) -> Int32 = "mbsd_stream_copy_write
 extern "C" fn stream_copy_use(which : Int32) -> Int32 = "mbsd_stream_copy_use"
 
 ///|
+fn stream_read_manifest(
+  path : String,
+  limits : @moonbsdiff.Limits,
+  progress : StreamProgress,
+) -> @manifest.PreparedManifest raise {
+  progress.checkpoint(2)
+  let data = io_read(path_bytes(path), @manifest_support.MAX_MANIFEST_BYTES)
+  stream_require(
+    io_failed() == 0,
+    "read manifest (limit=16384 bytes) '\{path}'",
+  )
+  progress.checkpoint(2)
+  match @manifest.prepare(data, limits) {
+    Ok(identity) => identity
+    Err(error) =>
+      raise StreamError("manifest '\{path}': " + manifest_diagnostic(error))
+  }
+}
+
+///|
 fn stream_manifest(
   config : CliConfig,
   output : String?,
@@ -26,13 +46,7 @@ fn stream_manifest(
       "stream manifest/output precheck",
     )
   }
-  progress.checkpoint(2)
-  let data = io_read(path_bytes(path), @manifest_support.MAX_MANIFEST_BYTES)
-  stream_require(io_failed() == 0, "read manifest (limit=16384 bytes)")
-  match @manifest.prepare(data, config.limits) {
-    Ok(identity) => Some(identity)
-    Err(error) => raise StreamError(manifest_diagnostic(error))
-  }
+  Some(stream_read_manifest(path, config.limits, progress))
 }
 
 ///|

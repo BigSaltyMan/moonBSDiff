@@ -754,27 +754,35 @@ static void stream_close_inputs(void) {
   for(int i=0;i<2;i++) stream_close_file(&stream_inputs[i],"close stream input");
   stream_close_file(&stream_copy,"close private input copy");
 }
+static void stream_open_file(int i,moonbit_bytes_t path,int64_t cap) {
+  if(cap<1 || cap>INT32_MAX) { fail("stream input cap",EINVAL);return; }
+#ifdef _WIN32
+  wchar_t *name=wide((char*)path);if(!name) return;
+  stream_inputs[i]=CreateFileW(name,GENERIC_READ,FILE_SHARE_READ,NULL,OPEN_EXISTING,FILE_ATTRIBUTE_NORMAL,NULL);free(name);
+  LARGE_INTEGER size;
+  if(stream_inputs[i]==INVALID_HANDLE_VALUE || GetFileType(stream_inputs[i])!=FILE_TYPE_DISK || !GetFileSizeEx(stream_inputs[i],&size)) { fail("open/size stream input",GetLastError());return; }
+  stream_sizes[i]=size.QuadPart;
+#else
+  stream_inputs[i]=open((char*)path,O_RDONLY|O_CLOEXEC|O_NONBLOCK);
+  struct stat st;
+  if(stream_inputs[i]<0 || fstat(stream_inputs[i],&st)<0) { fail("open/size stream input",errno);return; }
+  if(!S_ISREG(st.st_mode)) { fail("stream input must be a regular file",EINVAL);return; }
+  stream_sizes[i]=st.st_size;
+#endif
+  if(stream_sizes[i]<0 || stream_sizes[i]>cap) limit_fail(i?"max_patch_bytes":"max_old_bytes",(int)cap);
+}
 MOONBIT_FFI_EXPORT int32_t mbsd_stream_open(moonbit_bytes_t old,moonbit_bytes_t patch,int64_t oldcap,int64_t patchcap) {
   problem[0]=0;
-  moonbit_bytes_t names[2]={old,patch};int64_t caps[2]={oldcap,patchcap};
-  for(int i=0;i<2 && !problem[0];i++) {
-    if(caps[i]<1 || caps[i]>INT32_MAX) { fail("stream input cap",EINVAL);break; }
-#ifdef _WIN32
-    wchar_t *name=wide((char*)names[i]);if(!name) break;
-    stream_inputs[i]=CreateFileW(name,GENERIC_READ,FILE_SHARE_READ,NULL,OPEN_EXISTING,FILE_ATTRIBUTE_NORMAL,NULL);free(name);
-    LARGE_INTEGER size;
-    if(stream_inputs[i]==INVALID_HANDLE_VALUE || GetFileType(stream_inputs[i])!=FILE_TYPE_DISK || !GetFileSizeEx(stream_inputs[i],&size)) { fail("open/size stream input",GetLastError());break; }
-    stream_sizes[i]=size.QuadPart;
-#else
-    stream_inputs[i]=open((char*)names[i],O_RDONLY|O_CLOEXEC|O_NONBLOCK);
-    struct stat st;
-    if(stream_inputs[i]<0 || fstat(stream_inputs[i],&st)<0) { fail("open/size stream input",errno);break; }
-    if(!S_ISREG(st.st_mode)) { fail("stream input must be a regular file",EINVAL);break; }
-    stream_sizes[i]=st.st_size;
-#endif
-    if(stream_sizes[i]<0 || stream_sizes[i]>caps[i]) limit_fail(i?"max_patch_bytes":"max_old_bytes",(int)caps[i]);
-  }
+  stream_open_file(0,old,oldcap);
+  if(!problem[0]) stream_open_file(1,patch,patchcap);
   if(problem[0]) stream_close_inputs();
+  return !problem[0];
+}
+/* A verified intermediate handle is already installed as old input. */
+MOONBIT_FFI_EXPORT int32_t mbsd_stream_open_next_patch(moonbit_bytes_t patch,int64_t cap) {
+  if(stream_inputs[0]==STREAM_INVALID || stream_inputs[1]!=STREAM_INVALID || stream_copy!=STREAM_INVALID)
+    fail("stream chain input state",EINVAL);
+  if(!problem[0]) stream_open_file(1,patch,cap);
   return !problem[0];
 }
 MOONBIT_FFI_EXPORT int64_t mbsd_stream_size(int32_t which) { return which>=0 && which<2?stream_sizes[which]:-1; }
@@ -889,6 +897,30 @@ MOONBIT_FFI_EXPORT int32_t mbsd_stream_copy_use(int32_t which) {
   stream_close_file(&stream_inputs[which],"close original input");
   if(problem[0]) return 0;
   stream_inputs[which]=stream_copy;
+  stream_copy=STREAM_INVALID;
+  return 1;
+}
+
+/* The decoder checked every written byte and the output hash. Keep the
+ * exclusive handle, check the length and retire the previous step's inputs. */
+MOONBIT_FFI_EXPORT int32_t mbsd_stream_use_intermediate(int64_t expected) {
+  if(problem[0]) return 0;
+  if(stream_copy==STREAM_INVALID) { fail("missing private intermediate",EINVAL);return 0; }
+#ifdef _WIN32
+  LARGE_INTEGER size;
+  if(!GetFileSizeEx(stream_copy,&size)) { fail("size private intermediate",GetLastError());return 0; }
+  int64_t length=size.QuadPart;
+#else
+  struct stat st;
+  if(fstat(stream_copy,&st)<0) { fail("size private intermediate",errno);return 0; }
+  int64_t length=st.st_size;
+#endif
+  if(length!=expected) { fail("private intermediate size mismatch",EINVAL);return 0; }
+  for(int i=0;i<2;i++) stream_close_file(&stream_inputs[i],"close previous chain input");
+  if(problem[0]) return 0;
+  stream_inputs[0]=stream_copy;
+  stream_sizes[0]=length;
+  stream_sizes[1]=0;
   stream_copy=STREAM_INVALID;
   return 1;
 }

@@ -75,6 +75,12 @@ fn print_help() -> Unit {
   )
   println("moonbsdiff patch OLD_FILE PATCH_FILE OUTPUT_FILE")
   println(
+    "moonbsdiff patch-chain --target-manifest FILE [LIMITS] OLD OUTPUT (PATCH MANIFEST)...",
+  )
+  println(
+    "Apply verified local patches in order and deliver only the final file. Confirmed cancellation exits 130.",
+  )
+  println(
     "moonbsdiff patch --stream [--manifest MANIFEST_FILE] [--progress text|json] OLD_FILE PATCH_FILE OUTPUT_FILE",
   )
   println(
@@ -253,12 +259,13 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
       args[1] != "diff" &&
       args[1] != "diff-many" &&
       args[1] != "patch" &&
+      args[1] != "patch-chain" &&
       args[1] != "inspect" &&
       args[1] != "verify" &&
       args[1] != "manifest"
     ) {
     return Err(
-      "expected diff, diff-many, patch, inspect, verify, or manifest create/select/plan; use --help",
+      "expected diff, diff-many, patch, patch-chain, inspect, verify, or manifest create/select/plan; use --help",
     )
   }
   let (operation, options_start) = if args[1] == "manifest" {
@@ -349,11 +356,16 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
         if operation == "diff-many" {
           return Err("diff-many takes a MANIFEST file argument per group")
         }
+        if operation == "patch-chain" {
+          return Err("patch-chain takes a MANIFEST file argument per step")
+        }
         false
       }
       "--target-manifest" => {
-        if operation != "manifest plan" {
-          return Err(option + " is only applicable to manifest plan")
+        if operation != "manifest plan" && operation != "patch-chain" {
+          return Err(
+            option + " is only applicable to manifest plan and patch-chain",
+          )
         }
         false
       }
@@ -372,7 +384,8 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
       "--show-limits" => {
         if operation == "verify" ||
           operation == "manifest" ||
-          operation == "diff-many" {
+          operation == "diff-many" ||
+          operation == "patch-chain" {
           let command = if operation == "manifest" {
             "manifest create"
           } else {
@@ -535,6 +548,14 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
         "manifest plan requires --target-manifest FILE and OLD_FILE; use --help",
       )
     }
+  } else if operation == "patch-chain" {
+    if target_manifest is None ||
+      files.length() < 4 ||
+      (files.length() - 2) % 2 != 0 {
+      return Err(
+        "patch-chain requires --target-manifest FILE, OLD OUTPUT and complete PATCH MANIFEST pairs; use --help",
+      )
+    }
   } else if !show && files.length() != expected {
     return Err("expected exactly \{expected} file arguments; use --help")
   }
@@ -637,6 +658,10 @@ fn main {
   }
   if config.operation == "manifest plan" {
     manifest_plan_command(config)
+    return
+  }
+  if config.operation == "patch-chain" {
+    stream_command(config)
     return
   }
   if config.operation == "diff-many" {

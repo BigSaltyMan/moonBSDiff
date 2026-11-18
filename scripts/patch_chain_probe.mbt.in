@@ -1,0 +1,30 @@
+///|
+extern "C" fn interrupt_test_setup(point : Int32, wait : Int32, injected_fault : Int32) -> Unit = "mbsd_interrupt_test_setup"
+
+///|
+extern "C" fn probe_chain_clean() -> Int32 = "mbsd_probe_chain_clean"
+
+///|
+fn main {
+  let args = cli_args()
+  if args.length() < 2 || (args[1] != "cancel" && args[1] != "race" && args[1] != "clean") {
+    production_main()
+    return
+  }
+  let actual = Array::makei(args.length() - 1, i => if i == 0 { args[0] } else { args[i + 1] })
+  let config = match parse_cli(actual) {
+    Ok(value) => value
+    Err(error) => abort(error)
+  }
+  match args[1] {
+    "cancel" => interrupt_test_setup(24, 3, 0)
+    "race" => interrupt_test_setup(50, 2, 0)
+    "clean" => ()
+    _ => abort("unknown private chain probe mode")
+  }
+  let code = stream_operation(config)
+  if probe_chain_clean() == 0 {
+    abort("expected one verified handoff and no retained chain handles")
+  }
+  @env.exit(code)
+}

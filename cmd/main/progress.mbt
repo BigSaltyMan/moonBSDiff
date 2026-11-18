@@ -29,6 +29,7 @@ priv struct StreamProgress {
   mut cancelled : Bool
   mut committing : Bool
   mut detail : String
+  mut chain_step : Int32
 }
 
 ///|
@@ -149,6 +150,7 @@ fn stream_operation(config : CliConfig) -> Int32 {
     cancelled: false,
     committing: false,
     detail: "",
+    chain_step: 0,
   }
   // Begin resets the native publication/notification identity before any event.
   state.session = interrupt_begin()
@@ -157,7 +159,11 @@ fn stream_operation(config : CliConfig) -> Int32 {
   if state.session > 0 {
     ok = state.attempt(() => {
       state.checkpoint(1)
-      stream_run(config, state)
+      if config.operation == "patch-chain" {
+        stream_chain(config, state)
+      } else {
+        stream_run(config, state)
+      }
     })
   } else {
     state.detail = "Install interrupt notification failed"
@@ -182,16 +188,25 @@ fn stream_operation(config : CliConfig) -> Int32 {
     1
   }
   // A cancellation request is never reclassified after the commit gate.
-  if config.operation == "patch" && code == 0 && !published {
+  let delivering = config.operation == "patch" ||
+    config.operation == "patch-chain"
+  if delivering && code == 0 && !published {
     code = 1
     state.detail = "Delivery returned without publication"
   }
   if code == 0 {
     state.stage = "complete"
-    if config.operation == "patch" {
+    if delivering {
       state.emit("complete", "All checks and delivery completed")
     }
   } else {
+    let context = if config.operation != "patch-chain" {
+      ""
+    } else if state.chain_step == 0 {
+      "patch-chain: "
+    } else {
+      "patch-chain step \{state.chain_step}: "
+    }
     let native = if io_failed() != 0 {
       "; " + @utf8.decode_lossy(io_error()[:])
     } else {
@@ -203,7 +218,7 @@ fn stream_operation(config : CliConfig) -> Int32 {
       } else {
         "error"
       },
-      state.detail + native,
+      context + state.detail + native,
     )
   }
   code

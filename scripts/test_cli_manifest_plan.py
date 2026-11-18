@@ -17,6 +17,19 @@ EXE = None
 UPSTREAM = ROOT / "testdata/upstream/seeded-random"
 
 
+def prepare_two_hop(write, invoke):
+    start = (UPSTREAM / "old.bin").read_bytes()
+    middle = (UPSTREAM / "new.bin").read_bytes()
+    target = middle[:-1] + bytes([middle[-1] ^ 1])
+    write("installed.bin", start)
+    write("v2.bin", middle)
+    write("v3.bin", target)
+    write("v1-to-v2.patch", (UPSTREAM / "patch.bin").read_bytes())
+    invoke("manifest", "create", "installed.bin", "v2.bin", "v1-to-v2.patch", "v1-to-v2.json")
+    invoke("diff", "--manifest", "v2-to-v3.json", "v2.bin", "v3.bin", "v2-to-v3.patch")
+    return start, middle, target
+
+
 class ManifestPlan(unittest.TestCase):
     def setUp(self):
         folder = tempfile.TemporaryDirectory(prefix="moonbsdiff-plan-")
@@ -57,19 +70,11 @@ class ManifestPlan(unittest.TestCase):
         return path
 
     def test_cheaper_two_hops_actually_restore_target(self):
-        start = (UPSTREAM / "old.bin").read_bytes()
-        middle = (UPSTREAM / "new.bin").read_bytes()
-        target = middle[:-1] + bytes([middle[-1] ^ 1])
-        self.write("installed.bin", start)
-        self.write("v2.bin", middle)
-        self.write("v3.bin", target)
-        self.write("v1-to-v2.patch", (UPSTREAM / "patch.bin").read_bytes())
+        start, middle, target = prepare_two_hop(self.write, self.invoke)
         # A valid direct patch that carries the complete target in Extra.
         control = integer(0) + integer(len(target)) + integer(0)
         self.write("v1-to-v3.patch", envelope([bz2.compress(control), bz2.compress(b""),
                                                bz2.compress(target)], len(target)))
-        self.invoke("manifest", "create", "installed.bin", "v2.bin", "v1-to-v2.patch", "v1-to-v2.json")
-        self.invoke("diff", "--manifest", "v2-to-v3.json", "v2.bin", "v3.bin", "v2-to-v3.patch")
         self.invoke("manifest", "create", "installed.bin", "v3.bin", "v1-to-v3.patch", "v1-to-v3.json")
         paths = ("v1-to-v2.json", "v2-to-v3.json")
         inputs = ((start, middle), (middle, target))

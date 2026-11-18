@@ -291,6 +291,85 @@ fn stream_execute(
 }
 
 ///|
+fn stream_prepare_patch(
+  limits : @moonbsdiff.Limits,
+  expected : @manifest.ContentIdentity?,
+  progress : StreamProgress,
+) -> @moonbsdiff.PatchInfo raise {
+  let header = stream_read(1, 0L, Int64::min(32L, stream_size(1)).to_int())
+  stream_require(io_failed() == 0, "stream read header")
+  let info = match
+    @moonbsdiff.inspect_header_prefix(
+      header,
+      stream_size(1),
+      limits.max_patch_bytes,
+    ) {
+    Ok(v) => v
+    Err(e) => raise StreamError(@debug.to_string(e))
+  }
+  for
+    (field, cap) in [
+      ("max_new_bytes", limits.max_new_bytes),
+      ("max_output_bytes", limits.max_output_bytes),
+    ] {
+    stream_require(
+      info.new_bytes <= cap,
+      "Header ResourceLimitExceeded: \{field} value=\{info.new_bytes} limit=\{cap}",
+    )
+  }
+  if expected is Some(new) {
+    stream_require(info.new_bytes == new.size, "patch header/new size mismatch")
+  }
+  progress.total = Some(info.new_bytes)
+  progress.phase("restoring")
+  progress.checkpoint(10)
+  info
+}
+
+///|
+fn stream_restore_output(
+  target : String,
+  info : @moonbsdiff.PatchInfo,
+  limits : @moonbsdiff.Limits,
+  progress : StreamProgress,
+  expected : @manifest.ContentIdentity?,
+) -> Unit raise {
+  let ok = stream_deliver(
+    path_bytes(target),
+    fn(f) { f() },
+    fn() {
+      progress.attempt(() => {
+        stream_execute(info, limits, progress, expected, data => {
+          stream_require(stream_write(data) != 0, "Applying: write temporary")
+        })
+      })
+    },
+    fn() {
+      progress.attempt(() => {
+        progress.phase("delivering")
+        progress.checkpoint(50)
+        let admitted = interrupt_commit(progress.session)
+        if admitted == 0 {
+          progress.cancelled = true
+          raise StreamCancelled
+        }
+        stream_require(admitted == 1, "Interrupt commit admission failed")
+        progress.committing = true
+      })
+    },
+  )
+  if ok == 0 {
+    if progress.cancelled {
+      raise StreamCancelled
+    }
+    // A signal noticed while a pull raised is confirmed here, never mistaken
+    // for a successful EOF or reported as a cancellation after commit began.
+    progress.checkpoint(0)
+    raise StreamError(progress.detail)
+  }
+}
+
+///|
 fn stream_run(config : CliConfig, progress : StreamProgress) -> Unit raise {
   let limits = config.limits
   let output = if config.operation == "patch" {
@@ -328,73 +407,13 @@ fn stream_run(config : CliConfig, progress : StreamProgress) -> Unit raise {
     verify_stream_copy(1, "patch input", manifest.patch, progress)
     progress.checkpoint(23)
   }
-  let header = stream_read(1, 0L, Int64::min(32L, stream_size(1)).to_int())
-  stream_require(io_failed() == 0, "stream read header")
-  let info = match
-    @moonbsdiff.inspect_header_prefix(
-      header,
-      stream_size(1),
-      limits.max_patch_bytes,
-    ) {
-    Ok(v) => v
-    Err(e) => raise StreamError(@debug.to_string(e))
-  }
-  for
-    (field, cap) in [
-      ("max_new_bytes", limits.max_new_bytes),
-      ("max_output_bytes", limits.max_output_bytes),
-    ] {
-    stream_require(
-      info.new_bytes <= cap,
-      "Header ResourceLimitExceeded: \{field} value=\{info.new_bytes} limit=\{cap}",
-    )
-  }
-  if identity is Some(manifest) {
-    stream_require(
-      info.new_bytes == manifest.new.size,
-      "patch header/new size mismatch",
-    )
-  }
-  progress.total = Some(info.new_bytes)
-  progress.phase("restoring")
-  progress.checkpoint(10)
+  let expected = identity.map(m => m.new)
+  let info = stream_prepare_patch(limits, expected, progress)
   guard output is Some(target) else {
-    stream_execute(info, limits, progress, identity.map(m => m.new), _ => ())
+    stream_execute(info, limits, progress, expected, _ => ())
     return
   }
-  let ok = stream_deliver(
-    path_bytes(target),
-    fn(f) { f() },
-    fn() {
-      progress.attempt(() => {
-        stream_execute(info, limits, progress, identity.map(m => m.new), data => {
-          stream_require(stream_write(data) != 0, "Applying: write temporary")
-        })
-      })
-    },
-    fn() {
-      progress.attempt(() => {
-        progress.phase("delivering")
-        progress.checkpoint(50)
-        let admitted = interrupt_commit(progress.session)
-        if admitted == 0 {
-          progress.cancelled = true
-          raise StreamCancelled
-        }
-        stream_require(admitted == 1, "Interrupt commit admission failed")
-        progress.committing = true
-      })
-    },
-  )
-  if ok == 0 {
-    if progress.cancelled {
-      raise StreamCancelled
-    }
-    // A signal noticed while a pull raised is confirmed here, never mistaken
-    // for a successful EOF or reported as a cancellation after commit began.
-    progress.checkpoint(0)
-    raise StreamError(progress.detail)
-  }
+  stream_restore_output(target, info, limits, progress, expected)
 }
 
 ///|

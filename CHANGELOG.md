@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- `patch-chain` checks a trusted chain of local patches and manifests,
+  restores intermediate versions privately, and publishes the verified final file.
+
 - `manifest plan` finds a directed update route with the smallest total
   declared patch size to a trusted target and returns the steps as JSON.
 
