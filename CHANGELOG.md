@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Native `verify --stream --manifest` checks recovery in bounded chunks and
+  saves no restored output. Verified input copies, existing limits and cooperative
+  cancellation apply. Success uses the existing verify output line.
+
 - Native `patch --stream --manifest` verifies private copies of both inputs
   and hashes the temporary output in bounded chunks. Schema 1, resource limits,
   progress and cooperative cancellation apply. Delivery requires a matching

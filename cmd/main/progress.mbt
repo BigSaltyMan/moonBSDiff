@@ -83,7 +83,7 @@ fn StreamProgress::phase(self : StreamProgress, stage : String) -> Unit {
 }
 
 ///|
-fn StreamProgress::written(
+fn StreamProgress::recovered(
   self : StreamProgress,
   count : Int32,
 ) -> Unit raise StreamCancelled {
@@ -109,7 +109,7 @@ fn StreamProgress::record_failure(
     self.session > 0 &&
     interrupt_poll(self.session, 0) != 0 {
     self.cancelled = true
-    self.detail = "Cancellation confirmed before commit"
+    self.detail = "Cancellation confirmed"
   } else {
     self.detail = message
   }
@@ -127,7 +127,7 @@ fn StreamProgress::attempt(
   } catch {
     StreamCancelled => {
       self.cancelled = true
-      self.detail = "Cancellation confirmed before commit"
+      self.detail = "Cancellation confirmed"
       0
     }
     StreamError(message) => self.record_failure(message)
@@ -163,6 +163,12 @@ fn stream_operation(config : CliConfig) -> Int32 {
     state.detail = "Install interrupt notification failed"
   }
   stream_abort()
+  if config.operation == "verify" && ok != 0 {
+    ok = state.attempt(() => {
+      state.checkpoint(0)
+      stream_require(io_failed() == 0, "Closing verification inputs failed")
+    })
+  }
   if state.session > 0 && interrupt_end(state.session) == 0 {
     ok = 0
     state.detail += "; interrupt handler restoration failed"
@@ -176,13 +182,15 @@ fn stream_operation(config : CliConfig) -> Int32 {
     1
   }
   // A cancellation request is never reclassified after the commit gate.
-  if code == 0 && !published {
+  if config.operation == "patch" && code == 0 && !published {
     code = 1
     state.detail = "Delivery returned without publication"
   }
   if code == 0 {
     state.stage = "complete"
-    state.emit("complete", "All checks and delivery completed")
+    if config.operation == "patch" {
+      state.emit("complete", "All checks and delivery completed")
+    }
   } else {
     let native = if io_failed() != 0 {
       "; " + @utf8.decode_lossy(io_error()[:])

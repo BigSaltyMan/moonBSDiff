@@ -2,7 +2,20 @@
 
 This CLI feature is not part of published 0.1.0. The patch remains plain
 BSDIFF40: no custom header, trailer or embedded JSON. Commit 20 adds bounded manifest reading, verify, and checked patch delivery.
-For the unreleased streaming patch command, see [verified file application](file-apply.md#streaming-with-a-manifest-unreleased). The manifest describes content identity. Obtain it through a trusted channel.
+Use a trusted manifest. Choose the command according to how you need to handle
+the restored bytes.
+
+~~~sh
+moonbsdiff verify --manifest update.json old.bin update.patch
+moonbsdiff verify --stream --manifest update.json old.bin update.patch
+moonbsdiff patch --stream --manifest update.json old.bin update.patch restored.bin
+~~~
+
+Ordinary verify restores in memory. Streamed verify uses private copies of the
+inputs and discards each restored chunk after hashing. Streamed patch stages the
+restored file for checked delivery. The two streamed manifest commands require a
+CLI built with these changes and are absent from the public v0.4.0 archives.
+[File application and resource limits](file-apply.md#streaming-verification-unreleased).
 
 ```sh
 moonbsdiff diff --manifest update.json old.bin new.bin update.patch

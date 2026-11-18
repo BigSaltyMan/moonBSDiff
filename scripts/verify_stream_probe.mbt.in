@@ -1,0 +1,21 @@
+///|
+extern "C" fn interrupt_test_setup(point : Int, wait : Int, injected_fault : Int) -> Unit = "mbsd_interrupt_test_setup"
+
+///|
+fn main {
+  let args = cli_args()
+  if args.length() > 1 && (args[1] == "cancel" || args[1] == "close-error") {
+    if args[1] == "cancel" {
+      interrupt_test_setup(21, 0, 0)
+    } else {
+      interrupt_test_setup(0, 0, 29)
+    }
+    let actual = Array::makei(args.length()-1, i => if i == 0 { args[0] } else { args[i+1] })
+    match parse_cli(actual) {
+      Ok(config) => verify_command(config)
+      Err(e) => abort(e)
+    }
+  } else {
+    production_main()
+  }
+}

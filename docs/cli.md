@@ -127,9 +127,8 @@ its patch cannot supply authenticity. Bounded verify/checked restoration is desc
 ./_build/bin/linux/moonbsdiff patch --manifest update.json old.bin update.patch restored.bin
 ```
 
-Verify requires a manifest and exactly OLD/PATCH operands; it actually performs
-bounded in-memory apply, checks restored content and prints one success line,
-without a final output file. Patch's optional manifest uses that same pipeline
+Verify requires a manifest and exactly OLD/PATCH operands. By default it
+restores in memory, checks the restored content and prints one success line. Patch's optional manifest uses that same pipeline
 and delivers only after all identities match. Plain patch is unchanged and does
 not reliably identify the old file. Inspect remains header-only.
 
@@ -149,8 +148,9 @@ errors exit 2; read/schema/identity/apply/restoration/delivery errors exit 1 on
 stderr, with empty stdout. Success exits 0 (checked patch is silent).
 [Full input policy, stages and test evidence](manifest.md#bounded-consumption-and-checked-restoration-commit-20)
 distinguish this content check from publisher authentication. There is no signature,
-network fetch or automatic update in this manifest path. Explicit source-only
-The unreleased CLI also supports `patch --stream --manifest`.
+network fetch or automatic update in this manifest path. The unreleased CLI
+also supports `patch --stream --manifest` and
+[streamed verify](file-apply.md#streaming-verification-unreleased).
 
 ## Dependencies and native isolation
 
@@ -438,8 +438,8 @@ interruption. File-only cooperative cancellation is described below.
 The unreleased `patch --stream --manifest update.json OLD PATCH OUTPUT` uses
 private on-disk copies of both inputs and hashes the output as it is written.
 See [verified streaming](file-apply.md#streaming-with-a-manifest-unreleased) for
-disk requirements and publication behavior. Ordinary manifest patch and verify
-use the memory path and check the same bytes they consume.
+disk requirements and publication behavior. Without `--stream`, manifest patch
+and verify use the memory path and check the same bytes they consume.
 See [design, buffer bounds, supported delivery paths and compact evidence](file-apply.md).
 Published CLI 0.2.0 does not contain this source-only feature.
 

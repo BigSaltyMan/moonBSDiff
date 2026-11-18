@@ -78,13 +78,13 @@ fn print_help() -> Unit {
   )
   println("moonbsdiff --help | --version")
   println(
-    "moonbsdiff verify --manifest MANIFEST_FILE [LIMITS] OLD_FILE PATCH_FILE",
+    "moonbsdiff verify [--stream] --manifest MANIFEST_FILE [LIMITS] OLD_FILE PATCH_FILE",
   )
   println(
     "moonbsdiff patch --manifest MANIFEST_FILE [LIMITS] OLD_FILE PATCH_FILE OUTPUT_FILE",
   )
   println(
-    "Manifest input: at most 16384 bytes, schema 1, no duplicate/unknown keys. Verify restores in memory, never writes output.",
+    "Manifest input: at most 16384 bytes, schema 1, no duplicate/unknown keys. Verify uses memory by default; --stream hashes restored chunks. Neither saves restored output.",
   )
 
   println(
@@ -265,8 +265,8 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
         false
       }
       "--stream" => {
-        if operation != "patch" {
-          return Err("--stream is only applicable to patch")
+        if operation != "patch" && operation != "verify" {
+          return Err("--stream is only applicable to patch or verify")
         }
         false
       }
@@ -491,10 +491,7 @@ fn main {
     return
   }
   if config.operation == "verify" {
-    verified_restore(config) |> ignore
-    println(
-      "Verification succeeded: manifest, inputs and restored content match (not publisher authentication).",
-    )
+    verify_command(config)
     return
   }
   let operation = config.operation

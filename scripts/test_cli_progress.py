@@ -25,7 +25,7 @@ def windows_send(pid):
     finally:kernel.FreeConsole()
 
 
-def snapshot(folder):
+def snapshot(folder, *, template='progress_probe.mbt.in', native_transform=None):
     source=folder/'source';source.mkdir()
     for p in ROOT.glob('*.mbt'):
         if not p.name.endswith(('_test.mbt','_wbtest.mbt')):shutil.copy2(p,source/p.name)
@@ -39,14 +39,18 @@ def snapshot(folder):
             shutil.copy2(p,cli/p.name);identities[p.name]=hashlib.sha256(p.read_bytes()).hexdigest()
     main=cli/'main.mbt';text=main.read_text(encoding='utf8')
     require(text.count('fn main {')==1,'private snapshot main identity')
-    main.write_text(text.replace('fn main {','fn production_main() -> Unit {',1)+'\n'+(ROOT/'scripts/progress_probe.mbt.in').read_text(encoding='utf8'),encoding='utf8',newline='\n')
+    main.write_text(text.replace('fn main {','fn production_main() -> Unit {',1)+'\n'+(ROOT/'scripts'/template).read_text(encoding='utf8'),encoding='utf8',newline='\n')
+    if native_transform is not None:
+        native = cli/'native_io.c'
+        native.write_text(native_transform(native.read_text(encoding='utf8')),encoding='utf8',newline='\n')
     result=subprocess.run(['moon','build','cmd/main','--target','native','--release','--deny-warn'],cwd=source,capture_output=True,timeout=180)
     (folder/'build.log').write_bytes(result.stdout+result.stderr)
     require(result.returncode==0,'private probe build failed: '+(result.stdout+result.stderr).decode('utf8',errors='replace'))
     exe=source/'_build/native/release/build/cmd/main/main.exe'
     require(exe.is_file(),'private native executable missing')
     REPORT['probe_sources']=identities
-    REPORT['probe_source_transform']='production main renamed; private wrapper appended; other CLI source bytes copied unchanged'
+    REPORT['probe_source_transform']='production main renamed; private wrapper appended; ' + (
+        'native test instrumentation applied' if native_transform is not None else 'other CLI source bytes copied unchanged')
     return exe
 
 

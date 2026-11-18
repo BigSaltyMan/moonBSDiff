@@ -11,18 +11,21 @@ extern "C" fn stream_copy_use(which : Int32) -> Int32 = "mbsd_stream_copy_use"
 ///|
 fn stream_manifest(
   config : CliConfig,
+  output : String?,
   progress : StreamProgress,
 ) -> ManifestIdentity? raise {
   guard config.manifest is Some(path) else { return None }
-  stream_require(
-    io_check(
-      path_bytes(config.files[0]),
-      path_bytes(path),
-      path_bytes(config.files[2]),
-    ) !=
-    0,
-    "stream manifest/output precheck",
-  )
+  if output is Some(target) {
+    stream_require(
+      io_check(
+        path_bytes(config.files[0]),
+        path_bytes(path),
+        path_bytes(target),
+      ) !=
+      0,
+      "stream manifest/output precheck",
+    )
+  }
   progress.checkpoint(2)
   let data = io_read(path_bytes(path), 16384)
   stream_require(io_failed() == 0, "read manifest (limit=16384 bytes)")
@@ -69,18 +72,4 @@ fn verify_stream_copy(
   )
   progress.checkpoint(2)
   stream_require(stream_copy_use(which) != 0, "\{name}: finish private copy")
-}
-
-///|
-fn stream_output(
-  data : Bytes,
-  hash : @sha2.Hasher?,
-  progress : StreamProgress,
-) -> Unit raise {
-  progress.checkpoint(20)
-  stream_require(stream_write(data) != 0, "Applying: write temporary")
-  if hash is Some(hasher) {
-    hasher.write(data[:])
-  }
-  progress.written(data.length())
 }

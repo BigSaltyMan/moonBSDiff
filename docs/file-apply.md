@@ -17,8 +17,8 @@ Parameter/configuration failures exit 2; read/format/decode/execution/delivery
 failures exit 1 on stderr; confirmed cooperative cancellation exits 130. Success
 exits 0 and remains silent unless progress is explicitly selected.
 
-Only `patch` accepts `--stream`. It rejects `--show-limits`. The unreleased
-source supports [streaming with a manifest](#streaming-with-a-manifest-unreleased).
+Patch accepts `--stream`; the unreleased CLI also accepts it for verify.
+The source supports [streaming with a manifest](#streaming-with-a-manifest-unreleased).
 Without `--stream`, checked patch and verify bind hashes to the actual in-memory
 bytes used by apply. This file path neither authenticates
 old data nor claims a consistent input snapshot. File-only progress/cancellation
@@ -370,5 +370,33 @@ the expected size, output SHA-256, all stream checks and required closes to pass
 A mismatch can therefore fail after all restored bytes have been written to
 temporary storage. That output is discarded and any existing target is preserved.
 Cancellation while preparing the inputs uses exit 130 and closes the copies.
-The existing commit boundary still governs late cancellation. Verify continues
-to use its existing memory path.
+The existing commit boundary still governs late cancellation for patch.
+
+## Streaming verification (Unreleased)
+
+~~~sh
+moonbsdiff verify --stream --manifest update.json old.bin update.patch
+~~~
+
+Use this to check recoverability against a trusted schema-1 manifest without
+saving restored bytes. It requires a CLI built with the new verify path, which
+is absent from the public v0.4.0 archives. The command takes exactly two operands
+and requires the manifest. Choose ordinary verify to run the check in memory,
+or patch --stream --manifest when you need a restored file delivered.
+
+The private old-file and patch copies use temporary disk space up to their
+combined lengths. Recovery uses the existing bounded bzip2 block workspaces
+and input/output chunks of at most 4096 bytes. The verifier hashes and releases
+each restored chunk. It creates no temporary or final file for the restored
+content and holds no full restored buffer. The output byte limit still caps
+the total bytes restored and hashed. The verified copies bind the consumed
+bytes to the manifest, even if original paths change after copying.
+
+All three compressed streams are checked for CRC, real end and full consumption,
+including for empty targets. Size and SHA-256 must match the target in the
+manifest. After closing the verified input copies, the verifier checks
+cancellation one final time and restores the interrupt handler before printing
+the usual verify success line. There is no file commit phase. Prepare and
+restore checkpoints still apply; a confirmed cancellation exits 130. Runtime
+failure exits 1 and parameter rejection exits 2. These outcomes emit no
+success line. The verify command has no progress mode.

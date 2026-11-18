@@ -249,3 +249,19 @@ fn verified_restore(config : CliConfig) -> Bytes {
   check_content("restored new content", restored, identity.new)
   restored
 }
+
+///|
+fn verify_command(config : CliConfig) -> Unit {
+  if config.stream {
+    let outcome = stream_operation(config)
+    if outcome != 0 {
+      @env.exit(outcome)
+      return
+    }
+  } else {
+    verified_restore(config) |> ignore
+  }
+  println(
+    "Verification succeeded: manifest, inputs and restored content match (not publisher authentication).",
+  )
+}

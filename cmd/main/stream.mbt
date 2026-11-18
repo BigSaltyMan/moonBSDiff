@@ -99,11 +99,27 @@ fn stream_exact(
 }
 
 ///|
+fn stream_output(
+  data : Bytes,
+  consume : (Bytes) -> Unit raise StreamError,
+  hash : @sha2.Hasher?,
+  progress : StreamProgress,
+) -> Unit raise {
+  progress.checkpoint(20)
+  consume(data)
+  if hash is Some(hasher) {
+    hasher.write(data[:])
+  }
+  progress.recovered(data.length())
+}
+
+///|
 fn stream_execute(
   info : @moonbsdiff.PatchInfo,
   limits : @moonbsdiff.Limits,
   progress : StreamProgress,
   expected : ContentIdentity?,
+  consume : (Bytes) -> Unit raise StreamError,
 ) -> Unit raise {
   let hash = expected.map(_ => @sha2.Hasher::new(kind=@sha2.Sha256))
   let budget = @bzip2.Budget::{
@@ -190,7 +206,7 @@ fn stream_execute(
           data[i]
         }
       })
-      stream_output(Bytes::from_array(out), hash, progress)
+      stream_output(Bytes::from_array(out), consume, hash, progress)
       done += count.to_int64()
     }
     newpos += x
@@ -204,7 +220,7 @@ fn stream_execute(
       let count = Int64::min(4096L, y - done).to_int()
       progress.checkpoint(20)
       let data = stream_exact(extra, count, "extra")
-      stream_output(data, hash, progress)
+      stream_output(data, consume, hash, progress)
       done += count.to_int64()
     }
     newpos += y
@@ -238,16 +254,23 @@ fn stream_execute(
 ///|
 fn stream_run(config : CliConfig, progress : StreamProgress) -> Unit raise {
   let limits = config.limits
-  stream_require(
-    io_check(
-      path_bytes(config.files[0]),
-      path_bytes(config.files[1]),
-      path_bytes(config.files[2]),
-    ) !=
-    0,
-    "stream output precheck",
-  )
-  let identity = stream_manifest(config, progress)
+  let output = if config.operation == "patch" {
+    Some(config.files[2])
+  } else {
+    None
+  }
+  if output is Some(target) {
+    stream_require(
+      io_check(
+        path_bytes(config.files[0]),
+        path_bytes(config.files[1]),
+        path_bytes(target),
+      ) !=
+      0,
+      "stream output precheck",
+    )
+  }
+  let identity = stream_manifest(config, output, progress)
   progress.checkpoint(2)
   stream_require(
     stream_open(
@@ -296,12 +319,18 @@ fn stream_run(config : CliConfig, progress : StreamProgress) -> Unit raise {
   progress.total = Some(info.new_bytes)
   progress.phase("restoring")
   progress.checkpoint(10)
+  guard output is Some(target) else {
+    stream_execute(info, limits, progress, identity.map(m => m.new), _ => ())
+    return
+  }
   let ok = stream_deliver(
-    path_bytes(config.files[2]),
+    path_bytes(target),
     fn(f) { f() },
     fn() {
       progress.attempt(() => {
-        stream_execute(info, limits, progress, identity.map(m => m.new))
+        stream_execute(info, limits, progress, identity.map(m => m.new), data => {
+          stream_require(stream_write(data) != 0, "Applying: write temporary")
+        })
       })
     },
     fn() {
