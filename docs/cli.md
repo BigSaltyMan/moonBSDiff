@@ -98,6 +98,11 @@ describe decimal-string byte fields, lossless Int64 and JSON escaping. This is
 not --deep, manifest validation or a full patch-verification command. The feature
 is not in published 0.1.0; generated CLI version remains module metadata.
 
+The unreleased `inspect --deep PATCH_FILE` also decodes the three streams and
+checks controls, CRC and full consumption. Add `--json` for machine-readable
+counts. The three deep limits are `--max-output-bytes`, `--max-expanded-bytes`
+and `--max-controls`. See [inspection modes](inspect.md).
+
 ## External manifest output (CLI 0.2.0)
 
 ```sh

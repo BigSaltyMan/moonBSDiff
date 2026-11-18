@@ -99,6 +99,92 @@ fn stream_exact(
 }
 
 ///|
+fn open_patch_streams(
+  info : @moonbsdiff.PatchInfo,
+  limits : @moonbsdiff.Limits,
+  budget : @bzip2.Budget,
+  source : (Int64, Int64) -> () -> Bytes,
+) -> (@bzip2.StreamReader, @bzip2.StreamReader, @bzip2.StreamReader) raise @bzip2.Fault {
+  // Control byte cap saturates at Int.max without multiplying a large count.
+  let control_cap = if limits.max_control_instructions > 2147483647L / 24L {
+    2147483647
+  } else {
+    (limits.max_control_instructions * 24L).to_int()
+  }
+  let control = @bzip2.StreamReader::new(
+    info.control_length.to_int(),
+    source(info.control_start, info.control_length),
+    control_cap,
+    budget,
+  )
+  let delta = @bzip2.StreamReader::new(
+    info.diff_length.to_int(),
+    source(info.diff_start, info.diff_length),
+    info.new_bytes.to_int(),
+    budget,
+  )
+  let extra = @bzip2.StreamReader::new(
+    info.extra_length.to_int(),
+    source(info.extra_start, info.extra_length),
+    info.new_bytes.to_int(),
+    budget,
+  )
+  (control, delta, extra)
+}
+
+///|
+fn read_stream_control(
+  control : @bzip2.StreamReader,
+  instructions : Int64,
+  limits : @moonbsdiff.Limits,
+) -> (Int64, Int64, Int64) raise {
+  stream_require(
+    instructions < limits.max_control_instructions,
+    "Applying ResourceLimitExceeded: max_control_instructions",
+  )
+  let triple = stream_exact(control, 24, "control triple")
+  let x = stream_integer(triple, 0)
+  let y = stream_integer(triple, 8)
+  let z = stream_integer(triple, 16)
+  stream_require(
+    x >= 0L && y >= 0L,
+    "Applying InvalidField: negative control x/y",
+  )
+  (x, y, z)
+}
+
+///|
+fn finish_patch_streams(
+  control : @bzip2.StreamReader,
+  delta : @bzip2.StreamReader,
+  extra : @bzip2.StreamReader,
+  checkpoint : () -> Unit raise,
+) -> Unit raise {
+  // EOF is not assumed at the declared output length: read once more to force
+  // the final run/block CRC, real end marker, combined CRC and interval boundary.
+  for
+    (name, reader) in [("control", control), ("diff", delta), ("extra", extra)] {
+    checkpoint()
+    stream_require(
+      reader.read(1).length() == 0,
+      "Applying InvalidField: unconsumed " + name,
+    )
+  }
+}
+
+///|
+fn check_stream_output(
+  count : Int64,
+  remaining : Int64,
+  block : String,
+) -> Unit raise StreamError {
+  stream_require(
+    count <= remaining,
+    "Applying OutputOutOfBounds: " + block + " length",
+  )
+}
+
+///|
 fn stream_output(
   data : Bytes,
   consume : (Bytes) -> Unit raise StreamError,
@@ -126,29 +212,8 @@ fn stream_execute(
     remaining: limits.max_decompressed_bytes,
     emitted: 0L,
   }
-  // Control byte cap saturates at Int.max without multiplying a large count.
-  let control_cap = if limits.max_control_instructions > 2147483647L / 24L {
-    2147483647
-  } else {
-    (limits.max_control_instructions * 24L).to_int()
-  }
-  let control = @bzip2.StreamReader::new(
-    info.control_length.to_int(),
-    stream_source(info.control_start, info.control_length),
-    control_cap,
-    budget,
-  )
-  let delta = @bzip2.StreamReader::new(
-    info.diff_length.to_int(),
-    stream_source(info.diff_start, info.diff_length),
-    info.new_bytes.to_int(),
-    budget,
-  )
-  let extra = @bzip2.StreamReader::new(
-    info.extra_length.to_int(),
-    stream_source(info.extra_start, info.extra_length),
-    info.new_bytes.to_int(),
-    budget,
+  let (control, delta, extra) = open_patch_streams(
+    info, limits, budget, stream_source,
   )
   let mut newpos = 0L
   let mut oldpos = 0L
@@ -156,23 +221,9 @@ fn stream_execute(
   let oldsize = stream_size(0)
   while newpos < info.new_bytes {
     progress.checkpoint(10)
-    stream_require(
-      instructions < limits.max_control_instructions,
-      "Applying ResourceLimitExceeded: max_control_instructions",
-    )
-    let triple = stream_exact(control, 24, "control triple")
+    let (x, y, z) = read_stream_control(control, instructions, limits)
     instructions += 1L
-    let x = stream_integer(triple, 0)
-    let y = stream_integer(triple, 8)
-    let z = stream_integer(triple, 16)
-    stream_require(
-      x >= 0L && y >= 0L,
-      "Applying InvalidField: negative control x/y",
-    )
-    stream_require(
-      x <= info.new_bytes - newpos,
-      "Applying OutputOutOfBounds: diff length",
-    )
+    check_stream_output(x, info.new_bytes - newpos, "diff")
     let oldend = stream_add(oldpos, x)
     let mut done = 0L
     while done < x {
@@ -211,10 +262,7 @@ fn stream_execute(
     }
     newpos += x
     oldpos = oldend
-    stream_require(
-      y <= info.new_bytes - newpos,
-      "Applying OutputOutOfBounds: extra length",
-    )
+    check_stream_output(y, info.new_bytes - newpos, "extra")
     done = 0L
     while done < y {
       let count = Int64::min(4096L, y - done).to_int()
@@ -228,16 +276,7 @@ fn stream_execute(
   }
   progress.phase("validating")
   progress.checkpoint(40)
-  // EOF is not assumed at the declared output length: read once more to force
-  // the final run/block CRC, real end marker, combined CRC and interval boundary.
-  for
-    (name, reader) in [("control", control), ("diff", delta), ("extra", extra)] {
-    progress.checkpoint(40)
-    stream_require(
-      reader.read(1).length() == 0,
-      "Applying InvalidField: unconsumed " + name,
-    )
-  }
+  finish_patch_streams(control, delta, extra, () => progress.checkpoint(40))
   if expected is Some(identity) && hash is Some(hasher) {
     progress.checkpoint(40)
     stream_require(

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- `inspect --deep` checks all BSDIFF40 streams and controls within explicit
+  limits, and reports control counts and Diff, Extra and total expanded bytes
+  in text or JSON. It needs only the patch.
+
 - Native `verify --stream --manifest` checks recovery in bounded chunks and
   saves no restored output. Verified input copies, existing limits and cooperative
   cancellation apply. Success uses the existing verify output line.

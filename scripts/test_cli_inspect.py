@@ -49,7 +49,7 @@ class InspectCli(unittest.TestCase):
         self.assertEqual(json.loads(self.invoke(['inspect','--max-patch-bytes','134B','--json',self.patch]).stdout),expected(self.patch,134,45,43,20))
         r=self.invoke(['inspect','--json',self.p/'missing'],1);self.assertIn(b'open input',r.stderr)
     def test_argument_errors(self):
-        rows=[['inspect'],['inspect','--json','--json','missing'],['inspect','--max-patch-bytes','1','--max-patch-bytes','2','missing'],['inspect','--max-old-bytes','1','missing'],['inspect','--max-sort-work','1','missing'],['inspect','--max-match-work','1','missing'],['inspect','--show-limits'],['inspect','--deep','missing'],['inspect','--max-patch-bytes'],['inspect','--max-patch-bytes','0','missing'],['inspect','--max-patch-bytes','2048MiB','missing'],['inspect','a','--json'],['inspect','a','b'],['diff','--json','a','b','c'],['patch','--json','a','b','c']]
+        rows=[['inspect'],['inspect','--json','--json','missing'],['inspect','--max-patch-bytes','1','--max-patch-bytes','2','missing'],['inspect','--max-old-bytes','1','missing'],['inspect','--max-sort-work','1','missing'],['inspect','--max-match-work','1','missing'],['inspect','--show-limits'],['inspect','--deep','--deep','missing'],['inspect','--max-patch-bytes'],['inspect','--max-patch-bytes','0','missing'],['inspect','--max-patch-bytes','2048MiB','missing'],['inspect','a','--json'],['inspect','a','b'],['diff','--json','a','b','c'],['patch','--json','a','b','c']]
         for args in rows:
             with self.subTest(args=args):self.invoke(args,2)
 

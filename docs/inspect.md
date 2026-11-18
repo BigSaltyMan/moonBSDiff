@@ -1,11 +1,13 @@
-# Header-only patch inspection (CLI 0.2.0)
+# BSDIFF40 patch inspection
 
-These CLI additions are not in published 0.1.0. They inspect the
-BSDIFF40 header and compressed intervals only. There is no --deep mode, manifest
-verification, old-file identity check, decompression or restoration in this step.
-A successful exit is not a claim that the patch is valid or can be applied.
+- Have only the patch and want the declared size and compressed ranges? Use `inspect`.
+- Have only the patch and want structural checks and control statistics? Use `inspect --deep`.
+- Have the old file and a trusted manifest and want to verify the recovered bytes? Use `verify --stream --manifest`.
 
-## Commands and read policy
+`--deep` requires a CLI built from source containing this change. Public v0.4.0
+archives provide the header view.
+
+## Header view and read policy
 
 ```sh
 ./_build/bin/linux/moonbsdiff inspect testdata/upstream/replace/patch.bin
@@ -13,12 +15,12 @@ A successful exit is not a claim that the patch is valid or can be applied.
 ./_build/bin/linux/moonbsdiff inspect --max-patch-bytes 256KiB testdata/upstream/replace/patch.bin
 ```
 
-The Windows executable uses the same arguments. Only --json (no value) and
---max-patch-bytes VALUE are accepted. Options precede the single patch path;
+The Windows executable uses the same arguments. Header mode accepts --json
+(no value) and --max-patch-bytes VALUE. Options precede the single patch path;
 -- ends option parsing and allows a leading-hyphen path. Duplicate, unknown or
 inapplicable options, missing values/paths and extra paths exit 2. In particular,
 old/new/output/expanded/control/sort/match overrides and --show-limits are not
-applicable to inspect. Diff/patch reject --json at this stage; their behavior and
+applicable to the header view. Diff/patch reject --json at this stage; their behavior and
 effective-limit display otherwise stay unchanged.
 
 The default patch read cap is 131072 bytes, matching the existing CLI patch-input
@@ -139,7 +141,7 @@ already-allocated Bytes buffer: callers must bound their own acquisition, as the
 CLI does. Existing diff/apply signatures, limit factories and compression
 dependencies are unchanged. CLI alone imports the existing toolchain core/json.
 
-## Directed evidence and limits
+## Header-mode test evidence
 
 `python scripts/test_cli_inspect.py --exe PATH_TO_CLI` reuses the existing CLI
 file/exit helper but selects only five new contracts (30 calls): fixed nonempty
@@ -154,7 +156,90 @@ empty. The public read-only API test and seven existing native format cases cove
 the shared-parser change. No oracle, old CLI suite, full library/interoperability
 matrix, resource measurement or large compression sample is rerun locally.
 
-The normal CI reuses both platform CLI builds and appends only this new CLI
-collection. Later commits may add manifest/deeper validation; none is asserted
-here. Linux primary/guarded compatibility conditions apply to diff/patch output
-delivery ([design](linux-delivery.md)), not inspect: inspect never invokes delivery.
+CI runs the header checks with both platform CLI builds. Inspection uses the
+input reader alone and creates no delivery file.
+
+## Deep checks and statistics
+
+~~~sh
+moonbsdiff inspect --deep update.patch
+moonbsdiff inspect --deep --json update.patch
+~~~
+
+The CLI reads the bounded patch into memory, then feeds each compressed interval
+in chunks of at most 4096 bytes. One decoded-byte budget covers all three streams.
+Every complete 24-byte control triple counts toward the control limit, including
+zero-output adjustments while producing the declared target. The checker applies
+the same signed cursor arithmetic as the streaming recovery code, consumes the
+requested Diff and Extra lengths in chunks, and checks all three readers for
+true end, block and combined CRC, and full compressed and decoded consumption.
+The end checks also run for empty targets.
+
+The patch read cap remains 128 KiB by default. In deep mode,
+`--max-expanded-bytes` controls the combined expansion (default 2 MiB),
+`--max-controls` caps control triples (default 16384), and
+`--max-output-bytes` bounds the declared target before decoding (default 1 MiB).
+The byte limits use the existing B/KiB/MiB syntax and the control limit takes a
+plain positive count. These three options require `--deep` with inspect.
+The bounded compressed buffer and decoder workspaces account for memory use;
+the checker saves no restored file or full recovered buffer.
+
+Deep JSON keeps schema version 1 and uses `validation: "deep"`. The following
+fields are decimal strings and appear only in deep mode.
+
+| Field | Meaning |
+| --- | --- |
+| control_count | Complete control triples consumed, including zero-output adjustments |
+| diff_bytes | Bytes actually read from the Diff stream, equal to the sum of x values |
+| extra_bytes | Bytes actually read from the Extra stream, equal to the sum of y values |
+| expanded_bytes | Expanded bytes consumed across all three streams |
+
+`diff_bytes + extra_bytes` equals `new_bytes`. The total expansion equals
+`24 * control_count + diff_bytes + extra_bytes`. The Diff count measures stream
+length. It does not measure hits in the old file, bytes reused, or space saved.
+The checks object reports `passed` for streams, CRC, controls, and complete
+consumption. Restoration and identity stay `not-checked`; verifying intended
+content requires the old file and a trusted manifest. Parameter mistakes exit 2;
+read, format, CRC, consumption and limit errors exit 1 with empty stdout.
+
+## Captured deep output
+
+The independent fixture in `scripts/test_cli_inspect_deep.py` uses
+`(2, 1, -5), (0, 0, 4), (1, 2, 0)` with Diff `abc` and Extra `XYZ`.
+The Windows native CLI produced this text and JSON for that fixture.
+
+~~~text
+Format: BSDIFF40
+Patch bytes: 161
+Declared restored bytes: 6
+Control compressed range: start=32 length=53 bytes
+Diff compressed range: start=85 length=38 bytes
+Extra compressed range: start=123 length=38 bytes
+Validation: deep
+Control count: 3
+Diff bytes: 3
+Extra bytes: 3
+Expanded bytes: 78
+Compressed streams / CRC: passed
+Control instructions: passed
+Complete consumption: passed
+Restoration: not checked
+Identity: not checked
+~~~
+
+~~~json
+{"schema_version":1,"format":"BSDIFF40","patch_path":"known.patch","patch_bytes":"161","new_bytes":"6","validation":"deep","compressed_ranges":{"control":{"start_bytes":"32","length_bytes":"53"},"diff":{"start_bytes":"85","length_bytes":"38"},"extra":{"start_bytes":"123","length_bytes":"38"}},"control_count":"3","diff_bytes":"3","extra_bytes":"3","expanded_bytes":"78","checks":{"compressed_streams":"passed","crc":"passed","control_instructions":"passed","restoration":"not-checked","identity":"not-checked","complete_consumption":"passed"}}
+~~~
+
+Flipping a Diff block CRC byte leaves that sample's header intact. In the
+captured comparison, ordinary inspect exited 0 with `Validation: header-only`.
+Deep JSON mode exited 1 with empty stdout and the following diagnostic.
+
+~~~text
+moonbsdiff: inspect deep 'damaged.patch': Checksum(want=1703721843, got=1686944627)
+~~~
+
+Run the four new groups with `python scripts/test_cli_inspect_deep.py --exe PATH_TO_CLI`.
+They check known statistics, CRC including an empty target, malformed control
+and data, and exact versus one-unit-short limits. CI executes these groups in
+both native CLI builds.

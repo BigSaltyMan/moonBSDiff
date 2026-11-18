@@ -93,9 +93,14 @@ fn print_help() -> Unit {
   println(
     "Patch then manifest are delivered without replacement; two-file delivery is not atomic.",
   )
-  println("moonbsdiff inspect [--json] [--max-patch-bytes VALUE] PATCH_FILE")
   println(
-    "inspect is header-only: streams/CRC, controls, restoration and identity are not checked.",
+    "moonbsdiff inspect [--deep] [--json] [--max-patch-bytes VALUE] PATCH_FILE",
+  )
+  println(
+    "Deep inspect also accepts --max-output-bytes, --max-expanded-bytes and --max-controls.",
+  )
+  println(
+    "inspect reads the header by default. --deep checks streams, CRC, controls and consumption without restoring a file.",
   )
   println("With options: moonbsdiff diff|patch [OPTIONS] FILE FILE FILE")
   println(
@@ -201,6 +206,7 @@ struct CliConfig {
   stream : Bool
   show : Bool
   json : Bool
+  deep : Bool
   manifest : String?
   files : Array[String]
 }
@@ -239,6 +245,7 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
   let mut stream = false
   let mut show = false
   let mut json = false
+  let mut deep = false
   let mut manifest : String? = None
   let mut escaped = false
   let mut i = 2
@@ -254,7 +261,11 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
     }
     if operation == "inspect" &&
       option != "--json" &&
-      option != "--max-patch-bytes" {
+      option != "--deep" &&
+      option != "--max-patch-bytes" &&
+      option != "--max-output-bytes" &&
+      option != "--max-expanded-bytes" &&
+      option != "--max-controls" {
       return Err(option + " is not applicable to inspect")
     }
     let bytes = match option {
@@ -277,6 +288,12 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
         false
       }
       "--manifest" => false
+      "--deep" => {
+        if operation != "inspect" {
+          return Err("--deep is only applicable to inspect")
+        }
+        false
+      }
       "--json" => {
         if operation != "inspect" {
           return Err("--json is only applicable to inspect")
@@ -309,6 +326,11 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
     seen.push(option)
     if option == "--stream" {
       stream = true
+      i += 1
+      continue
+    }
+    if option == "--deep" {
+      deep = true
       i += 1
       continue
     }
@@ -397,6 +419,14 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
   if operation == "verify" && manifest is None {
     return Err("verify requires --manifest MANIFEST_FILE")
   }
+  if operation == "inspect" && !deep {
+    for
+      option in ["--max-output-bytes", "--max-expanded-bytes", "--max-controls"] {
+      if seen.contains(option) {
+        return Err(option + " requires inspect --deep")
+      }
+    }
+  }
   let expected = if operation == "inspect" {
     1
   } else if operation == "verify" {
@@ -423,6 +453,7 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
     stream,
     show,
     json,
+    deep,
     manifest,
     files,
   })
