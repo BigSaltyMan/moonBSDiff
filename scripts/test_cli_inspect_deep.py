@@ -57,11 +57,17 @@ class DeepInspect(unittest.TestCase):
         result = self.invoke(["inspect", "--json", self.patch])
         self.assertEqual(json.loads(result.stdout),
                          expected(self.patch, len(raw), len(packed[0]), len(packed[1]), 6))
-        self.assertIn(b"Checksum", self.deep("--json", code=1).stderr)
+        error = self.deep("--json", code=1).stderr
+        self.assertIn(b"kind: DecompressionFailed", error)
+        self.assertIn(b"stage: Diff", error)
+        self.assertIn(b'field: Some("crc")', error)
         empty = bz2.compress(b"")
         damaged_empty = empty[:-1] + bytes([empty[-1] ^ 1])
         self.patch.write_bytes(envelope([empty, empty, damaged_empty], 0))
-        self.assertIn(b"Checksum", self.deep("--json", code=1).stderr)
+        error = self.deep("--json", code=1).stderr
+        self.assertIn(b"kind: DecompressionFailed", error)
+        self.assertIn(b"stage: Extra", error)
+        self.assertIn(b'field: Some("crc")', error)
         self.patch.write_bytes(envelope([empty]*3, 0))
         self.assertEqual(json.loads(self.deep("--json").stdout)["expanded_bytes"], "0")
 
@@ -69,17 +75,20 @@ class DeepInspect(unittest.TestCase):
         tailed = streams()
         tailed[2] += b"garbage"
         rows = [
-            (streams(delta=b"ab"), b"TruncatedData: diff"),
-            (streams(extra=b"XYZ!"), b"unconsumed extra"),
-            (tailed, b"trailing data"),
-            (streams([(-1, 0, 0)]), b"negative control x/y"),
-            (streams([(2, 5, 0)]), b"OutputOutOfBounds: extra"),
-            (streams([(0, 0, (1 << 63)-1), (1, 0, 0)]), b"IntegerOverflow: old cursor"),
+            (streams(delta=b"ab"), b"TruncatedData", b"Diff", b"decoded_consumption"),
+            (streams(extra=b"XYZ!"), b"InvalidField", b"Extra", b"unconsumed_decoded_data"),
+            (tailed, b"InvalidField", b"Extra", b"trailing data after single bzip2 stream"),
+            (streams([(-1, 0, 0)]), b"InvalidField", b"Control", b"x"),
+            (streams([(2, 5, 0)]), b"OutputOutOfBounds", b"Control", b"y"),
+            (streams([(0, 0, (1 << 63)-1), (1, 0, 0)]), b"IntegerOverflow", b"Control", b"old_plus_x"),
         ]
-        for packed, diagnostic in rows:
-            with self.subTest(diagnostic=diagnostic):
+        for packed, kind, stage, field in rows:
+            with self.subTest(kind=kind, stage=stage, field=field):
                 self.patch.write_bytes(envelope(packed, 6))
-                self.assertIn(diagnostic, self.deep("--json", code=1).stderr)
+                error = self.deep("--json", code=1).stderr
+                self.assertIn(b"kind: " + kind, error)
+                self.assertIn(b"stage: " + stage, error)
+                self.assertIn(b'field: Some("' + field + b'")', error)
 
     def test_resource_boundaries(self):
         self.patch.write_bytes(envelope(streams(), 6))

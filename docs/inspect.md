@@ -1,10 +1,11 @@
 # BSDIFF40 patch inspection
 
-- Have only the patch and want the declared size and compressed ranges? Use `inspect`.
-- Have only the patch and want structural checks and control statistics? Use `inspect --deep`.
+- For declared size and compressed ranges, use CLI `inspect` or library `inspect_header`.
+- For structural checks and control statistics, use CLI `inspect --deep` or library `inspect_deep`.
 - Have the old file and a trusted manifest and want to verify the recovered bytes? Use `verify --stream --manifest`.
 
-`--deep` requires a CLI built from source containing this change. Public v0.4.0
+`inspect --deep` is available in source since Commit 30. The library entry
+`inspect_deep` is available from this source change onward. Public v0.4.0
 archives provide the header view.
 
 ## Header view and read policy
@@ -161,13 +162,48 @@ input reader alone and creates no delivery file.
 
 ## Deep checks and statistics
 
+### MoonBit library
+
+Call `inspect_deep(Bytes, Limits) -> Result[DeepPatchInfo, BsdiffError]` on
+native, JS or Wasm-GC. Import `BigSaltyMan/moonbsdiff` as `@moonbsdiff`
+and `moonbitlang/core/debug` as `@debug` for this example.
+
+```moonbit
+fn print_patch_stats(patch : Bytes) -> Unit {
+  match @moonbsdiff.inspect_deep(patch, @moonbsdiff.Limits::for_apply()) {
+    Ok(info) => {
+      println("Declared target: \{info.header.new_bytes} bytes")
+      println("Controls: \{info.control_count}")
+      println("Diff: \{info.diff_bytes}, Extra: \{info.extra_bytes}, expanded: \{info.expanded_bytes}")
+    }
+    Err(error) => println(@debug.to_string(error))
+  }
+}
+```
+
+`DeepPatchInfo` exposes the read-only `header` and four `Int64` statistics.
+The function validates the supplied `Limits` and enforces `max_patch_bytes`,
+`max_output_bytes`, `max_control_instructions` and `max_decompressed_bytes`.
+`Limits::for_apply()` caps patch bytes at 64 KiB, while the CLI defaults to
+128 KiB. `BsdiffError` identifies the affected stream when applicable. A
+Diff CRC mismatch has `kind: DecompressionFailed`, `stage: Diff`,
+`block: Some("diff")`, `field: Some("crc")` and `offset: None`.
+
+The library needs only the patch buffer. It checks that buffer's header,
+compressed streams and control-directed consumption. It allocates decoder
+workspaces and bounded chunks. Use `apply` to recover bytes and a trusted
+manifest or independent expected target to establish their identity.
+
+### CLI
+
 ~~~sh
 moonbsdiff inspect --deep update.patch
 moonbsdiff inspect --deep --json update.patch
 ~~~
 
-The CLI reads the bounded patch into memory, then feeds each compressed interval
-in chunks of at most 4096 bytes. One decoded-byte budget covers all three streams.
+The CLI reads the bounded patch into memory and calls the library's `inspect_deep`.
+The library feeds each compressed interval in chunks of at most 4096 bytes.
+One decoded-byte budget covers all three streams.
 Every complete 24-byte control triple counts toward the control limit, including
 zero-output adjustments while producing the declared target. The checker applies
 the same signed cursor arithmetic as the streaming recovery code, consumes the
@@ -233,13 +269,26 @@ Identity: not checked
 
 Flipping a Diff block CRC byte leaves that sample's header intact. In the
 captured comparison, ordinary inspect exited 0 with `Validation: header-only`.
-Deep JSON mode exited 1 with empty stdout and the following diagnostic.
+After migration to the library API, deep JSON mode exited 1 with empty stdout
+and the following diagnostic.
 
 ~~~text
-moonbsdiff: inspect deep 'damaged.patch': Checksum(want=1703721843, got=1686944627)
+moonbsdiff: inspect deep 'damaged.patch': {
+  kind: DecompressionFailed,
+  stage: Diff,
+  block: Some("diff"),
+  offset: None,
+  field: Some("crc"),
+  value: None,
+  limit: None,
+}
 ~~~
 
-Run the four new groups with `python scripts/test_cli_inspect_deep.py --exe PATH_TO_CLI`.
+Run the four CLI groups with `python scripts/test_cli_inspect_deep.py --exe PATH_TO_CLI`.
 They check known statistics, CRC including an empty target, malformed control
 and data, and exact versus one-unit-short limits. CI executes these groups in
 both native CLI builds.
+
+The package-external tests in `inspect_deep_test.mbt` use the same independent
+fixture. They check the returned header and counts, Diff and empty Extra CRC
+failures, and a shared budget of 78 bytes versus 77 with a successful retry.

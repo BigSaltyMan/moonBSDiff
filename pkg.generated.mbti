@@ -12,6 +12,8 @@ pub fn diff(Bytes, Bytes, Limits) -> Result[Bytes, BsdiffError]
 
 pub fn diff_with_options(Bytes, Bytes, Limits, DiffOptions) -> Result[Bytes, BsdiffError]
 
+pub fn inspect_deep(Bytes, Limits) -> Result[DeepPatchInfo, BsdiffError]
+
 pub fn inspect_header(Bytes, Int64) -> Result[PatchInfo, BsdiffError]
 
 pub fn inspect_header_prefix(Bytes, Int64, Int64) -> Result[PatchInfo, BsdiffError]
@@ -32,6 +34,14 @@ pub(all) struct BsdiffError {
 pub fn BsdiffError::equal(Self, Self) -> Bool
 pub fn BsdiffError::not_equal(Self, Self) -> Bool
 pub fn BsdiffError::to_repr(Self) -> @debug.Repr
+
+pub struct DeepPatchInfo {
+  header : PatchInfo
+  control_count : Int64
+  diff_bytes : Int64
+  extra_bytes : Int64
+  expanded_bytes : Int64
+}
 
 pub struct DiffIndex {
   // private fields

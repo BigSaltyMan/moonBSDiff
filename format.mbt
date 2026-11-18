@@ -246,14 +246,19 @@ pub fn inspect_header_prefix(
     Ok(value) => value
     Err(e) => return Err(e)
   }
-  Ok({
-    patch_bytes,
-    new_bytes: ranges.new_size,
-    control_start: ranges.control_start.to_int64(),
-    control_length: (ranges.control_end - ranges.control_start).to_int64(),
-    diff_start: ranges.control_end.to_int64(),
-    diff_length: (ranges.diff_end - ranges.control_end).to_int64(),
-    extra_start: ranges.diff_end.to_int64(),
-    extra_length: (ranges.extra_end - ranges.diff_end).to_int64(),
-  })
+  Ok(ranges.info())
+}
+
+///|
+fn PatchRanges::info(self : PatchRanges) -> PatchInfo {
+  {
+    patch_bytes: self.extra_end.to_int64(),
+    new_bytes: self.new_size,
+    control_start: self.control_start.to_int64(),
+    control_length: (self.control_end - self.control_start).to_int64(),
+    diff_start: self.control_end.to_int64(),
+    diff_length: (self.diff_end - self.control_end).to_int64(),
+    extra_start: self.diff_end.to_int64(),
+    extra_length: (self.extra_end - self.diff_end).to_int64(),
+  }
 }

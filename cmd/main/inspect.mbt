@@ -7,81 +7,6 @@ fn json_range(start : Int64, length : Int64) -> @json.Json {
 }
 
 ///|
-priv struct DeepInspectStats {
-  control_count : Int64
-  diff_bytes : Int64
-  extra_bytes : Int64
-  expanded_bytes : Int64
-}
-
-///|
-fn consume_inspect_bytes(
-  reader : @bzip2.StreamReader,
-  size : Int64,
-  block : String,
-) -> Unit raise {
-  let mut remaining = size
-  while remaining > 0L {
-    let chunk = reader.read(Int64::min(4096L, remaining).to_int())
-    stream_require(chunk.length() > 0, "Inspect TruncatedData: " + block)
-    remaining -= chunk.length().to_int64()
-  }
-}
-
-///|
-fn inspect_deep(
-  patch : Bytes,
-  info : @moonbsdiff.PatchInfo,
-  limits : @moonbsdiff.Limits,
-) -> DeepInspectStats raise {
-  stream_require(
-    info.new_bytes <= limits.max_output_bytes,
-    "Inspect ResourceLimitExceeded: max_output_bytes value=\{info.new_bytes} limit=\{limits.max_output_bytes}",
-  )
-  let budget = @bzip2.Budget::{
-    remaining: limits.max_decompressed_bytes,
-    emitted: 0L,
-  }
-  let (control, delta, extra) = open_patch_streams(info, limits, budget, (
-    start,
-    length,
-  ) => {
-    // The envelope has already validated both end positions against the
-    // Int-indexable patch buffer. The reader requests bounded chunks.
-    let mut at = start.to_int()
-    let end = (start + length).to_int()
-    fn() {
-      let next = at + Int32::min(4096, end - at)
-      let chunk = patch[at:next].to_owned()
-      at = next
-      chunk
-    }
-  })
-  let mut control_count = 0L
-  let mut diff_bytes = 0L
-  let mut extra_bytes = 0L
-  let mut oldpos = 0L
-  let mut remaining = info.new_bytes
-  while remaining > 0L {
-    let (x, y, z) = read_stream_control(control, control_count, limits)
-    control_count += 1L
-    check_stream_output(x, remaining, "diff")
-    let oldend = stream_add(oldpos, x)
-    consume_inspect_bytes(delta, x, "diff")
-    diff_bytes += x
-    remaining -= x
-    check_stream_output(y, remaining, "extra")
-    consume_inspect_bytes(extra, y, "extra")
-    extra_bytes += y
-    remaining -= y
-    oldpos = stream_add(oldend, z)
-  }
-  finish_patch_streams(control, delta, extra, () => ())
-  // Verified EOF proves every byte reserved by the decoders was consumed.
-  { control_count, diff_bytes, extra_bytes, expanded_bytes: budget.emitted, }
-}
-
-///|
 fn inspect_command(config : CliConfig) -> Unit {
   let path = config.files[0]
   let cap = config.limits.max_patch_bytes
@@ -90,26 +15,22 @@ fn inspect_command(config : CliConfig) -> Unit {
     path,
     cap,
   )
-  let info = match @moonbsdiff.inspect_header(patch, cap) {
-    Ok(value) => value
-    Err(e) => {
-      failure("inspect '" + path + "': " + @debug.to_string(e))
-      return
-    }
-  }
-  let stats = if config.deep {
-    Some(inspect_deep(patch, info, config.limits)) catch {
-      StreamError(message) => {
-        failure("inspect deep '" + path + "': " + message)
-        return
-      }
-      e => {
+  let (info, stats) = if config.deep {
+    match @moonbsdiff.inspect_deep(patch, config.limits) {
+      Ok(value) => (value.header, Some(value))
+      Err(e) => {
         failure("inspect deep '" + path + "': " + @debug.to_string(e))
         return
       }
     }
   } else {
-    None
+    match @moonbsdiff.inspect_header(patch, cap) {
+      Ok(value) => (value, None)
+      Err(e) => {
+        failure("inspect '" + path + "': " + @debug.to_string(e))
+        return
+      }
+    }
   }
   let validation = if stats is Some(_) { "deep" } else { "header-only" }
   // Serialize the complete success result only after all structural checks pass.

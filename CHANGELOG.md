@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- The library exposes `inspect_deep(Bytes, Limits)` on native, JS and Wasm-GC.
+  It returns read-only `DeepPatchInfo` or a structured `BsdiffError`.
+  `inspect --deep` uses the same implementation and retains its success schema.
+
 - `manifest create` checks an existing BSDIFF40 patch against an independently
   supplied target before writing a schema 1 manifest. It preserves the original
   patch and produces a manifest that `verify --stream` can consume.

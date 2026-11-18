@@ -157,77 +157,82 @@ fn decompress_block(
     )
   }
   Ok(@bounded.decode(data[:], cap.to_int(), budget).output) catch {
+    fault => Err(compression_fault(fault, stage, start))
+  }
+}
+
+///|
+fn compression_fault(
+  fault : @bounded.Fault,
+  stage : ErrorStage,
+  start : Int64,
+) -> BsdiffError {
+  let block = match stage {
+    Control => Some("control")
+    Diff => Some("diff")
+    Extra => Some("extra")
+    _ => None
+  }
+  match fault {
     @bounded.Truncated(at~) =>
-      Err(
-        format_error(
-          TruncatedData,
-          stage,
-          Some(block),
-          Some(start + at.to_int64()),
-          None,
-          None,
-          None,
-        ),
+      format_error(
+        TruncatedData,
+        stage,
+        block,
+        Some(start + at.to_int64()),
+        None,
+        None,
+        None,
       )
     @bounded.Header(at~, what~) =>
-      Err(
-        format_error(
-          InvalidField,
-          stage,
-          Some(block),
-          Some(start + at.to_int64()),
-          Some(what),
-          None,
-          None,
-        ),
+      format_error(
+        InvalidField,
+        stage,
+        block,
+        Some(start + at.to_int64()),
+        Some(what),
+        None,
+        None,
       )
     @bounded.Code(at~) =>
-      Err(
-        format_error(
-          DecompressionFailed,
-          stage,
-          Some(block),
-          Some(start + at.to_int64()),
-          Some("code"),
-          None,
-          None,
-        ),
+      format_error(
+        DecompressionFailed,
+        stage,
+        block,
+        Some(start + at.to_int64()),
+        Some("code"),
+        None,
+        None,
       )
     @bounded.Checksum(_) =>
-      Err(
-        format_error(
-          DecompressionFailed,
-          stage,
-          Some(block),
-          None,
-          Some("crc"),
-          None,
-          None,
-        ),
+      format_error(
+        DecompressionFailed,
+        stage,
+        block,
+        None,
+        Some("crc"),
+        None,
+        None,
       )
     @bounded.Limit(field~, value~, limit~) =>
-      Err(
-        format_error(
-          ResourceLimitExceeded,
-          stage,
-          Some(block),
-          None,
-          Some(field),
-          Some(value),
-          Some(limit),
-        ),
+      format_error(
+        ResourceLimitExceeded,
+        stage,
+        block,
+        None,
+        Some(field),
+        Some(value),
+        Some(limit),
       )
     @bounded.Parameter =>
-      Err(
-        format_error(
-          InvalidConfiguration,
-          stage,
-          Some(block),
-          None,
-          Some("budget"),
-          None,
-          None,
-        ),
+      format_error(
+        InvalidConfiguration,
+        stage,
+        block,
+        None,
+        Some("budget"),
+        None,
+        None,
       )
   }
 }
