@@ -1,7 +1,6 @@
 """Verify shortest-path choices and apply a real two-hop patch plan."""
 
 import argparse
-import bz2
 import json
 from pathlib import Path
 import subprocess
@@ -10,32 +9,10 @@ import unittest
 
 from build_cli import ROOT, version
 from test_cli_manifest_create import identity
-from test_cli_stream import envelope, integer
+from run_update_demo import UPSTREAM, prepare_direct, prepare_two_hop
 
 
 EXE = None
-UPSTREAM = ROOT / "testdata/upstream/seeded-random"
-
-
-def prepare_two_hop(write, invoke):
-    start = (UPSTREAM / "old.bin").read_bytes()
-    middle = (UPSTREAM / "new.bin").read_bytes()
-    target = middle[:-1] + bytes([middle[-1] ^ 1])
-    write("installed.bin", start)
-    write("v2.bin", middle)
-    write("v3.bin", target)
-    write("v1-to-v2.patch", (UPSTREAM / "patch.bin").read_bytes())
-    invoke("manifest", "create", "installed.bin", "v2.bin", "v1-to-v2.patch", "v1-to-v2.json")
-    invoke("diff", "--manifest", "v2-to-v3.json", "v2.bin", "v3.bin", "v2-to-v3.patch")
-    return start, middle, target
-
-
-def prepare_direct(write, invoke, target):
-    # A valid direct patch that carries the complete target in Extra.
-    control = integer(0) + integer(len(target)) + integer(0)
-    write("v1-to-v3.patch", envelope([bz2.compress(control), bz2.compress(b""),
-                                      bz2.compress(target)], len(target)))
-    invoke("manifest", "create", "installed.bin", "v3.bin", "v1-to-v3.patch", "v1-to-v3.json")
 
 
 class ManifestPlanFixture(unittest.TestCase):

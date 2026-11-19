@@ -1,5 +1,30 @@
 # MoonBSDiff
 
+## 快速验收
+
+这个演示用同一组文件比较三种更新方案。可以走一跳时下载 **2048 字节**完整文件，允许两跳时下载 **368 字节**补丁，两份补丁已经在本地时下载 **0 字节**。最后按离线计划交付 `restored.bin`。
+
+在仓库根目录运行。需要 Python 3.10+ 和包含 `manifest plan-local` 的 CLI。源码构建需要配置好的 MoonBit 和原生 C 编译器，Windows 使用 MSVC。公开的 `v0.4.0` 缺少演示使用的命令。
+
+```sh
+moon update
+python scripts/build_cli.py --release
+```
+
+Windows：
+
+```powershell
+python scripts/run_update_demo.py --cli _build/bin/windows/moonbsdiff.exe
+```
+
+Linux：
+
+```sh
+python scripts/run_update_demo.py --cli _build/bin/linux/moonbsdiff
+```
+
+手上已有适用的发行版时，直接把 `--cli` 指向解包后的程序。看到 `UPDATE DEMO PASS` 即表示恢复文件与独立目标逐字节相同。文件保留在脚本打印的临时目录。预期大小、SHA-256 和样本来源见[项目验收说明](docs/update-demo.md)。
+
 **0.4.0 release:** [release scope, distribution identities and remaining limits](docs/release-0.4.0.md).
 Mooncakes 0.4.0 and both Windows/Linux CLI archives are published from source
 `e39e66f1270c0f4e37cb14fcfc5739edc46d1798`. See the linked evidence for package,

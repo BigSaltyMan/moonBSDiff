@@ -217,6 +217,11 @@ jobs:
           python scripts/test_cli_manifest_select.py --exe "$CLI_EXE"
           python scripts/test_cli_manifest_plan.py --exe "$CLI_EXE"
         shell: bash
+      - name: Run the update planning and offline restore demo
+        env:
+          CLI_EXE: ${{ runner.os == 'Windows' && '_build/bin/windows/moonbsdiff.exe' || '_build/bin/linux/moonbsdiff' }}
+        run: python scripts/run_update_demo.py --cli "$CLI_EXE"
+        shell: bash
       - name: Package and validate Linux release archive once
         if: runner.os == 'Linux'
         run: python3 scripts/package_cli.py
