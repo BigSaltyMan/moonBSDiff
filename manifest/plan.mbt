@@ -164,3 +164,29 @@ pub fn plan(
     None => Err(NoRoute(effective_max_steps=max_steps.map(_ => depth)))
   }
 }
+
+///|
+/// Download decision for a release that offers the complete target.
+pub(all) enum UpdatePlan {
+  UpToDate
+  Patches(RoutePlan)
+  FullFile(ContentIdentity)
+}
+
+///|
+/// Compare declared patch bytes with the target's original byte size.
+/// A tie favors the full file. The caller supplies its location and verifies
+/// the downloaded bytes against the returned identity.
+pub fn plan_update(
+  start : ContentIdentity,
+  target : ContentIdentity,
+  candidates : Array[PreparedManifest],
+  max_steps? : Int64,
+) -> Result[UpdatePlan, PlanError] {
+  match plan(start, target, candidates, max_steps?) {
+    Ok(_) if start == target => Ok(UpToDate)
+    Ok(route) if route.total_patch_bytes < target.size => Ok(Patches(route))
+    Ok(_) | Err(NoRoute(..)) => Ok(FullFile(target))
+    Err(error) => Err(error)
+  }
+}

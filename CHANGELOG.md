@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- `manifest.plan_update` and `manifest plan --allow-full` compare patch
+  routes with the full target size and prefer the full file on a tie.
+
 - `manifest.plan` exposes cross-target route planning using prepared manifests.
   The CLI and library share byte, hop and candidate ordering.
 

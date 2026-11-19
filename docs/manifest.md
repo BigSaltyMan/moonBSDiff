@@ -246,6 +246,59 @@ fixture above produced indices `[0, 1]` and 368 bytes. Applying those entries
 restored all 2048 target bytes. This library API is available from this
 source change. The public 0.4.0 package predates it.
 
+### Compare patches with a full download (Unreleased)
+
+Use `--allow-full` when the publisher offers the complete target described
+by the trusted `--target-manifest`. The planner compares the declared patch
+bytes within the hop limit against the raw target size. An equal cost favors
+the full file and avoids applying patches. Every supplied manifest still goes
+through strict preflight. You can also omit all candidate manifests.
+
+```sh
+moonbsdiff manifest plan --max-steps 1 --target-manifest v2-to-v3.json -- installed.bin v1-to-v2.json v2-to-v3.json v1-to-v3.json
+moonbsdiff manifest plan --allow-full --max-steps 1 --target-manifest v2-to-v3.json -- installed.bin v1-to-v2.json v2-to-v3.json v1-to-v3.json
+moonbsdiff manifest plan --allow-full --max-steps 2 --target-manifest v2-to-v3.json -- installed.bin v1-to-v2.json v2-to-v3.json v1-to-v3.json
+```
+
+The fixed fixture gives these results.
+
+| Options | Output | Download bytes |
+| --- | --- | ---: |
+| `--max-steps 1` | `total_patch_bytes` with `v1-to-v3.json` | 2532 |
+| `--allow-full --max-steps 1` | `strategy: full-file` | 2048 |
+| `--allow-full --max-steps 2` | `strategy: patches` with `v1-to-v2.json`, then `v2-to-v3.json` | 368 |
+
+With `--allow-full`, schema 1 JSON includes `start`, `target`, `strategy` and
+`download_bytes`. `already-current` gives `"0"`. Only `patches` includes
+`steps`, in the same format and order as patch-only planning. For `full-file`,
+use `target.size_bytes` and `target.sha256` to verify the download. The CLI
+reports a decision and reads no file or URL for the full target.
+
+The `manifest` package offers the same decision to native, JS and Wasm-GC.
+With the imports above, use the trusted prepared manifests as follows.
+
+```moonbit
+fn choose_download(
+  installed : Bytes,
+  target : @manifest.PreparedManifest,
+  candidates : Array[@manifest.PreparedManifest],
+  max_steps : Int64,
+) -> Result[@manifest.UpdatePlan, @manifest.PlanError] {
+  @manifest.plan_update(
+    @manifest.ContentIdentity::of_bytes(installed),
+    target.new,
+    candidates,
+    max_steps=max_steps,
+  )
+}
+```
+
+Match `UpToDate`, `Patches(route)` or `FullFile(identity)`. In the last case,
+take the full-file URL from the publisher and compare
+`@manifest.ContentIdentity::of_bytes(downloaded)` with `identity`. A nonpositive
+hop limit still yields `InvalidMaxSteps`, even if the installed content is
+current. This API and CLI flag are available from this source change.
+
 ## Apply a local patch chain (Unreleased)
 
 First obtain the route for the installed file, then fetch the patches through

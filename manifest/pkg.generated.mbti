@@ -15,6 +15,8 @@ pub fn diff_with_options(Bytes, Bytes, @moonbsdiff.Limits, @moonbsdiff.DiffOptio
 
 pub fn plan(ContentIdentity, ContentIdentity, Array[PreparedManifest], max_steps? : Int64) -> Result[RoutePlan, PlanError]
 
+pub fn plan_update(ContentIdentity, ContentIdentity, Array[PreparedManifest], max_steps? : Int64) -> Result[UpdatePlan, PlanError]
+
 pub fn prepare(Bytes, @moonbsdiff.Limits) -> Result[PreparedManifest, ManifestError]
 
 // Errors
@@ -96,6 +98,12 @@ pub fn PreparedManifest::restore(Self, Bytes, Bytes) -> Result[Bytes, ManifestEr
 pub struct RoutePlan {
   total_patch_bytes : Int64
   candidate_indices : ReadOnlyArray[Int32]
+}
+
+pub(all) enum UpdatePlan {
+  UpToDate
+  Patches(RoutePlan)
+  FullFile(ContentIdentity)
 }
 
 // Type aliases

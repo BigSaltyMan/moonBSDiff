@@ -115,10 +115,13 @@ fn print_help() -> Unit {
     "Manifest select limits: --max-old-bytes, --max-new-bytes, --max-output-bytes, --max-patch-bytes.",
   )
   println(
-    "moonbsdiff manifest plan --target-manifest FILE [--max-steps COUNT] [LIMITS] OLD_FILE [MANIFEST_FILE...]",
+    "moonbsdiff manifest plan --target-manifest FILE [--max-steps COUNT] [--allow-full] [LIMITS] OLD_FILE [MANIFEST_FILE...]",
   )
   println(
     "Plan the fewest patch bytes, then the fewest steps. --max-steps accepts a positive decimal count. Prints JSON and reads no patches.",
+  )
+  println(
+    "Use --allow-full to compare patch bytes with the complete target and print the download strategy.",
   )
   println(
     "moonbsdiff patch --manifest MANIFEST_FILE [LIMITS] OLD_FILE PATCH_FILE OUTPUT_FILE",
@@ -250,6 +253,7 @@ struct CliConfig {
   manifest : String?
   target_manifest : String?
   max_steps : Int64?
+  allow_full : Bool
   files : Array[String]
 }
 
@@ -311,6 +315,7 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
   let mut manifest : String? = None
   let mut target_manifest : String? = None
   let mut max_steps : Int64? = None
+  let mut allow_full = false
   let mut escaped = false
   while i < args.length() {
     let option = args[i]
@@ -337,7 +342,11 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
       option != "--max-output-bytes" &&
       option != "--max-patch-bytes" &&
       !(operation == "manifest plan" &&
-      (option == "--target-manifest" || option == "--max-steps")) {
+      (
+        option == "--target-manifest" ||
+        option == "--max-steps" ||
+        option == "--allow-full"
+      )) {
       return Err(option + " is not applicable to " + operation)
     }
     let bytes = match option {
@@ -373,7 +382,7 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
         }
         false
       }
-      "--max-steps" => {
+      "--max-steps" | "--allow-full" => {
         if operation != "manifest plan" {
           return Err(option + " is only applicable to manifest plan")
         }
@@ -445,6 +454,11 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
     if option == "--json" {
       json = true
       i = i + 1
+      continue
+    }
+    if option == "--allow-full" {
+      allow_full = true
+      i += 1
       continue
     }
     if option == "--show-limits" {
@@ -605,6 +619,7 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
     manifest,
     target_manifest,
     max_steps,
+    allow_full,
     files,
   })
 }

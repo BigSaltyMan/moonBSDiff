@@ -263,6 +263,37 @@ Send `bundle.patch` and `bundle.manifest` as separate byte buffers. The client
 passes the patch and the manifest from a trusted channel to `restore_bundle`.
 [Complete example and error handling](docs/manifest.md#generate-a-patch-bundle-from-moonbit-unreleased)
 
+**Choose between patches and a full download (Unreleased)**
+
+When the release offers the full target, use `plan_update` with a trusted
+prepared target and candidates. Import the manifest package as shown above.
+
+```moonbit
+fn choose_download(
+  installed : Bytes,
+  target : @manifest.PreparedManifest,
+  candidates : Array[@manifest.PreparedManifest],
+  max_steps : Int64,
+) -> Result[@manifest.UpdatePlan, @manifest.PlanError] {
+  @manifest.plan_update(
+    @manifest.ContentIdentity::of_bytes(installed),
+    target.new,
+    candidates,
+    max_steps=max_steps,
+  )
+}
+```
+
+```sh
+moonbsdiff manifest plan --allow-full --max-steps 1 --target-manifest v2-to-v3.json -- installed.bin v1-to-v2.json v2-to-v3.json v1-to-v3.json
+```
+
+In the fixed example, the one-hop patch costs 2532 bytes, so the command
+chooses the 2048-byte full file. With `--max-steps 2`, it chooses two patches
+totaling 368 bytes. Fetch the full file from the release's own URL and check
+its size and SHA-256 against the target identity before using it.
+[Download decision examples](docs/manifest.md#compare-patches-with-a-full-download-unreleased)
+
 Paths containing Chinese characters or spaces must be quoted similarly.
 Our order is `patch OLD PATCH OUTPUT`; upstream is `bspatch OLD NEW PATCH`.
 Exit codes are 0 success, 2 arguments/configuration, 1 operation failure; errors go to stderr.

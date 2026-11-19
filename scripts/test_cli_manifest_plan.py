@@ -241,6 +241,43 @@ class ManifestPlanStepLimit(ManifestPlanFixture):
         })
 
 
+class ManifestUpdatePlan(ManifestPlanFixture):
+    def test_allow_full_decisions_and_preflight(self):
+        _, _, target = prepare_two_hop(self.write, self.invoke)
+        prepare_direct(self.write, self.invoke, target)
+        candidates = ("v1-to-v2.json", "v2-to-v3.json", "v1-to-v3.json")
+        marker = candidates[1]
+        one = ("--max-steps", "1", "--")
+        two = ("--max-steps", "2", "--")
+        legacy = json.loads(self.plan(marker, *candidates, options=one).stdout)
+        self.assertEqual(set(legacy), {"schema_version", "start", "target", "total_patch_bytes", "steps"})
+        self.assertEqual(legacy["total_patch_bytes"], "2532")
+        self.assertEqual([step["manifest_path"] for step in legacy["steps"]], [candidates[2]])
+        target_identity = identity(target)
+        common = {"schema_version": 1, "start": legacy["start"], "target": target_identity}
+        full = {**common, "strategy": "full-file", "download_bytes": "2048"}
+        self.assertEqual(json.loads(self.plan(marker, *candidates, options=("--allow-full", *one)).stdout), full)
+        self.assertEqual(json.loads(self.plan(marker, options=("--allow-full",)).stdout), full)
+
+        route = json.loads(self.plan(marker, *candidates, options=two).stdout)
+        patches = json.loads(self.plan(marker, *candidates, options=("--allow-full", *two)).stdout)
+        self.assertEqual(patches, {**common, "strategy": "patches", "download_bytes": "368", "steps": route["steps"]})
+        self.assertEqual([step["manifest_path"] for step in patches["steps"]], list(candidates[:2]))
+
+        self.write("broken.json", b"{")
+        error = self.plan(marker, *candidates, "broken.json", code=1, options=("--allow-full", *one))
+        self.assertIn(b"'broken.json': manifest JSON:", error.stderr)
+        self.assertIn(b"--allow-full", self.invoke(
+            "manifest", "select", "--allow-full", "installed.bin", marker, code=2
+        ).stderr)
+        self.write("installed.bin", target)
+        current = json.loads(self.plan(marker, options=("--allow-full", *one)).stdout)
+        self.assertEqual(current, {**common, "start": target_identity, "strategy": "already-current", "download_bytes": "0"})
+        print(f"Patch-only one step: {legacy['total_patch_bytes']} bytes")
+        print(json.dumps(full))
+        print(f"Two-step strategy: {patches['strategy']}, {patches['download_bytes']} bytes")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--exe", type=Path, required=True)
@@ -251,6 +288,7 @@ if __name__ == "__main__":
     tests = loader.loadTestsFromTestCase(ManifestPlanStepLimit)
     if not args.steps_only:
         tests.addTests(loader.loadTestsFromTestCase(ManifestPlan))
+        tests.addTests(loader.loadTestsFromTestCase(ManifestUpdatePlan))
     result = unittest.TextTestRunner(verbosity=2).run(tests)
-    if not result.wasSuccessful() or result.testsRun != (3 if args.steps_only else 6) or result.skipped:
+    if not result.wasSuccessful() or result.testsRun != (3 if args.steps_only else 7) or result.skipped:
         raise SystemExit(1)

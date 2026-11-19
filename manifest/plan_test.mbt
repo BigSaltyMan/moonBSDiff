@@ -212,3 +212,55 @@ test "manifest plan restores documented 2048-byte route" {
   assert_eq(expected.length(), 2048)
   assert_eq(current, expected)
 }
+
+///|
+test "manifest public update compares patch routes with the full target" {
+  let candidates = plan_fixture_candidates()
+  let start = @manifest.ContentIdentity::of_bytes(plan_fixture_old())
+  let target = candidates[1].new
+  match @manifest.plan_update(start, target, candidates, max_steps=1L) {
+    Ok(FullFile(identity)) => {
+      assert_true(identity == target)
+      assert_eq(identity.size, 2048L)
+    }
+    _ => abort("one-step update must download the full target")
+  }
+  match @manifest.plan_update(start, target, candidates, max_steps=2L) {
+    Ok(Patches(route)) => {
+      let expected : ReadOnlyArray[Int32] = [0, 1]
+      assert_eq(route.candidate_indices, expected)
+      assert_eq(route.total_patch_bytes, 368L)
+    }
+    _ => abort("two-step update must download the patch route")
+  }
+}
+
+///|
+test "manifest public update handles ties, current targets and invalid limits" {
+  let candidates = plan_fixture_candidates()
+  let start = candidates[0].old
+  let target = candidates[1].new
+  // This synthetic edge tests only declared cost. It has the same cost as
+  // the complete target and does not need a corresponding patch payload.
+  let tied = plan_fixture_manifest(
+    start.hash,
+    target.hash,
+    2048,
+    candidates[2].patch.hash,
+  )
+  let edge = @manifest.prepare(tied, @moonbsdiff.Limits::for_apply()).unwrap()
+  for available in [[], [edge]] {
+    match @manifest.plan_update(start, target, available, max_steps=1L) {
+      Ok(FullFile(identity)) => assert_true(identity == target)
+      _ => abort("missing routes and equal costs must favor the full target")
+    }
+  }
+  match @manifest.plan_update(target, target, []) {
+    Ok(UpToDate) => ()
+    _ => abort("installed target needs no download")
+  }
+  assert_eq(
+    @manifest.plan_update(target, target, [], max_steps=0L).unwrap_err(),
+    @manifest.InvalidMaxSteps(0L),
+  )
+}
