@@ -56,8 +56,19 @@
         "size": 3962,
         "sha256": "9333c8f62a8db19d75af106be4114a4b24627841641d9684446622ff0e596ea7"
       }
+    },
+    "0.5.0": {
+      "v1": {
+        "size": 3962,
+        "sha256": "23b2a7e8e320c278c10f13c7780af2c9fc01788df0362815fd7edf435a1926e2"
+      },
+      "v2": {
+        "size": 3962,
+        "sha256": "8d4821ac392a581c5e5ce8ae848862d2d1c6f26eae065f2417112148d500d813"
+      }
     }
   },
   "version_0_2_0_origin": "Independent direct Linux/WSL compilation, same pinned compiler/flags; each output differs from verified 0.1.0 bytes only at offset 3888 in custom name section (module @0.1.0 -> @0.2.0). No code/data section change and no diff/apply used to derive expectations. Original expected field retains Commit 14/15 history.",
-  "version_0_4_0_origin": "Independent direct WSL native-host compilation with the pinned compiler/wasm-gc --release --strip flags; replacing the single @0.4.0 custom-name string with @0.2.0 reproduces the fixed 0.2.0 whole-file hash for each module. No diff/apply or changed module source used to derive expectations."
+  "version_0_4_0_origin": "Independent direct WSL native-host compilation with the pinned compiler/wasm-gc --release --strip flags; replacing the single @0.4.0 custom-name string with @0.2.0 reproduces the fixed 0.2.0 whole-file hash for each module. No diff/apply or changed module source used to derive expectations.",
+  "version_0_5_0_origin": "Independent direct Ubuntu 24.04 WSL compilation with the pinned compiler/wasm-gc --release --strip flags. Normalizing the single @0.5.0 custom-name string to @0.4.0 reproduces each fixed 0.4.0 whole-file hash. No diff/apply output was used."
 }

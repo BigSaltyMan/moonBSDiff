@@ -1,17 +1,16 @@
-# Downloadable MoonBSDiff CLI 0.4.0
+# Downloadable MoonBSDiff CLI 0.5.0
 
-Use the formal [v0.4.0 Release](https://github.com/BigSaltyMan/moonBSDiff/releases/tag/v0.4.0)
-and its source-bound CI/build-info for actual publication and asset identity.
-[Release evidence](release-0.4.0.md) separates preparation from registry upload and
-public re-download. Historical CLI v0.2.0 and Mooncakes 0.1.0 remain unchanged;
-Mooncakes 0.2.0/0.3.0 are not published by this release.
+Use the [v0.5.0 GitHub Release](https://github.com/BigSaltyMan/moonBSDiff/releases/tag/v0.5.0)
+for the Windows and Linux x86_64 archives. The [0.5.0 release record](release-0.5.0.md)
+links the source, CI and Mooncakes version. The [0.4.0 record](release-0.4.0.md)
+preserves its historical package and CLI identities.
 
 ## Choose, verify, and extract
 
 The release has four assets:
 
-- `moonbsdiff-0.4.0-windows-x86_64.zip`
-- `moonbsdiff-0.4.0-linux-x86_64.tar.gz`
+- `moonbsdiff-0.5.0-windows-x86_64.zip`
+- `moonbsdiff-0.5.0-linux-x86_64.tar.gz`
 - `SHA256SUMS`
 - `build-info.json`
 
@@ -23,10 +22,10 @@ Linux shell, from the directory containing those downloads:
 
 ```sh
 sha256sum --ignore-missing --check SHA256SUMS
-mkdir moonbsdiff-0.4.0
-tar -xzf moonbsdiff-0.4.0-linux-x86_64.tar.gz -C moonbsdiff-0.4.0
-./moonbsdiff-0.4.0/moonbsdiff --version
-./moonbsdiff-0.4.0/moonbsdiff --help
+mkdir moonbsdiff-0.5.0
+tar -xzf moonbsdiff-0.5.0-linux-x86_64.tar.gz -C moonbsdiff-0.5.0
+./moonbsdiff-0.5.0/moonbsdiff --version
+./moonbsdiff-0.5.0/moonbsdiff --help
 ```
 
 Check that both your archive and build-info.json report OK; `--ignore-missing`
@@ -34,7 +33,7 @@ only permits omitting the other platform's archive. Do not accept a changed or
 missing selected archive. Windows PowerShell, with all three files downloaded:
 
 ```powershell
-$asset = 'moonbsdiff-0.4.0-windows-x86_64.zip'
+$asset = 'moonbsdiff-0.5.0-windows-x86_64.zip'
 $lines = Get-Content -LiteralPath SHA256SUMS
 foreach ($name in @($asset, 'build-info.json')) {
     $entry = @($lines | Where-Object { $_.EndsWith('  ' + $name) })
@@ -42,13 +41,13 @@ foreach ($name in @($asset, 'build-info.json')) {
     $expected = $entry[0].Substring(0, 64)
     if ((Get-FileHash -LiteralPath $name -Algorithm SHA256).Hash.ToLowerInvariant() -ne $expected) { throw "Checksum mismatch: $name" }
 }
-if (Test-Path -LiteralPath moonbsdiff-0.4.0) { throw 'Extraction directory already exists' }
-Expand-Archive -LiteralPath $asset -DestinationPath moonbsdiff-0.4.0
-./moonbsdiff-0.4.0/moonbsdiff.exe --version
-./moonbsdiff-0.4.0/moonbsdiff.exe --help
+if (Test-Path -LiteralPath moonbsdiff-0.5.0) { throw 'Extraction directory already exists' }
+Expand-Archive -LiteralPath $asset -DestinationPath moonbsdiff-0.5.0
+./moonbsdiff-0.5.0/moonbsdiff.exe --version
+./moonbsdiff-0.5.0/moonbsdiff.exe --help
 ```
 
-Version must be exactly `moonbsdiff 0.4.0`. Checksums detect changed content
+Version must be exactly `moonbsdiff 0.5.0`. Checksums detect changed content
 against a trusted expected checksum; they do not authenticate a publisher if
 the archive and checksum are both replaced. Obtain trusted release identities
 through a channel appropriate to your use.
@@ -97,6 +96,19 @@ and manifest delivery is not a cross-file transaction; partial completion is
 reported without deleting a delivered patch. Default sizes/work quotas remain
 unchanged. No whole-process peak-memory, full bzip2 CPU, wall-clock or durability
 guarantee is introduced. See [CLI contracts](cli.md) and [manifest policy](manifest.md).
+
+To verify the downloaded executable against the fixed update scenario, use Python
+3.10+ and the scripts and fixtures from a clean checkout or source archive of
+the v0.5.0 tag. From that source root, point the demo at the extracted CLI:
+
+```sh
+python scripts/run_update_demo.py --cli /path/to/extracted/moonbsdiff
+```
+
+Use the path to `moonbsdiff.exe` on Windows. The demo checks the 2048, 368 and
+zero-byte download choices and compares the delivered 2048 bytes with an
+independent target. See the [project acceptance page](update-demo.md) for the
+expected hash and demo output.
 
 ## Build/provenance procedure
 

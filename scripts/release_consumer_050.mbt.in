@@ -1,0 +1,35 @@
+///|
+fn main {
+  let prefix = Bytes::make(1024, 0x41)
+  let old = prefix + b"release consumer\x00v1"
+  let expected = prefix + b"release consumer\x00v2!\xff"
+  let generation_limits = @moonbsdiff.Limits::for_diff()
+  let apply_limits = @moonbsdiff.Limits::for_apply()
+  let forward = @manifest.diff(old, expected, generation_limits).unwrap()
+  let reverse = @manifest.diff(expected, old, generation_limits).unwrap()
+  if forward.patch[:8].to_owned() != b"BSDIFF40" {
+    abort("manifest.diff did not return a BSDIFF40 patch")
+  }
+  let target = @manifest.prepare(forward.manifest, apply_limits).unwrap()
+  let reverse_manifest = @manifest.prepare(reverse.manifest, apply_limits).unwrap()
+  let candidates = [reverse_manifest, target]
+  let patches = [reverse.patch, forward.patch]
+  let start = @manifest.ContentIdentity::of_bytes(old)
+  let route = match @manifest.plan_update(start, target.new, candidates, max_steps=1L) {
+    Ok(Patches(route)) => route
+    _ => abort("manifest.plan_update did not select patches")
+  }
+  if route.candidate_indices.length() != 1 ||
+    route.candidate_indices[0] != 1 ||
+    route.total_patch_bytes != forward.patch.length().to_int64() ||
+    route.total_patch_bytes >= expected.length().to_int64() {
+    abort("manifest.plan_update chose the wrong candidate or cost")
+  }
+  let index = route.candidate_indices[0]
+  let restored = candidates[index].restore(old, patches[index]).unwrap()
+  if restored != expected {
+    abort("manifest restore differs from predefined target")
+  }
+  println("manifest 0.5.0 probe: candidate=\{index} patch_bytes=\{route.total_patch_bytes} target_bytes=\{expected.length()}")
+  println("restored bytes equal predefined new bytes: PASS")
+}

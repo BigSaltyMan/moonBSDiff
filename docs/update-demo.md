@@ -12,7 +12,7 @@ MoonBit 库实现 BSDIFF40 补丁生成与应用、清单核验和受跳数限�
 
 ## 3. 怎样亲手验证
 
-按 [README 快速验收](../README.md#快速验收)构建一次或取得适用的 CLI。在 Windows 运行下面这条命令。Linux 将路径换成 `_build/bin/linux/moonbsdiff`，也可直接指定新版发行程序。
+按 [README 快速验收](../README.md#快速验收)构建一次或取得适用的 CLI。在 Windows 运行下面这条命令。Linux 将路径换成 `_build/bin/linux/moonbsdiff`，也可直接指定从 [v0.5.0 Release](https://github.com/BigSaltyMan/moonBSDiff/releases/tag/v0.5.0) 解包后的程序。
 
 ```sh
 python scripts/run_update_demo.py --cli _build/bin/windows/moonbsdiff.exe
@@ -32,4 +32,4 @@ python scripts/run_update_demo.py --cli _build/bin/windows/moonbsdiff.exe
 
 - 公开接口见[核心库](../pkg.generated.mbti)和[清单子包](../manifest/pkg.generated.mbti)。[双向互操作报告](compatibility.md)记录与真实 BSDiff 4.3 的 138 次完整字节比较。
 - 演示见[脚本源码](../scripts/run_update_demo.py)和 [CI 工作流](../.github/workflows/ci.yml)。[运行记录](https://github.com/BigSaltyMan/moonBSDiff/actions/workflows/ci.yml)中选择与演示源码一致的提交，查看 Windows 和 Ubuntu CLI 作业的 `Run the update planning and offline restore demo` 步骤。
-- [v0.4.0 发布记录](release-0.4.0.md)固定了当时的源码、包和 CLI 资产。上述路由规划和离线恢复演示使用后续源码新增能力，公开的 v0.4.0 CLI 缺少这些命令。
+- [v0.4.0 发布记录](release-0.4.0.md)固定了当时的源码、包和 CLI 资产。路由规划和离线恢复演示使用 v0.5.0 新增能力。公开的 v0.4.0 CLI 缺少这些命令。[v0.5.0 发布记录](release-0.5.0.md)分别记载源码和公开归档的演示证据。

@@ -37,12 +37,37 @@ jobs:
           python3 -m unittest discover -s scripts -p test_release_audit.py
           python3 scripts/release_audit.py | tee release-audit.log
           python3 - <<'PY'
-          import json,pathlib,subprocess,sys
-          rows=[line.removeprefix('RELEASE AUDIT ') for line in pathlib.Path('release-audit.log').read_text().splitlines() if line.startswith('RELEASE AUDIT ')]
-          if len(rows)!=1:raise RuntimeError('missing/duplicate audit result')
-          report=pathlib.Path(json.loads(rows[0])['report']);audit=json.loads(report.read_text())
-          subprocess.run([sys.executable,'scripts/release_consumer.py','--candidate',audit['package_path'],'--audit',str(report),'--targets','native','js','wasm-gc'],check=True,timeout=600)
+          import json,os,pathlib,shutil,subprocess,sys
+          def one_report(output, prefix):
+              rows = [line.removeprefix(prefix) for line in output.splitlines() if line.startswith(prefix)]
+              if len(rows) != 1:
+                  raise RuntimeError(f'missing/duplicate report: {prefix}')
+              return pathlib.Path(json.loads(rows[0])['report'])
+
+          report = one_report(pathlib.Path('release-audit.log').read_text(), 'RELEASE AUDIT ')
+          audit = json.loads(report.read_text())
+          if audit['source_sha'] != os.environ['GITHUB_SHA']:
+              raise RuntimeError('candidate audit source differs from the workflow SHA')
+          result = subprocess.run(
+              [sys.executable, 'scripts/release_consumer.py', '--candidate', audit['package_path'],
+               '--audit', str(report), '--targets', 'native', 'js', 'wasm-gc'],
+              stdout=subprocess.PIPE, text=True, timeout=600,
+          )
+          print(result.stdout, end='')
+          result.check_returncode()
+          consumer = one_report(result.stdout, 'CONSUMER PASS ')
+          evidence = pathlib.Path('_build/ci-candidate-evidence')
+          evidence.mkdir(parents=True)
+          shutil.copy2(audit['package_path'], evidence)
+          shutil.copy2(report, evidence / 'audit.json')
+          shutil.copy2(consumer, evidence / 'consumer.json')
           PY
+      - name: Retain source-bound candidate and consumer evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: mooncakes-candidate-${{ github.sha }}
+          path: _build/ci-candidate-evidence/
+          if-no-files-found: error
       - run: python3 -m unittest discover -s scripts -p test_acceptance.py
       - run: python3 scripts/check_format_vectors.py
       - run: python3 scripts/check_matching_vectors.py

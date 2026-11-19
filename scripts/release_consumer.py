@@ -1,54 +1,165 @@
 """External candidate or registry consumer with a fresh SDK registry and project."""
-import argparse,re,json,os,pathlib,shutil,subprocess,tempfile,urllib.request,zipfile
-from release_audit import audit_zip,require,sha
-ROOT=pathlib.Path(__file__).resolve().parents[1]
+
+import argparse
+import json
+import os
+from pathlib import Path
+import re
+import shutil
+import subprocess
+import tempfile
+import urllib.request
+import zipfile
+
+from release_audit import audit_zip, require, sha
+
+
+ROOT = Path(__file__).resolve().parents[1]
+MODULE = "BigSaltyMan/moonbsdiff"
+COMMON_MARKER = "restored bytes equal predefined new bytes: PASS"
+PROBES = {
+    "0.1.0": "cmd/example/main.mbt",
+    "0.2.0": "cmd/example/main.mbt",
+    "0.4.0": "scripts/release_consumer.mbt.in",
+    "0.5.0": "scripts/release_consumer_050.mbt.in",
+}
+MANIFEST_PROBE_PACKAGE = """import {
+  "BigSaltyMan/moonbsdiff",
+  "BigSaltyMan/moonbsdiff/manifest",
+}
+
+pkgtype(kind: "executable")
+supported_targets = "-all+native+js+wasm-gc"
+"""
+
+
+def verify_module(dependency, version):
+    text = (dependency / "moon.mod").read_text(encoding="utf8")
+    for field, expected in (("name", MODULE), ("version", version)):
+        actual = re.search(rf'^{field}\s*=\s*"([^"\r\n]+)"', text, re.M)
+        require(actual is not None and actual[1] == expected,
+                f"dependency {field} is not {expected}")
+
+
 def main():
-    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--candidate',type=pathlib.Path);p.add_argument('--audit',required=True,type=pathlib.Path);p.add_argument('--targets',nargs='+',choices=['native','js','wasm-gc'],default=['js','wasm-gc']);a=p.parse_args()
-    audit=json.loads(a.audit.read_text(encoding='utf8'));folder=pathlib.Path(tempfile.mkdtemp(prefix='moonbsdiff-consumer-'));sdk=folder/'sdk';sdk.mkdir()
-    original=pathlib.Path(os.environ['MOON_HOME']).resolve() if os.environ.get('MOON_HOME') else pathlib.Path(shutil.which('moon')).resolve().parent.parent
-    for name in ['bin','include','lib','share']:shutil.copytree(original/name,sdk/name)
-    env=dict(os.environ,MOON_HOME=str(sdk),PATH=str(sdk/'bin')+os.pathsep+os.environ['PATH']);project=folder/'consumer';project.mkdir()
-    commands=[]
-    def run(command,cwd=project):
-        r=subprocess.run(command,cwd=cwd,env=env,capture_output=True,timeout=240)
-        (folder/('command-'+str(len(commands))+'.log')).write_bytes(r.stdout+r.stderr)
-        commands.append(dict(command=command,exit_code=r.returncode))
-        require(r.returncode==0,'consumer command failed: '+str(command)+'; logs '+str(folder))
-        return r.stdout.decode('utf8')
-    version=run(['moon','version','--all']);require('moonc v0.10.19+bee578715' in version,'wrong consumer compiler')
-    (project/'moon.mod').write_text('name = "releasecheck/consumer"\nversion = "0.1.0"\n',encoding='utf8')
-    (project/'moon.pkg').write_bytes((ROOT/'cmd/example/moon.pkg').read_bytes())
-    (project/'main.mbt').write_bytes((ROOT/('scripts/release_consumer.mbt.in' if audit.get('version','0.1.0')=='0.4.0' else 'cmd/example/main.mbt')).read_bytes())
-    target_version=audit.get('version','0.1.0')
-    mode='candidate' if a.candidate else 'registry'
-    if a.candidate:
-        audit_zip(a.candidate,audit['files'])
-        dependency=folder/'candidate';dependency.mkdir()
-        with zipfile.ZipFile(a.candidate) as z:z.extractall(dependency)
-        (folder/'moon.work').write_text('members = ["candidate", "consumer"]\n',encoding='utf8')
-        candidate_version=re.search(r'^version\s*=\s*"([^"]+)"', (dependency/'moon.mod').read_text(encoding='utf8'),re.M)[1]
-        with (project/'moon.mod').open('a',encoding='utf8') as f:f.write('import { "BigSaltyMan/moonbsdiff@'+candidate_version+'" }\n')
-        run(['moon','update'])
-        package=a.candidate.read_bytes()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--candidate", type=Path)
+    parser.add_argument("--audit", required=True, type=Path)
+    parser.add_argument("--targets", nargs="+", choices=["native", "js", "wasm-gc"],
+                        default=["js", "wasm-gc"])
+    args = parser.parse_args()
+    audit = json.loads(args.audit.read_text(encoding="utf8"))
+    target_version = audit.get("version")
+    require(isinstance(target_version, str) and target_version in PROBES,
+            "audit version missing or unsupported; no consumer probe selected")
+    require(audit.get("module") == MODULE, "audit names another module")
+    probe_path = PROBES[target_version]
+    probe = (ROOT / probe_path).read_bytes()
+    expected_marker = "manifest 0.5.0 probe: candidate=1 " if target_version == "0.5.0" else None
+    if expected_marker:
+        require(b"@manifest.plan_update" in probe and b"@manifest.diff" in probe,
+                "0.5.0 consumer template must exercise the manifest subpackage")
+
+    folder = Path(tempfile.mkdtemp(prefix="moonbsdiff-consumer-"))
+    sdk = folder / "sdk"
+    sdk.mkdir()
+    original = (Path(os.environ["MOON_HOME"]).resolve() if os.environ.get("MOON_HOME")
+                else Path(shutil.which("moon")).resolve().parent.parent)
+    for name in ["bin", "include", "lib", "share"]:
+        shutil.copytree(original / name, sdk / name)
+    env = dict(os.environ, MOON_HOME=str(sdk), PATH=str(sdk / "bin") + os.pathsep + os.environ["PATH"])
+    project = folder / "consumer"
+    project.mkdir()
+    commands = []
+
+    def run(command):
+        result = subprocess.run(command, cwd=project, env=env, capture_output=True, timeout=240)
+        (folder / f"command-{len(commands)}.log").write_bytes(result.stdout + result.stderr)
+        commands.append(dict(command=command, exit_code=result.returncode))
+        require(result.returncode == 0, f"consumer command failed: {command}; logs {folder}")
+        return result.stdout.decode("utf8")
+
+    toolchain = run(["moon", "version", "--all"])
+    require("moonc v0.10.19+bee578715" in toolchain, "wrong consumer compiler")
+    module = project / "moon.mod"
+    module.write_text('name = "releasecheck/consumer"\nversion = "0.1.0"\n', encoding="utf8")
+    if expected_marker:
+        (project / "moon.pkg").write_text(MANIFEST_PROBE_PACKAGE, encoding="utf8")
     else:
-        # No workspace, path override, copied dependency or prepopulated registry.
-        require(not (folder/'moon.work').exists(),'registry workspace override')
-        run(['moon','update']);run(['moon','add','BigSaltyMan/moonbsdiff@'+target_version])
-        metadata_url='https://mooncakes.io/api/v0/manifest/BigSaltyMan/moonbsdiff/'+target_version
-        with urllib.request.urlopen(metadata_url,timeout=60) as response:metadata=json.load(response)
-        require(metadata['version']==target_version and not metadata['yanked'],'registry returned another version')
-        url='https://download.mooncakes.io/user/BigSaltyMan/moonbsdiff/'+target_version+'.zip'
-        with urllib.request.urlopen(url,timeout=60) as response:package=response.read()
-        downloaded=folder/'registry.zip';downloaded.write_bytes(package);audit_zip(downloaded,audit['files'])
-        require(metadata['metadata']['checksum']==sha(package),'registry checksum differs')
-        dependency=project/'.mooncakes/BigSaltyMan/moonbsdiff'
-        require(dependency.is_dir(),'installed registry dependency missing')
-        for name,digest in audit['files'].items():require((dependency/name).is_file() and sha((dependency/name).read_bytes())==digest,'installed registry bytes differ: '+name)
-    for target in a.targets:
-        run(['moon','check','--target',target,'--deny-warn']);run(['moon','build','--target',target])
-        output=run(['moon','run','.','--target',target])
-        require('restored bytes equal predefined new bytes: PASS' in output,'consumer success marker missing')
-    tree=run(['moon','tree'])
-    report=dict(schema=1,mode=mode,source_sha=audit['source_sha'],package_sha256=sha(package),package_size=len(package),candidate_sha256=audit['package_sha256'],member_bytes_equal=True,targets=a.targets,byte_equal=True,toolchain='\n'.join(line.split(' /')[0] for line in version.splitlines() if line and not line.startswith('Feature flags')),dependency_tree=tree,commands=commands)
-    (folder/'consumer.json').write_text(json.dumps(report,indent=2)+'\n',encoding='utf8');print('CONSUMER PASS '+json.dumps(dict(report=str(folder/'consumer.json'),mode=mode,targets=a.targets,package_sha256=sha(package))))
-if __name__=='__main__':main()
+        (project / "moon.pkg").write_bytes((ROOT / "cmd/example/moon.pkg").read_bytes())
+    (project / "main.mbt").write_bytes(probe)
+
+    mode = "candidate" if args.candidate else "registry"
+    package_url = None
+    if args.candidate:
+        package = args.candidate.read_bytes()
+        require(sha(package) == audit["package_sha256"], "candidate ZIP differs from its audit")
+        members = audit_zip(args.candidate, audit["files"])
+        dependency = folder / "candidate"
+        dependency.mkdir()
+        with zipfile.ZipFile(args.candidate) as archive:
+            archive.extractall(dependency)
+        verify_module(dependency, target_version)
+        (folder / "moon.work").write_text('members = ["candidate", "consumer"]\n', encoding="utf8")
+        with module.open("a", encoding="utf8") as out:
+            out.write(f'import {{ "{MODULE}@{target_version}" }}\n')
+        run(["moon", "update"])
+    else:
+        require(not (folder / "moon.work").exists(), "registry workspace override")
+        run(["moon", "update"])
+        run(["moon", "add", f"{MODULE}@{target_version}"])
+        metadata_url = f"https://mooncakes.io/api/v0/manifest/{MODULE}/{target_version}"
+        with urllib.request.urlopen(metadata_url, timeout=60) as response:
+            metadata = json.load(response)
+        require(metadata["version"] == target_version and not metadata["yanked"],
+                "registry returned another version")
+        package_url = f"https://download.mooncakes.io/user/{MODULE}/{target_version}.zip"
+        with urllib.request.urlopen(package_url, timeout=60) as response:
+            package = response.read()
+        downloaded = folder / "registry.zip"
+        downloaded.write_bytes(package)
+        members = audit_zip(downloaded, audit["files"])
+        require(metadata["metadata"]["checksum"] == sha(package), "registry checksum differs")
+        dependency = project / ".mooncakes" / MODULE
+        require(dependency.is_dir(), "installed registry dependency missing")
+        verify_module(dependency, target_version)
+        for name, digest in audit["files"].items():
+            installed = dependency / name
+            require(installed.is_file() and sha(installed.read_bytes()) == digest,
+                    "installed registry bytes differ: " + name)
+
+    observations = {}
+    for target in args.targets:
+        run(["moon", "check", "--target", target, "--deny-warn"])
+        run(["moon", "build", "--target", target])
+        output = run(["moon", "run", ".", "--target", target])
+        lines = output.splitlines()
+        require(COMMON_MARKER in lines, "consumer success marker missing")
+        if expected_marker:
+            lines = [line for line in lines if line.startswith(expected_marker)]
+            require(len(lines) == 1, f"{target} did not run the 0.5.0 manifest probe")
+        observations[target] = lines
+
+    tree = run(["moon", "tree"])
+    require(f"{MODULE}@{target_version}" in tree, "resolver tree does not show the audited version")
+    if mode == "registry":
+        require(not (folder / "moon.work").exists(), "registry workspace override after install")
+    report = dict(
+        schema=1, mode=mode, source_sha=audit["source_sha"], version=target_version,
+        package_sha256=sha(package), package_size=len(package), candidate_sha256=audit["package_sha256"],
+        members=members, member_bytes_equal=True, package_url=package_url, targets=args.targets,
+        byte_equal=True, probe=probe_path, manifest_probe=bool(expected_marker),
+        observations=observations, dependency_tree=tree, commands=commands,
+        toolchain="\n".join(line.split(" /")[0] for line in toolchain.splitlines()
+                            if line and not line.startswith("Feature flags")),
+    )
+    report_path = folder / "consumer.json"
+    report_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf8")
+    print("CONSUMER PASS " + json.dumps(dict(
+        report=str(report_path), mode=mode, version=target_version, probe=probe_path,
+        targets=args.targets, package_sha256=sha(package), observations=observations,
+    )))
+
+
+if __name__ == "__main__":
+    main()

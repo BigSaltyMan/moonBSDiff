@@ -31,7 +31,7 @@ apply. Without this flag diff emits no manifest and plain patch retains its orig
 unchecked-identity behavior. Success is silent on stdout/stderr, exit 0;
 operational/output failures use stderr and exit 1.
 
-## Select a patch for the installed version (Unreleased)
+## Select a patch for the installed version (0.5.0)
 
 When several trusted manifests describe updates to the same target, pass the
 installed file and the candidate manifests in preference order.
@@ -87,7 +87,7 @@ with a diagnostic on stderr and empty stdout. Missing arguments and inapplicable
 options exit `2`. This command requires a CLI built from source containing this
 change. The published 0.4.0 CLI predates it.
 
-## Plan a multi-hop update (Unreleased)
+## Plan a multi-hop update (0.5.0)
 
 Use a trusted target manifest to identify the final bytes. Pass trusted
 candidate manifests after the installed file, in the desired traversal order.
@@ -181,7 +181,7 @@ target manifest and effective cap.
 Invalid arguments exit `2`. This command requires a CLI built from source
 containing this change. The published 0.4.0 CLI predates it.
 
-### Plan downloads from MoonBit (Unreleased)
+### Plan downloads from MoonBit (0.5.0)
 
 On native, JS and Wasm-GC, prepare trusted manifests and compute the installed
 identity once with `ContentIdentity::of_bytes`. Reuse that identity to compare
@@ -246,7 +246,7 @@ fixture above produced indices `[0, 1]` and 368 bytes. Applying those entries
 restored all 2048 target bytes. This library API is available from this
 source change. The public 0.4.0 package predates it.
 
-### Compare patches with a full download (Unreleased)
+### Compare patches with a full download (0.5.0)
 
 Use `--allow-full` when the publisher offers the complete target described
 by the trusted `--target-manifest`. The planner compares the declared patch
@@ -315,9 +315,9 @@ Match `UpToDate`, `Patches(route)` or `FullFile(identity)`. In the last case,
 take the full-file URL from the publisher and compare
 `@manifest.ContentIdentity::of_bytes(downloaded)` with `identity`. A nonpositive
 hop limit still yields `InvalidMaxSteps`, even if the installed content is
-current. This API and CLI flag are available from this source change.
+current. This API and CLI flag are available in 0.5.0.
 
-### Limit the total download (Unreleased)
+### Limit the total download (0.5.0)
 
 | Option | Scope |
 | --- | --- |
@@ -346,9 +346,9 @@ moonbsdiff: manifest plan: minimum download 368 bytes exceeds budget 367 bytes
 
 With a 200-byte per-patch cap, the same inputs require the full 2048-byte
 target. A budget of `2KiB` succeeds and a budget of `2047` fails. These
-commands are available from this source change.
+commands are available in 0.5.0.
 
-### Install a verified full download (Unreleased)
+### Install a verified full download (0.5.0)
 
 For `strategy: full-file`, download the release's complete target to a local
 file, then run:
@@ -381,9 +381,9 @@ exit `1`. Download URLs and network transfer are handled by the caller.
 
 The fixed sample delivered exactly 2048 bytes with SHA-256
 `66da6542f8276608790055ac88e6af6bf3af76b88bf3aedbcb517c2ce98ab1a6`.
-This command is available from this source change.
+This command is available in 0.5.0.
 
-## Plan from local patches (Unreleased)
+## Plan from local patches (0.5.0)
 
 If you already have patch files, pass them to `manifest plan-local` with
 one `--local-patch` per path. Supply trusted candidate manifests after the
@@ -427,9 +427,9 @@ The entire target manifest must be valid and its new size must fit the
 target limits. Once all requested inputs pass, an already-current file
 yields no steps even when no local patch paths were given. No reachable
 local route exits `1` with a diagnostic and empty stdout. This command is
-available from this source change.
+available in 0.5.0.
 
-## Apply a local patch chain (Unreleased)
+## Apply a local patch chain (0.5.0)
 
 First obtain the route for the installed file, then fetch the patches through
 your update catalog. Supply the local patch and its original manifest for each
@@ -506,7 +506,7 @@ successful cleanup. Failure or cancellation emits `error` or `cancelled` as
 the terminal event. `output_committed` reflects whether final publication took
 place, including when cleanup fails after publication.
 
-## Verify a local patch chain (Unreleased)
+## Verify a local patch chain (0.5.0)
 
 Use `verify-chain` to check a planned route before distributing it. Supply the
 installed file and at least one local patch and manifest pair in plan order.
@@ -548,7 +548,7 @@ line. Ctrl+C (also Ctrl+Break on Windows) requests cancellation, checked
 during processing and once more after closing the private inputs. The
 published 0.4.0 CLI predates this command.
 
-## Create a manifest for an existing patch (Unreleased)
+## Create a manifest for an existing patch (0.5.0)
 
 Use `diff --manifest` when generating a new patch. Use `manifest create` when
 you already have a BSDIFF40 patch and an independently obtained expected target.
@@ -583,7 +583,7 @@ is delivered. Existing destinations, including links to inputs, are preserved.
 the public v0.4.0 archives. Use a trusted target and share the resulting manifest
 through a trusted channel.
 
-## Generate a patch bundle from MoonBit (Unreleased)
+## Generate a patch bundle from MoonBit (0.5.0)
 
 Import the root library and the manifest subpackage in `moon.pkg`.
 
@@ -627,7 +627,7 @@ additional to the sorting and matching budgets in `Limits`. The native CLI's
 These generation interfaces are available from this source change on native,
 JS and Wasm-GC. The public Mooncakes 0.4.0 package predates them.
 
-## Reuse one old version for multiple patch bundles (Unreleased)
+## Reuse one old version for multiple patch bundles (0.5.0)
 
 Use the same `@moonbsdiff` and `@manifest` imports as in the example above.
 Each call returns a bundle that can be sent or stored independently.
@@ -671,7 +671,7 @@ Reuse saves repeated sorting and hashing of the old version. Actual time
 depends on the inputs and options. This API is available from this source
 change on native, JS and Wasm-GC. The public 0.4.0 package predates it.
 
-## Verified restoration from MoonBit (Unreleased)
+## Verified restoration from MoonBit (0.5.0)
 
 Applications can use the same schema 1 manifest emitted by `manifest create`
 or `diff --manifest`. This API first appears in the source change that adds the

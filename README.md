@@ -4,7 +4,7 @@
 
 这个演示用同一组文件比较三种更新方案。可以走一跳时下载 **2048 字节**完整文件，允许两跳时下载 **368 字节**补丁，两份补丁已经在本地时下载 **0 字节**。最后按离线计划交付 `restored.bin`。
 
-在仓库根目录运行。需要 Python 3.10+ 和包含 `manifest plan-local` 的 CLI。源码构建需要配置好的 MoonBit 和原生 C 编译器，Windows 使用 MSVC。公开的 `v0.4.0` 缺少演示使用的命令。
+在仓库根目录运行。需要 Python 3.10+、本仓库的样本和 0.5.0 CLI。可用[发行包](docs/cli-install.md)，也可用配置好的 MoonBit 和原生 C 编译器构建，Windows 使用 MSVC。公开的 v0.4.0 缺少演示使用的命令。
 
 ```sh
 moon update
@@ -23,9 +23,13 @@ Linux：
 python scripts/run_update_demo.py --cli _build/bin/linux/moonbsdiff
 ```
 
-手上已有适用的发行版时，直接把 `--cli` 指向解包后的程序。看到 `UPDATE DEMO PASS` 即表示恢复文件与独立目标逐字节相同。文件保留在脚本打印的临时目录。预期大小、SHA-256 和样本来源见[项目验收说明](docs/update-demo.md)。
+已解包 0.5.0 CLI 时可跳过构建，直接把 `--cli` 指向解包后的程序。看到 `UPDATE DEMO PASS` 即表示恢复文件与独立目标逐字节相同。文件保留在脚本打印的临时目录。预期大小、SHA-256 和样本来源见[项目验收说明](docs/update-demo.md)。
 
-**0.4.0 release:** [release scope, distribution identities and remaining limits](docs/release-0.4.0.md).
+**0.5.0 release** — update planning, offline recovery and the cross-target
+manifest package. See the [installation guide](docs/cli-install.md) and
+[release evidence](docs/release-0.5.0.md) for package, CLI and source identities.
+
+**Historical 0.4.0 release:** [release scope, distribution identities and remaining limits](docs/release-0.4.0.md).
 Mooncakes 0.4.0 and both Windows/Linux CLI archives are published from source
 `e39e66f1270c0f4e37cb14fcfc5739edc46d1798`. See the linked evidence for package,
 CI and public-asset hashes; Linux local registry consumption remains blocked by
@@ -35,8 +39,7 @@ work is included in 0.4.0, without a separate 0.3.0 release. Historical 0.1.0 an
 
 **File-based application:** explicit native `patch --stream` now reads, decodes
 and writes bounded segments before safe no-replace delivery. See the
-[file application design and validation](docs/file-apply.md). The unreleased
-source accepts `patch --stream --manifest update.json OLD PATCH OUTPUT`. It stages
+[file application design and validation](docs/file-apply.md). Version 0.5.0 accepts `patch --stream --manifest update.json OLD PATCH OUTPUT`. It stages
 verified input copies on disk and checks the restored hash before publication.
 Use `patch --stream --progress text OLD PATCH OUTPUT` (or `json`) for stderr
 progress. Ctrl+C requests cooperative cancellation (Windows also Ctrl+Break):
@@ -64,7 +67,7 @@ bzip2 levels 1..9 through DiffOptions, ordinary/indexed option-aware APIs, or
 `diff --compression-level`. Default calls remain level 9 and Limits remain
 resource policy. This option is included in 0.4.0 and absent from historical CLI 0.2.0.
 
-MoonBSDiff is a MoonBit reference port of BSDiff 4.3 for binary diffs and patches. The current stage implements structured errors, `Limits::validate`, internal BSDIFF40 integer/envelope parsing, and a private bounded bzip2 adapter. Public diff and apply APIs now generate and restore strict BSDIFF40 patches. See the [Windows/Linux CLI download instructions](docs/cli-install.md) and [0.4.0 publication identities](docs/release-0.4.0.md); see [CLI build and file contracts](docs/cli.md). Compression uses moonzip 0.3.5 at level 9; strict bounded decoding uses its attributed, adapted sources under `internal/bzip2/`.
+MoonBSDiff is a MoonBit reference port of BSDiff 4.3 for binary diffs and patches. The current stage implements structured errors, `Limits::validate`, internal BSDIFF40 integer/envelope parsing, and a private bounded bzip2 adapter. Public diff and apply APIs now generate and restore strict BSDIFF40 patches. See the [Windows/Linux CLI download instructions](docs/cli-install.md) and [0.5.0 publication identities](docs/release-0.5.0.md); see [CLI build and file contracts](docs/cli.md). Compression uses moonzip 0.3.5 at level 9; strict bounded decoding uses its attributed, adapted sources under `internal/bzip2/`.
 
 The `Limits` fields for old, new, patch and output buffer sizes are byte counts in 1..2147483647, bounded for Int indexing. `max_decompressed_bytes` is an aggregate byte count, `max_control_instructions` counts instructions, and `max_sort_work` / `max_match_work` count algorithm-defined work units; each is a positive Int64. Sorting visits accumulate across index rounds; matching/generation visits accumulate across scan, raw encoding, compression-wrapper copies and final assembly; see [generation resources](docs/generation-resources.md). Limits::for_apply() supplies conservative application defaults: old/new/output 1 MiB each, patch 64 KiB, total decompression 2 MiB and 16384 instructions. Sorting/matching fields are unused positive placeholders, not generation defaults; use the separate measured Limits::for_diff() policy for generation. Validation means only that a configuration is legal, not that a complete patch operation has runtime resource protection. The private decoder now enforces per-call and shared decompression budgets. No cross-field relationships are imposed.
 
@@ -268,7 +271,7 @@ same buffers.
 metadata handling and failure stages. Hashes establish supplied-content consistency,
 not publisher authenticity; trusted expected manifests are still required.
 
-**Generate and verify patch bundles from MoonBit (Unreleased)**
+**Generate and verify patch bundles from MoonBit (0.5.0)**
 
 Import `BigSaltyMan/moonbsdiff/manifest` as `@manifest`, the root package as
 `@moonbsdiff`. The source API works
@@ -288,7 +291,7 @@ Send `bundle.patch` and `bundle.manifest` as separate byte buffers. The client
 passes the patch and the manifest from a trusted channel to `restore_bundle`.
 [Complete example and error handling](docs/manifest.md#generate-a-patch-bundle-from-moonbit-unreleased)
 
-**Choose between patches and a full download (Unreleased)**
+**Choose between patches and a full download (0.5.0)**
 
 When the release offers the full target, use `plan_update` with a trusted
 prepared target and candidates. Import the manifest package as shown above.

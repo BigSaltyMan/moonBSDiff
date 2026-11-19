@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 0.5.0 — 2026-11-19
+
+See [0.5.0 release evidence](docs/release-0.5.0.md) for exact source, package and
+CLI identities.
+
+- The [quick acceptance demo](docs/update-demo.md) exercises full-file,
+  patch and offline plans, then delivers the byte-verified target.
+
 - `manifest plan-local` matches existing patches by size and SHA-256 and
   returns local patch and manifest paths in application order.
 
