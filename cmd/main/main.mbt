@@ -115,10 +115,13 @@ fn print_help() -> Unit {
     "Manifest select limits: --max-old-bytes, --max-new-bytes, --max-output-bytes, --max-patch-bytes.",
   )
   println(
-    "moonbsdiff manifest plan --target-manifest FILE [--max-steps COUNT] [--allow-full] [LIMITS] OLD_FILE [MANIFEST_FILE...]",
+    "moonbsdiff manifest plan --target-manifest FILE [--max-steps COUNT] [--max-download-bytes VALUE] [--allow-full] [LIMITS] OLD_FILE [MANIFEST_FILE...]",
   )
   println(
-    "Plan the fewest patch bytes, then the fewest steps. --max-steps accepts a positive decimal count. Prints JSON and reads no patches.",
+    "Plan the fewest patch bytes, then the fewest steps. Prints JSON and reads no patches.",
+  )
+  println(
+    "Plan limits: --max-patch-bytes caps each patch, --max-steps caps patch applications (positive count), and --max-download-bytes caps the whole update (zero allowed).",
   )
   println(
     "Use --allow-full to compare patch bytes with the complete target and print the download strategy.",
@@ -165,7 +168,7 @@ fn print_help() -> Unit {
     "Byte options (diff/diff-many/patch/verify/patch-chain/verify-chain/manifest create): --max-old-bytes, --max-new-bytes, --max-output-bytes, --max-patch-bytes, --max-expanded-bytes VALUE",
   )
   println(
-    "Bytes: positive ASCII decimal with optional case-sensitive B, KiB or MiB; no spaces or signs.",
+    "Bytes: ASCII decimal with optional case-sensitive B, KiB or MiB. Positive except for the download budget; no spaces or signs.",
   )
   println(
     "Count (diff/diff-many/patch/verify/patch-chain/verify-chain/manifest create): --max-controls VALUE. Diff and diff-many: --max-sort-work, --max-match-work VALUE.",
@@ -201,8 +204,12 @@ fn print_help() -> Unit {
 }
 
 ///|
-// ASCII-only positive decimals; reserve both decimal and unit arithmetic before use.
-fn parse_limit(text : String, bytes : Bool) -> Result[Int64, String] {
+// ASCII-only decimals; check both decimal and unit arithmetic before use.
+fn parse_limit(
+  text : String,
+  bytes : Bool,
+  allow_zero~ : Bool,
+) -> Result[Int64, String] {
   let raw = @utf8.encode(text[:])
   let mut end = raw.length()
   let mut multiplier = 1L
@@ -221,7 +228,13 @@ fn parse_limit(text : String, bytes : Bool) -> Result[Int64, String] {
     end = end - 1
   }
   if end == 0 {
-    return Err("expected a positive decimal value")
+    return Err(
+      if allow_zero {
+        "expected a nonnegative decimal value"
+      } else {
+        "expected a positive decimal value"
+      },
+    )
   }
   let mut value = 0L
   for i = 0; i < end; i = i + 1 {
@@ -237,7 +250,7 @@ fn parse_limit(text : String, bytes : Bool) -> Result[Int64, String] {
     }
     value = value * 10L + digit.to_int64()
   }
-  if value == 0L {
+  if value == 0L && !allow_zero {
     return Err("value must be positive; zero is not unlimited")
   }
   if value > 9223372036854775807L / multiplier {
@@ -259,6 +272,7 @@ struct CliConfig {
   manifest : String?
   target_manifest : String?
   max_steps : Int64?
+  max_download_bytes : Int64?
   allow_full : Bool
   files : Array[String]
 }
@@ -322,6 +336,7 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
   let mut manifest : String? = None
   let mut target_manifest : String? = None
   let mut max_steps : Int64? = None
+  let mut max_download_bytes : Int64? = None
   let mut allow_full = false
   let mut escaped = false
   while i < args.length() {
@@ -358,6 +373,7 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
       (
         option == "--target-manifest" ||
         option == "--max-steps" ||
+        option == "--max-download-bytes" ||
         option == "--allow-full"
       )) {
       return Err(option + " is not applicable to " + operation)
@@ -395,11 +411,11 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
         }
         false
       }
-      "--max-steps" | "--allow-full" => {
+      "--max-steps" | "--max-download-bytes" | "--allow-full" => {
         if operation != "manifest plan" {
           return Err(option + " is only applicable to manifest plan")
         }
-        false
+        option == "--max-download-bytes"
       }
       "--target-manifest" => {
         if operation != "manifest plan" && operation != "install-full" && !chain {
@@ -507,9 +523,16 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
       i = i + 2
       continue
     }
-    let value = match parse_limit(args[i + 1], bytes) {
+    let is_download_budget = option == "--max-download-bytes"
+    let value = match
+      parse_limit(args[i + 1], bytes, allow_zero=is_download_budget) {
       Ok(v) => v
       Err(e) => return Err(option + ": " + e)
+    }
+    if is_download_budget {
+      max_download_bytes = Some(value)
+      i += 2
+      continue
     }
     if option == "--max-steps" {
       max_steps = Some(value)
@@ -638,6 +661,7 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
     manifest,
     target_manifest,
     max_steps,
+    max_download_bytes,
     allow_full,
     files,
   })

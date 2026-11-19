@@ -28,28 +28,39 @@ fn plan_steps_json(
 }
 
 ///|
-fn update_plan_json(
+fn check_download_budget(cost : Int64, budget : Int64?) -> Unit {
+  if budget is Some(cap) && cost > cap {
+    failure(
+      "manifest plan: minimum download \{cost} bytes exceeds budget \{cap} bytes",
+    )
+  }
+}
+
+///|
+fn print_update_plan(
   start : @manifest.ContentIdentity,
   target : @manifest.ContentIdentity,
   entries : Array[PlanCandidate],
   decision : @manifest.UpdatePlan,
-) -> @json.Json {
+  budget : Int64?,
+) -> Unit {
+  let (strategy, download_bytes) = match decision {
+    UpToDate => ("already-current", 0L)
+    Patches(route) => ("patches", route.total_patch_bytes)
+    FullFile(identity) => ("full-file", identity.size)
+  }
+  check_download_budget(download_bytes, budget)
   let fields = {
     "schema_version": @json.Json::number(1.0),
     "start": manifest_identity_json(start),
     "target": manifest_identity_json(target),
   }
-  let (strategy, download_bytes) = match decision {
-    UpToDate => ("already-current", 0L)
-    Patches(route) => {
-      fields["steps"] = plan_steps_json(entries, route)
-      ("patches", route.total_patch_bytes)
-    }
-    FullFile(identity) => ("full-file", identity.size)
+  if decision is Patches(route) {
+    fields["steps"] = plan_steps_json(entries, route)
   }
   fields["strategy"] = @json.Json::string(strategy)
   fields["download_bytes"] = @json.Json::string("\{download_bytes}")
-  @json.Json::object(fields)
+  println(@json.Json::object(fields).stringify())
 }
 
 ///|
@@ -134,7 +145,13 @@ fn manifest_plan_command(config : CliConfig) -> Unit {
         max_steps?=config.max_steps,
       ) {
       Ok(decision) =>
-        println(update_plan_json(start, target, entries, decision).stringify())
+        print_update_plan(
+          start,
+          target,
+          entries,
+          decision,
+          config.max_download_bytes,
+        )
       Err(error) => plan_failure(error, config)
     }
     return
@@ -147,6 +164,7 @@ fn manifest_plan_command(config : CliConfig) -> Unit {
       return
     }
   }
+  check_download_budget(route.total_patch_bytes, config.max_download_bytes)
   println(
     @json.Json::object({
       "schema_version": @json.Json::number(1.0),

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- `manifest plan --max-download-bytes` caps the whole update and reports the
+  minimum needed when the cheapest plan exceeds the budget.
+
 - `manifest plan --allow-full` excludes valid over-budget patch candidates
   while keeping a full target eligible under its own limits.
 

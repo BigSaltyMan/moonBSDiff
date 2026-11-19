@@ -299,6 +299,17 @@ def fixed_full_target():
     return middle, target, manifest
 
 
+def fixed_plan_edges(start, middle, target, marker):
+    return {
+        "v1-to-v2.json": captured_manifest(start, middle, identity((UPSTREAM / "patch.bin").read_bytes())),
+        "v2-to-v3.json": marker,
+        "v1-to-v3.json": captured_manifest(start, target, {
+            "size_bytes": "2532",
+            "sha256": "d427a8a80e0bef54802556d0b2db9af2f34f6679597d25d4a45fa9f87005d4e0",
+        }),
+    }
+
+
 class InstallFull(ManifestPlanFixture):
     def setUp(self):
         super().setUp()
@@ -401,18 +412,14 @@ class ManifestPlanFullLimits(ManifestPlanFixture):
     def test_filtered_edges_preserve_original_paths_and_order(self):
         start = (UPSTREAM / "old.bin").read_bytes()
         self.write("installed.bin", start)
-        first = captured_manifest(start, self.middle, identity((UPSTREAM / "patch.bin").read_bytes()))
-        direct = captured_manifest(start, self.target, {
-            "size_bytes": "2532",
-            "sha256": "d427a8a80e0bef54802556d0b2db9af2f34f6679597d25d4a45fa9f87005d4e0",
-        })
-        self.write("v1-to-v3.json", json.dumps(direct).encode())
-        self.write("v1-to-v2.json", json.dumps(first).encode())
+        edges = fixed_plan_edges(start, self.middle, self.target, self.marker)
+        for path, candidate in edges.items():
+            self.write(path, json.dumps(candidate).encode())
         self.write("parallel.json", self.read("v1-to-v2.json"))
         edge_paths = ("v1-to-v2.json", "v2-to-v3.json")
         expected_steps = [
-            {"manifest_path": path, **{key: candidate[key] for key in ("old", "new", "patch")}}
-            for path, candidate in zip(edge_paths, (first, self.marker))
+            {"manifest_path": path, **{key: edges[path][key] for key in ("old", "new", "patch")}}
+            for path in edge_paths
         ]
         eligible = self.plan(edge_paths[1], "v1-to-v3.json", edge_paths[0], "parallel.json",
                              edge_paths[1], options=("--allow-full", "--max-patch-bytes", "204", "--"))
@@ -452,6 +459,80 @@ class ManifestPlanFullLimits(ManifestPlanFixture):
         self.assertIn(b"read old (max_old_bytes=2047 bytes) 'installed.bin'", error.stderr)
 
 
+class ManifestPlanDownloadBudget(ManifestPlanFixture):
+    def setUp(self):
+        super().setUp()
+        middle, self.target, marker = fixed_full_target()
+        start = (UPSTREAM / "old.bin").read_bytes()
+        self.write("installed.bin", start)
+        edges = fixed_plan_edges(start, middle, self.target, marker)
+        for path, candidate in edges.items():
+            self.write(path, json.dumps(candidate).encode())
+        self.marker = "v2-to-v3.json"
+        self.steps = ("v1-to-v2.json", self.marker)
+        self.candidates = tuple(edges)
+
+    def test_patch_routes_at_the_budget_boundary(self):
+        for flags, candidates, field in [
+            ((), self.steps, "total_patch_bytes"),
+            (("--allow-full",), self.candidates, "download_bytes"),
+        ]:
+            with self.subTest(allow_full=bool(flags)):
+                options = (*flags, "--max-patch-bytes", "204", "--max-download-bytes")
+                raw = self.plan(self.marker, *candidates, options=(*options, "368", "--")).stdout
+                plan = json.loads(raw)
+                self.assertEqual(plan[field], "368")
+                self.assertEqual([step["manifest_path"] for step in plan["steps"]], list(self.steps))
+                self.assertEqual([step["patch"]["size_bytes"] for step in plan["steps"]], ["204", "164"])
+                if flags:
+                    self.assertEqual(plan["strategy"], "patches")
+                error = self.plan(self.marker, *candidates, code=1, options=(*options, "367", "--"))
+                self.assertIn(b"minimum download 368 bytes exceeds budget 367 bytes", error.stderr)
+                print(error.stderr.decode().strip())
+
+    def test_full_file_at_the_budget_boundary(self):
+        options = ("--allow-full", "--max-patch-bytes", "200", "--max-download-bytes")
+        raw = self.plan(self.marker, *self.candidates, options=(*options, "2KiB")).stdout
+        plan = json.loads(raw)
+        self.assertEqual(plan["strategy"], "full-file")
+        self.assertEqual(plan["download_bytes"], "2048")
+        self.assertEqual(plan["target"], identity(self.target))
+        error = self.plan(self.marker, *self.candidates, code=1, options=(*options, "2047"))
+        self.assertIn(b"minimum download 2048 bytes exceeds budget 2047 bytes", error.stderr)
+        print(error.stderr.decode().strip())
+
+    def test_zero_int64_and_invalid_budgets(self):
+        flag = "--max-download-bytes"
+        wide = self.plan(self.marker, *self.steps, options=(flag, "2147483648B")).stdout
+        self.assertEqual(json.loads(wide)["total_patch_bytes"], "368")
+        for value in ("-1", "1KB", "9223372036854775808", "8796093022208MiB"):
+            with self.subTest(value=value):
+                error = self.plan(self.marker, *self.steps, code=2, options=(flag, value))
+                self.assertIn(flag.encode(), error.stderr)
+        duplicate = self.plan(self.marker, code=2, options=(flag, "0", flag, "1"))
+        self.assertIn(b"duplicate option", duplicate.stderr)
+        self.assertIn(flag.encode(), self.invoke(
+            "manifest", "select", flag, "0", "installed.bin", self.marker, code=2
+        ).stderr)
+        error = self.plan(self.marker, code=1, options=(flag, "0"))
+        self.assertIn(b"no reachable path", error.stderr)
+        self.assertNotIn(b"minimum download", error.stderr)
+
+        self.write("installed.bin", self.target)
+        for flags, field in [((), "total_patch_bytes"), (("--allow-full",), "download_bytes")]:
+            raw = self.plan(self.marker, options=(*flags, flag, "0")).stdout
+            plan = json.loads(raw)
+            self.assertEqual(plan[field], "0")
+            if flags:
+                self.assertEqual(plan["strategy"], "already-current")
+            else:
+                self.assertEqual(plan["steps"], [])
+        self.write("bad.json", b"{")
+        error = self.plan(self.marker, "bad.json", code=1, options=("--allow-full", flag, "0"))
+        self.assertIn(b"'bad.json': manifest JSON:", error.stderr)
+        print("Already current: accepted a zero-byte download budget")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--exe", type=Path, required=True)
@@ -465,6 +546,7 @@ if __name__ == "__main__":
         tests.addTests(loader.loadTestsFromTestCase(ManifestUpdatePlan))
         tests.addTests(loader.loadTestsFromTestCase(InstallFull))
         tests.addTests(loader.loadTestsFromTestCase(ManifestPlanFullLimits))
+        tests.addTests(loader.loadTestsFromTestCase(ManifestPlanDownloadBudget))
     result = unittest.TextTestRunner(verbosity=2).run(tests)
-    if not result.wasSuccessful() or result.testsRun != (3 if args.steps_only else 13) or result.skipped:
+    if not result.wasSuccessful() or result.testsRun != (3 if args.steps_only else 16) or result.skipped:
         raise SystemExit(1)

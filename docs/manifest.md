@@ -317,6 +317,37 @@ take the full-file URL from the publisher and compare
 hop limit still yields `InvalidMaxSteps`, even if the installed content is
 current. This API and CLI flag are available from this source change.
 
+### Limit the total download (Unreleased)
+
+| Option | Scope |
+| --- | --- |
+| `--max-patch-bytes` | Size of each candidate patch |
+| `--max-steps` | Number of patches the plan applies |
+| `--max-download-bytes` | Sum of the selected patches, the full target size, or zero if already current |
+
+Both patch-only and `--allow-full` planning accept the download budget.
+Supply a nonnegative decimal Int64 with an optional `B`, `KiB` or `MiB`
+suffix. A cost equal to the cap succeeds. Zero permits zero-cost plans.
+The budget counts declared content bytes. All existing input and manifest
+checks still run before the budget is evaluated.
+
+```sh
+moonbsdiff manifest plan --allow-full --max-patch-bytes 204 --max-download-bytes 368 --target-manifest v2-to-v3.json -- installed.bin v1-to-v2.json v2-to-v3.json v1-to-v3.json
+moonbsdiff manifest plan --allow-full --max-patch-bytes 204 --max-download-bytes 367 --target-manifest v2-to-v3.json -- installed.bin v1-to-v2.json v2-to-v3.json v1-to-v3.json
+```
+
+The first command reports the 204-byte and 164-byte patches with
+`"download_bytes":"368"`. The second exits `1` with empty stdout and this
+diagnostic on stderr.
+
+```text
+moonbsdiff: manifest plan: minimum download 368 bytes exceeds budget 367 bytes
+```
+
+With a 200-byte per-patch cap, the same inputs require the full 2048-byte
+target. A budget of `2KiB` succeeds and a budget of `2047` fails. These
+commands are available from this source change.
+
 ### Install a verified full download (Unreleased)
 
 For `strategy: full-file`, download the release's complete target to a local
