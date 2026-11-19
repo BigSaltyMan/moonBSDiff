@@ -278,6 +278,92 @@ class ManifestUpdatePlan(ManifestPlanFixture):
         print(f"Two-step strategy: {patches['strategy']}, {patches['download_bytes']} bytes")
 
 
+class InstallFull(ManifestPlanFixture):
+    def setUp(self):
+        super().setUp()
+        middle = (UPSTREAM / "new.bin").read_bytes()
+        self.target = middle[:-1] + bytes([middle[-1] ^ 1])
+        # Same trusted v2-to-v3 manifest as the fixed planner example.
+        self.manifest = {
+            "schema_version": 1,
+            "patch_format": "BSDIFF40",
+            "producer": {"name": "moonbsdiff", "version": version()},
+            "old": identity(middle),
+            "new": identity(self.target),
+            "patch": {
+                "size_bytes": "164",
+                "sha256": "3470eb1ac7e7d52c7402d5ee6d142132760e079ba524f8aca8f3bf279959e57e",
+            },
+        }
+        self.write("downloaded-v3.bin", self.target)
+        self.write_manifest()
+
+    def write_manifest(self):
+        self.write("v2-to-v3.json", json.dumps(self.manifest).encode())
+
+    def install(self, output="restored.bin", code=0, options=()):
+        return self.invoke("install-full", "--target-manifest", "v2-to-v3.json",
+                           *options, "--", "downloaded-v3.bin", output, code=code)
+
+    def test_installs_the_complete_target(self):
+        result = self.install()
+        self.assertEqual(result.stdout, b"")
+        self.assertEqual(self.read("restored.bin"), self.target)
+        self.assertEqual(self.read("downloaded-v3.bin"), self.target)
+        actual = identity(self.read("restored.bin"))
+        self.assertEqual(actual["size_bytes"], "2048")
+        self.assertEqual(actual["sha256"], "66da6542f8276608790055ac88e6af6bf3af76b88bf3aedbcb517c2ce98ab1a6")
+        print(f"Installed {actual['size_bytes']} bytes, SHA-256 {actual['sha256']}; source preserved")
+
+    def test_rejects_wrong_content_and_length_and_accepts_empty(self):
+        for data, diagnostic in [
+            (self.target[:-1] + bytes([self.target[-1] ^ 1]), b"downloaded file sha256 mismatch"),
+            (self.target + b"!", b"downloaded file size mismatch"),
+            (self.target[:-1], b"downloaded file size mismatch"),
+        ]:
+            with self.subTest(size=len(data), diagnostic=diagnostic):
+                self.write("downloaded-v3.bin", data)
+                before = set(self.folder.iterdir())
+                error = self.install(code=1)
+                self.assertIn(diagnostic, error.stderr)
+                self.assertEqual(set(self.folder.iterdir()), before)
+                self.assertEqual(self.read("downloaded-v3.bin"), data)
+                print(error.stderr.decode().strip())
+        empty_patch = ROOT / "testdata/upstream/both-empty/patch.bin"
+        self.manifest.update(old=identity(b""), new=identity(b""), patch=identity(empty_patch.read_bytes()))
+        self.write_manifest()
+        self.write("downloaded-v3.bin", b"")
+        self.install()
+        self.assertEqual(self.read("restored.bin"), b"")
+
+    def test_preflights_limits_and_preserves_existing_targets(self):
+        for cap in ("--max-new-bytes", "--max-output-bytes"):
+            error = self.install(code=1, options=(cap, "2047"))
+            self.assertIn(cap[2:].replace("-", "_").encode(), error.stderr)
+            self.assertFalse((self.folder / "restored.bin").exists())
+        self.manifest["patch"]["size_bytes"] = "131073"
+        self.write_manifest()
+        self.install("allowed.bin", options=("--max-new-bytes", "2048", "--max-output-bytes", "2048"))
+        self.assertEqual(self.read("allowed.bin"), self.target)
+
+        self.write("restored.bin", b"competitor")
+        self.assertIn(b"output already exists", self.install(code=1).stderr)
+        self.assertEqual(self.read("restored.bin"), b"competitor")
+        alias = self.folder / "hard-link.bin"
+        alias.hardlink_to(self.folder / "downloaded-v3.bin")
+        for output in (alias.name, "downloaded-v3.bin"):
+            self.assertIn(b"same file as an input", self.install(output, code=1).stderr)
+            self.assertEqual(self.read(output), self.target)
+        self.manifest["patch"]["sha256"] = "invalid"
+        self.write_manifest()
+        self.assertIn(b"manifest sha256: patch", self.install("invalid.bin", code=1).stderr)
+        self.assertFalse((self.folder / "invalid.bin").exists())
+        self.assertIn(b"requires --target-manifest", self.invoke(
+            "install-full", "downloaded-v3.bin", "unused.bin", code=2
+        ).stderr)
+        print("Existing destination and source aliases were preserved")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--exe", type=Path, required=True)
@@ -289,6 +375,7 @@ if __name__ == "__main__":
     if not args.steps_only:
         tests.addTests(loader.loadTestsFromTestCase(ManifestPlan))
         tests.addTests(loader.loadTestsFromTestCase(ManifestUpdatePlan))
+        tests.addTests(loader.loadTestsFromTestCase(InstallFull))
     result = unittest.TextTestRunner(verbosity=2).run(tests)
-    if not result.wasSuccessful() or result.testsRun != (3 if args.steps_only else 7) or result.skipped:
+    if not result.wasSuccessful() or result.testsRun != (3 if args.steps_only else 10) or result.skipped:
         raise SystemExit(1)

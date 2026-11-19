@@ -73,35 +73,79 @@ pub struct PreparedManifest {
 }
 
 ///|
+fn parse_bounded_manifest(
+  data : Bytes,
+  limits : @moonbsdiff.Limits,
+) -> PreparedManifest raise ManifestFault {
+  match limits.validate() {
+    Ok(_) => ()
+    Err(error) => raise Rejected(InvalidLimits(error))
+  }
+  let size = data.length().to_int64()
+  let cap = @manifest_support.MAX_MANIFEST_BYTES.to_int64()
+  check_declared_size("max_manifest_bytes", size, cap)
+  parse_manifest(data, limits)
+}
+
+///|
+fn check_declared_size(
+  field : String,
+  value : Int64,
+  limit : Int64,
+) -> Unit raise ManifestFault {
+  if value > limit {
+    raise Rejected(LimitExceeded(field~, value~, limit~))
+  }
+}
+
+///|
+fn check_target_size(
+  target : ContentIdentity,
+  limits : @moonbsdiff.Limits,
+) -> Unit raise ManifestFault {
+  check_declared_size("max_new_bytes", target.size, limits.max_new_bytes)
+  check_declared_size("max_output_bytes", target.size, limits.max_output_bytes)
+}
+
+///|
 /// Check the manifest and declared sizes before obtaining the input buffers.
 pub fn prepare(
   data : Bytes,
   limits : @moonbsdiff.Limits,
 ) -> Result[PreparedManifest, ManifestError] {
-  match limits.validate() {
-    Ok(_) => ()
-    Err(error) => return Err(InvalidLimits(error))
+  try {
+    let prepared = parse_bounded_manifest(data, limits)
+    check_declared_size(
+      "max_old_bytes",
+      prepared.old.size,
+      limits.max_old_bytes,
+    )
+    check_declared_size(
+      "max_patch_bytes",
+      prepared.patch.size,
+      limits.max_patch_bytes,
+    )
+    check_target_size(prepared.new, limits)
+    Ok(prepared)
+  } catch {
+    Rejected(error) => Err(error)
   }
-  let size = data.length().to_int64()
-  let cap = @manifest_support.MAX_MANIFEST_BYTES.to_int64()
-  if size > cap {
-    return Err(LimitExceeded(field="max_manifest_bytes", value=size, limit=cap))
+}
+
+///|
+/// Validate the whole schema and return the new identity for a full download.
+/// Only the new and output byte limits apply to the declared sizes.
+pub fn prepare_target(
+  data : Bytes,
+  limits : @moonbsdiff.Limits,
+) -> Result[ContentIdentity, ManifestError] {
+  try {
+    let prepared = parse_bounded_manifest(data, limits)
+    check_target_size(prepared.new, limits)
+    Ok(prepared.new)
+  } catch {
+    Rejected(error) => Err(error)
   }
-  let prepared = parse_manifest(data, limits) catch {
-    Rejected(error) => return Err(error)
-  }
-  for
-    (field, value, limit) in [
-      ("max_old_bytes", prepared.old.size, limits.max_old_bytes),
-      ("max_patch_bytes", prepared.patch.size, limits.max_patch_bytes),
-      ("max_new_bytes", prepared.new.size, limits.max_new_bytes),
-      ("max_output_bytes", prepared.new.size, limits.max_output_bytes),
-    ] {
-    if value > limit {
-      return Err(LimitExceeded(field~, value~, limit~))
-    }
-  }
-  Ok(prepared)
 }
 
 ///|

@@ -124,6 +124,12 @@ fn print_help() -> Unit {
     "Use --allow-full to compare patch bytes with the complete target and print the download strategy.",
   )
   println(
+    "moonbsdiff install-full --target-manifest FILE [--max-new-bytes VALUE] [--max-output-bytes VALUE] DOWNLOADED_FILE OUTPUT_FILE",
+  )
+  println(
+    "Verify the downloaded file against the target size and SHA-256 before delivering it without replacement.",
+  )
+  println(
     "moonbsdiff patch --manifest MANIFEST_FILE [LIMITS] OLD_FILE PATCH_FILE OUTPUT_FILE",
   )
   println(
@@ -273,10 +279,11 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
       !is_chain(args[1]) &&
       args[1] != "inspect" &&
       args[1] != "verify" &&
+      args[1] != "install-full" &&
       args[1] != "manifest"
     ) {
     return Err(
-      "expected diff, diff-many, patch, patch-chain, inspect, verify, verify-chain, or manifest create/select/plan; use --help",
+      "expected diff, diff-many, patch, patch-chain, inspect, verify, verify-chain, install-full, or manifest create/select/plan; use --help",
     )
   }
   let (operation, options_start) = if args[1] == "manifest" {
@@ -336,6 +343,12 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
       option != "--max-controls" {
       return Err(option + " is not applicable to inspect")
     }
+    if operation == "install-full" &&
+      option != "--target-manifest" &&
+      option != "--max-new-bytes" &&
+      option != "--max-output-bytes" {
+      return Err(option + " is not applicable to install-full")
+    }
     if manifest_lookup &&
       option != "--max-old-bytes" &&
       option != "--max-new-bytes" &&
@@ -389,10 +402,10 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
         false
       }
       "--target-manifest" => {
-        if operation != "manifest plan" && !chain {
+        if operation != "manifest plan" && operation != "install-full" && !chain {
           return Err(
             option +
-            " is only applicable to manifest plan, patch-chain or verify-chain",
+            " is only applicable to manifest plan, install-full, patch-chain or verify-chain",
           )
         }
         false
@@ -586,6 +599,12 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
         "manifest plan requires --target-manifest FILE and OLD_FILE; use --help",
       )
     }
+  } else if operation == "install-full" {
+    if files.length() != 2 || target_manifest is None {
+      return Err(
+        "install-full requires --target-manifest FILE, DOWNLOADED_FILE and OUTPUT_FILE; use --help",
+      )
+    }
   } else if chain {
     let first_pair = chain_first_pair(operation)
     if target_manifest is None ||
@@ -696,6 +715,10 @@ fn main {
   }
   if config.operation == "manifest select" {
     manifest_select_command(config)
+    return
+  }
+  if config.operation == "install-full" {
+    install_full_command(config)
     return
   }
   if config.operation == "manifest plan" {

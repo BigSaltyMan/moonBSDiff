@@ -754,7 +754,7 @@ static void stream_close_inputs(void) {
   for(int i=0;i<2;i++) stream_close_file(&stream_inputs[i],"close stream input");
   stream_close_file(&stream_copy,"close private input copy");
 }
-static void stream_open_file(int i,moonbit_bytes_t path,int64_t cap) {
+static void stream_open_file(int i,moonbit_bytes_t path,int64_t cap,const char *limit) {
   if(cap<1 || cap>INT32_MAX) { fail("stream input cap",EINVAL);return; }
 #ifdef _WIN32
   wchar_t *name=wide((char*)path);if(!name) return;
@@ -769,20 +769,25 @@ static void stream_open_file(int i,moonbit_bytes_t path,int64_t cap) {
   if(!S_ISREG(st.st_mode)) { fail("stream input must be a regular file",EINVAL);return; }
   stream_sizes[i]=st.st_size;
 #endif
-  if(stream_sizes[i]<0 || stream_sizes[i]>cap) limit_fail(i?"max_patch_bytes":"max_old_bytes",(int)cap);
+  if(stream_sizes[i]<0 || stream_sizes[i]>cap) limit_fail(limit,(int)cap);
 }
 MOONBIT_FFI_EXPORT int32_t mbsd_stream_open(moonbit_bytes_t old,moonbit_bytes_t patch,int64_t oldcap,int64_t patchcap) {
   problem[0]=0;
-  stream_open_file(0,old,oldcap);
-  if(!problem[0]) stream_open_file(1,patch,patchcap);
+  stream_open_file(0,old,oldcap,"max_old_bytes");
+  if(!problem[0]) stream_open_file(1,patch,patchcap,"max_patch_bytes");
   if(problem[0]) stream_close_inputs();
+  return !problem[0];
+}
+/* Called inside the delivery producer, which closes the download before publishing. */
+MOONBIT_FFI_EXPORT int32_t mbsd_stream_open_full(moonbit_bytes_t path,int64_t cap) {
+  stream_open_file(0,path,cap,"full target");
   return !problem[0];
 }
 /* A verified intermediate handle is already installed as old input. */
 MOONBIT_FFI_EXPORT int32_t mbsd_stream_open_next_patch(moonbit_bytes_t patch,int64_t cap) {
   if(stream_inputs[0]==STREAM_INVALID || stream_inputs[1]!=STREAM_INVALID || stream_copy!=STREAM_INVALID)
     fail("stream chain input state",EINVAL);
-  if(!problem[0]) stream_open_file(1,patch,cap);
+  if(!problem[0]) stream_open_file(1,patch,cap,"max_patch_bytes");
   return !problem[0];
 }
 MOONBIT_FFI_EXPORT int64_t mbsd_stream_size(int32_t which) { return which>=0 && which<2?stream_sizes[which]:-1; }
@@ -872,28 +877,35 @@ MOONBIT_FFI_EXPORT int32_t mbsd_stream_copy_write(moonbit_bytes_t data) {
   return !problem[0];
 }
 
-/* Probe EOF without adding to the copy; catch growth beyond the checked length.
- * Only successful verification transfers the private handle into the reader. */
-MOONBIT_FFI_EXPORT int32_t mbsd_stream_copy_use(int32_t which) {
+/* Probe the open handle for growth beyond the size observed at open. */
+MOONBIT_FFI_EXPORT int32_t mbsd_stream_expect_eof(int32_t which) {
   uint8_t extra;
-  if(which<0 || which>1 || stream_copy==STREAM_INVALID) {
-    fail("input copy handle",EINVAL);return 0;
+  if(which<0 || which>1 || stream_inputs[which]==STREAM_INVALID) {
+    fail("stream input handle",EINVAL);return 0;
   }
 #ifdef _WIN32
   LARGE_INTEGER end;end.QuadPart=stream_sizes[which];
   DWORD done=0;
   if(!SetFilePointerEx(stream_inputs[which],end,NULL,FILE_BEGIN) ||
      !ReadFile(stream_inputs[which],&extra,1,&done,NULL))
-    fail("check input copy EOF",GetLastError());
+    fail("check stream input EOF",GetLastError());
   else if(done) fail("input grew beyond verified length",EFBIG);
 #else
   ssize_t done;
   do { done=pread(stream_inputs[which],&extra,1,(off_t)stream_sizes[which]); }
   while(done<0 && errno==EINTR);
-  if(done<0) fail("check input copy EOF",errno);
+  if(done<0) fail("check stream input EOF",errno);
   else if(done) fail("input grew beyond verified length",EFBIG);
 #endif
-  if(problem[0]) return 0;
+  return !problem[0];
+}
+
+/* Only a fully verified private copy replaces the source handle. */
+MOONBIT_FFI_EXPORT int32_t mbsd_stream_copy_use(int32_t which) {
+  if(stream_copy==STREAM_INVALID) {
+    fail("input copy handle",EINVAL);return 0;
+  }
+  if(!mbsd_stream_expect_eof(which)) return 0;
   stream_close_file(&stream_inputs[which],"close original input");
   if(problem[0]) return 0;
   stream_inputs[which]=stream_copy;

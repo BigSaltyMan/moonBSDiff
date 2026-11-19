@@ -271,8 +271,8 @@ The fixed fixture gives these results.
 With `--allow-full`, schema 1 JSON includes `start`, `target`, `strategy` and
 `download_bytes`. `already-current` gives `"0"`. Only `patches` includes
 `steps`, in the same format and order as patch-only planning. For `full-file`,
-use `target.size_bytes` and `target.sha256` to verify the download. The CLI
-reports a decision and reads no file or URL for the full target.
+use `target.size_bytes` and `target.sha256` to verify the download. The planner
+reports a decision. The caller downloads the selected content.
 
 The `manifest` package offers the same decision to native, JS and Wasm-GC.
 With the imports above, use the trusted prepared manifests as follows.
@@ -298,6 +298,41 @@ take the full-file URL from the publisher and compare
 `@manifest.ContentIdentity::of_bytes(downloaded)` with `identity`. A nonpositive
 hop limit still yields `InvalidMaxSteps`, even if the installed content is
 current. This API and CLI flag are available from this source change.
+
+### Install a verified full download (Unreleased)
+
+For `strategy: full-file`, download the release's complete target to a local
+file, then run:
+
+```sh
+moonbsdiff install-full --target-manifest v2-to-v3.json -- downloaded-v3.bin restored.bin
+```
+
+For `strategy: patches`, download the selected patches and use `patch-chain`
+with the original manifests in the reported order.
+
+`install-full` strictly parses the complete schema 1 manifest within 16 KiB.
+It checks the target declaration against both `--max-new-bytes` and
+`--max-output-bytes` (1 MiB each by default). Old and patch declarations still
+must satisfy the schema. Their byte limits apply to patch operations.
+
+The download is opened once for data. The command sends chunks of up to 4096
+bytes to a private temporary output and hashes the same chunks after each
+successful write. After checking the end of the open input, the target size
+and SHA-256, it closes the input and output before publishing. Budget
+temporary disk space for a complete copy of the target next to the final
+destination. The downloaded source remains available.
+
+The destination must be a new path. An existing file, an alias of an input
+or a file created by a competitor during delivery is preserved. A failed
+verification leaves the destination absent. If publication succeeds and
+cleanup then fails, the diagnostic reports that output was delivered.
+Success exits `0`, usage errors exit `2` and verification or I/O failures
+exit `1`. Download URLs and network transfer are handled by the caller.
+
+The fixed sample delivered exactly 2048 bytes with SHA-256
+`66da6542f8276608790055ac88e6af6bf3af76b88bf3aedbcb517c2ce98ab1a6`.
+This command is available from this source change.
 
 ## Apply a local patch chain (Unreleased)
 

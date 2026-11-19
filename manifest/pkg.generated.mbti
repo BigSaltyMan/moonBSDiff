@@ -19,6 +19,8 @@ pub fn plan_update(ContentIdentity, ContentIdentity, Array[PreparedManifest], ma
 
 pub fn prepare(Bytes, @moonbsdiff.Limits) -> Result[PreparedManifest, ManifestError]
 
+pub fn prepare_target(Bytes, @moonbsdiff.Limits) -> Result[ContentIdentity, ManifestError]
+
 // Errors
 
 // Types and methods

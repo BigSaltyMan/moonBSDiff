@@ -290,8 +290,12 @@ moonbsdiff manifest plan --allow-full --max-steps 1 --target-manifest v2-to-v3.j
 
 In the fixed example, the one-hop patch costs 2532 bytes, so the command
 chooses the 2048-byte full file. With `--max-steps 2`, it chooses two patches
-totaling 368 bytes. Fetch the full file from the release's own URL and check
-its size and SHA-256 against the target identity before using it.
+totaling 368 bytes. If the strategy is `full-file`, download the target from the
+release and verify it during delivery.
+
+```sh
+moonbsdiff install-full --target-manifest v2-to-v3.json -- downloaded-v3.bin restored.bin
+```
 [Download decision examples](docs/manifest.md#compare-patches-with-a-full-download-unreleased)
 
 Paths containing Chinese characters or spaces must be quoted similarly.

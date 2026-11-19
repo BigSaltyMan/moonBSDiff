@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- `install-full` streams a complete downloaded target through SHA-256 verification
+  and publishes the checked bytes without replacing an existing file.
+
 - `manifest.plan_update` and `manifest plan --allow-full` compare patch
   routes with the full target size and prefer the full file on a tie.
 
