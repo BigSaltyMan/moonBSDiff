@@ -69,7 +69,7 @@ resource policy. This option is included in 0.4.0 and absent from historical CLI
 
 MoonBSDiff is a MoonBit reference port of BSDiff 4.3 for binary diffs and patches. The current stage implements structured errors, `Limits::validate`, internal BSDIFF40 integer/envelope parsing, and a private bounded bzip2 adapter. Public diff and apply APIs now generate and restore strict BSDIFF40 patches. See the [Windows/Linux CLI download instructions](docs/cli-install.md) and [0.5.0 publication identities](docs/release-0.5.0.md); see [CLI build and file contracts](docs/cli.md). Compression uses moonzip 0.3.5 at level 9; strict bounded decoding uses its attributed, adapted sources under `internal/bzip2/`.
 
-The `Limits` fields for old, new, patch and output buffer sizes are byte counts in 1..2147483647, bounded for Int indexing. `max_decompressed_bytes` is an aggregate byte count, `max_control_instructions` counts instructions, and `max_sort_work` / `max_match_work` count algorithm-defined work units; each is a positive Int64. Sorting visits accumulate across index rounds; matching/generation visits accumulate across scan, raw encoding, compression-wrapper copies and final assembly; see [generation resources](docs/generation-resources.md). Limits::for_apply() supplies conservative application defaults: old/new/output 1 MiB each, patch 64 KiB, total decompression 2 MiB and 16384 instructions. Sorting/matching fields are unused positive placeholders, not generation defaults; use the separate measured Limits::for_diff() policy for generation. Validation means only that a configuration is legal, not that a complete patch operation has runtime resource protection. The private decoder now enforces per-call and shared decompression budgets. No cross-field relationships are imposed.
+The `Limits` fields for old, new, patch and output buffer sizes are byte counts in 1..2147483647, bounded for Int indexing. `max_decompressed_bytes` is an aggregate byte count, `max_control_instructions` counts instructions, and `max_sort_work` / `max_match_work` count algorithm-defined work units; each is a positive Int64. Sorting visits accumulate across index rounds; matching/generation visits accumulate across scan, raw encoding, compression-wrapper copies and final assembly; see [generation resources](docs/generation-resources.md). Limits::for_apply() supplies conservative application defaults: old/new/output 1 MiB each, patch 128 KiB, total decompression 2 MiB and 16384 instructions. Sorting/matching fields are unused positive placeholders, not generation defaults; use the separate measured Limits::for_diff() policy for generation. Validation means only that a configuration is legal, not that a complete patch operation has runtime resource protection. The private decoder now enforces per-call and shared decompression budgets. No cross-field relationships are imposed.
 
 Errors provide a kind, stage, and optional block, offset, field, value and limit. Missing details are `None`. See the generated interface for exact types.
 
@@ -336,10 +336,10 @@ filesystems or unsafe parent permissions still fail closed. There is no overwrit
 promise. [CLI details](docs/cli.md) explain bounded reads, handle-based cleanup,
 actual platform tests, source/version provenance and filesystem scope.
 
-Without overrides, generation uses for_diff unchanged. CLI patch keeps for_apply's old/output,
-decode and instruction caps but raises only its patch cap from 64 KiB to 128 KiB,
-matching the generator; a real 66279-byte patch roundtrip is tested. The library
-factories are unchanged. BSDIFF40 does not authenticate the old file or result;
+Without overrides, CLI generation uses `Limits::for_diff()` and CLI application
+uses `Limits::for_apply()`. Both factories allow patches up to 128 KiB.
+A 66,279-byte patch roundtrip exercises these defaults. BSDIFF40 does not
+authenticate the old file or result;
 verify expected hashes externally. Version output is generated from moon.mod.
 
 

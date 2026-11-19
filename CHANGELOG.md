@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- The library application defaults now share the generator and CLI patch cap
+  of 128 KiB.
+
 ## 0.5.0 — 2026-11-19
 
 See [0.5.0 release evidence](docs/release-0.5.0.md) for exact source, package and

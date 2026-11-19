@@ -293,3 +293,27 @@ test "diff-resource-compact-plan-growth-before-allocation" {
   )
   assert_eq(diff(old, new, exact), Ok(patch))
 }
+
+///|
+test "default generation patch above 64 KiB applies with default limits" {
+  let size = 65536
+  // Same LCG inputs as the recorded 64 KiB random generation sample.
+  let old = suffix_test_random(size, 2026110801U + size.reinterpret_as_uint())
+  let new = suffix_test_random(size, 2026110803U + size.reinterpret_as_uint())
+  guard diff(old, new, Limits::for_diff()) is Ok(patch) else {
+    abort("default generation failed")
+  }
+  let patch_size = patch.length().to_int64()
+  assert_true(patch_size > 65536L)
+  println("default patch size: \{patch_size} bytes")
+  let limits = Limits::for_apply()
+  assert_eq(apply(old, patch, limits), Ok(new))
+  guard apply(old, patch, { ..limits, max_patch_bytes: 65536L, }) is Err(error) else {
+    abort("explicit 64 KiB patch cap should reject this patch")
+  }
+  assert_eq(error.kind, ResourceLimitExceeded)
+  assert_eq(error.stage, Header)
+  assert_eq(error.field, Some("max_patch_bytes"))
+  assert_eq(error.value, Some(patch_size))
+  assert_eq(error.limit, Some(65536L))
+}

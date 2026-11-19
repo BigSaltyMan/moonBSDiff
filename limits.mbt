@@ -58,13 +58,16 @@ pub extend Limits with Eq::{equal, not_equal}
 pub extend Limits with @debug.Debug::{to_repr}
 
 ///|
+const DEFAULT_PATCH_BYTES : Int64 = 131072L
+
+///|
 /// Conservative application defaults; see docs/apply-acceptance.md for measurements.
 /// Sorting/matching fields are unused by apply and are not generator defaults.
 pub fn Limits::for_apply() -> Limits {
   {
     max_old_bytes: 1048576L,
     max_new_bytes: 1048576L,
-    max_patch_bytes: 65536L,
+    max_patch_bytes: DEFAULT_PATCH_BYTES,
     max_output_bytes: 1048576L,
     max_decompressed_bytes: 2097152L,
     max_control_instructions: 16384L,
@@ -81,7 +84,7 @@ pub fn Limits::for_diff() -> Limits {
   {
     max_old_bytes: 65536L,
     max_new_bytes: 65536L,
-    max_patch_bytes: 131072L,
+    max_patch_bytes: DEFAULT_PATCH_BYTES,
     max_output_bytes: 65536L,
     max_decompressed_bytes: 262144L,
     max_control_instructions: 4096L,

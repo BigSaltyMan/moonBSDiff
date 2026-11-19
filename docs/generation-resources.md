@@ -200,9 +200,9 @@ logs/results under `_build/diff-measure/`. Offline report/hash checking uses
 
 Defaults are independent fail-closed allowances for small in-memory generation,
 not proof of acceptance of every 64 KiB pair. Explicit Limits remain supported.
-Application defaults are unchanged: 1 MiB old/new/output, but only a 64 KiB patch
-cap; a 66279-byte random generated patch needs explicit application limits (such
-as for_diff) instead. Sorting/matching values 1 in for_apply remain apply-only
+Current application defaults allow 1 MiB each for old, new and output data and
+128 KiB for the patch. The 66,279-byte patch in the recorded random case fits
+this cap. Sorting/matching values of 1 in `Limits::for_apply()` remain apply-only
 placeholders. No zero or negative value enables unbounded processing.
 
 ## Verification scope

@@ -1,5 +1,8 @@
 # Application-stage acceptance (2026-11-06)
 
+This report records the original application limits. The current `Limits::for_apply()`
+patch cap is 128 KiB.
+
 ## Review and coverage map
 
 Review baseline: dfcc2a63591eeef2b76d262ff6bc223b76d81a85, clean master. No implementation defect was found in control execution or the internal decoder. This step adds a default factory and evidence-driven integration/resource coverage; it does not change the apply algorithm, error structure or adapted bzip2 sources. No fabricated bug-regression directory was added.

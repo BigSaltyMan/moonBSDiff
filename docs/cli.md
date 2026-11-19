@@ -221,10 +221,9 @@ paths were actually exercised on both platforms.
 
 ## Limits and bounded reads
 
-Without overrides, `diff` uses Limits::for_diff unchanged. `patch` starts from Limits::for_apply and
-changes **only max_patch_bytes to 131072**, taking the value from for_diff.
-This accepts default generator output without changing either measured library
-factory or relaxing unrelated application limits.
+Without overrides, `diff` uses `Limits::for_diff()` and `patch` uses
+`Limits::for_apply()`. Both factories set `max_patch_bytes` to 131072.
+The other generation and application limits are independent.
 
 | CLI | Old | New/restored | Patch | Expanded bytes | Instructions |
 | --- | ---: | ---: | ---: | ---: | ---: |

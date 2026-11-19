@@ -93,7 +93,7 @@ test "apply-resource-public-defaults" {
   assert_eq(limits.max_old_bytes, 1048576L)
   assert_eq(limits.max_new_bytes, 1048576L)
   assert_eq(limits.max_output_bytes, 1048576L)
-  assert_eq(limits.max_patch_bytes, 65536L)
+  assert_eq(limits.max_patch_bytes, 131072L)
   assert_eq(limits.max_decompressed_bytes, 2097152L)
   assert_eq(limits.max_control_instructions, 16384L)
   assert_eq(limits.max_sort_work, 1L)

@@ -335,10 +335,7 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
   let mut limits = if generation {
     @moonbsdiff.Limits::for_diff()
   } else {
-    {
-      ..@moonbsdiff.Limits::for_apply(),
-      max_patch_bytes: @moonbsdiff.Limits::for_diff().max_patch_bytes,
-    }
+    @moonbsdiff.Limits::for_apply()
   }
   let mut options = @moonbsdiff.DiffOptions::default()
   let seen : Array[String] = []
