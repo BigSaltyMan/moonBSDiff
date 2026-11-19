@@ -23,8 +23,9 @@ PROBES = {
     "0.4.0": "scripts/release_consumer.mbt.in",
     "0.5.0": "scripts/release_consumer_050.mbt.in",
     "0.5.1": "scripts/release_consumer_050.mbt.in",
+    "0.5.2": "scripts/release_consumer_050.mbt.in",
 }
-MANIFEST_PROBE_PATCH_CAPS = {"0.5.0": 65536, "0.5.1": 131072}
+MANIFEST_PROBE_PATCH_CAPS = {"0.5.0": 65536, "0.5.1": 131072, "0.5.2": 131072}
 MANIFEST_PROBE_PACKAGE = """import {
   "BigSaltyMan/moonbsdiff",
   "BigSaltyMan/moonbsdiff/manifest",

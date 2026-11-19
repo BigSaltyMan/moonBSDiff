@@ -76,10 +76,21 @@
         "size": 3962,
         "sha256": "a0fe1285339ee5bc51e3077df46062b30ab22da7fa5592a415fd09cdf651219f"
       }
+    },
+    "0.5.2": {
+      "v1": {
+        "size": 3962,
+        "sha256": "95df779eb7451010856b05d754eab08d5768b062352e4f9fc02625b5a7dd3ef8"
+      },
+      "v2": {
+        "size": 3962,
+        "sha256": "303ea7184ca7856f0a70da676bec2007a1747030a59f065933850cc89509047b"
+      }
     }
   },
   "version_0_2_0_origin": "Independent direct Linux/WSL compilation, same pinned compiler/flags; each output differs from verified 0.1.0 bytes only at offset 3888 in custom name section (module @0.1.0 -> @0.2.0). No code/data section change and no diff/apply used to derive expectations. Original expected field retains Commit 14/15 history.",
   "version_0_4_0_origin": "Independent direct WSL native-host compilation with the pinned compiler/wasm-gc --release --strip flags; replacing the single @0.4.0 custom-name string with @0.2.0 reproduces the fixed 0.2.0 whole-file hash for each module. No diff/apply or changed module source used to derive expectations.",
   "version_0_5_0_origin": "Independent direct Ubuntu 24.04 WSL compilation with the pinned compiler/wasm-gc --release --strip flags. Normalizing the single @0.5.0 custom-name string to @0.4.0 reproduces each fixed 0.4.0 whole-file hash. No diff/apply output was used.",
-  "version_0_5_1_origin": "Independent direct Ubuntu 24.04 WSL compilation with the pinned compiler and wasm-gc --release --strip. Normalizing the single @0.5.1 custom-name string to @0.5.0 reproduces both fixed 0.5.0 whole-file hashes. No diff/apply output was used."
+  "version_0_5_1_origin": "Independent direct Ubuntu 24.04 WSL compilation with the pinned compiler and wasm-gc --release --strip. Normalizing the single @0.5.1 custom-name string to @0.5.0 reproduces both fixed 0.5.0 whole-file hashes. No diff/apply output was used.",
+  "version_0_5_2_origin": "Independent direct Ubuntu 24.04 WSL compilation with the pinned compiler and wasm-gc --release --strip. Normalizing the single @0.5.2 custom-name string to @0.5.1 reproduces both fixed 0.5.1 whole-file hashes. No diff/apply output was used."
 }

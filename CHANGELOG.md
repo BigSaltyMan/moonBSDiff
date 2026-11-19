@@ -2,10 +2,15 @@
 
 ## Unreleased
 
-- Keep bzip2 runs within their block size at every compression level, including
-  a pending final run. Generated patches pass strict stream and CRC checks.
-- Apply patch size limits only to executed steps in patch and verification
-  chains. A target manifest can describe a larger patch outside the chain.
+## 0.5.2
+
+- Fix bzip2 encoding when a repeated-byte run crosses a block boundary,
+  including when the encoder flushes its final run. If an older release
+  produced a patch that fails to decode for this reason, regenerate it
+  from the original old and new files.
+- In `patch-chain` and `verify-chain`, apply the patch size limit to the
+  steps being executed. The target manifest can describe a larger direct
+  patch while still identifying the final file.
 
 ## 0.5.1
 
