@@ -1,5 +1,5 @@
 """Real native CLI subprocess contract tests; no oracle, network or large benchmark."""
-import argparse,bz2,ctypes,getpass,hashlib,json,os,pathlib,platform,subprocess,sys,tempfile,unittest
+import argparse,bz2,ctypes,getpass,hashlib,json,os,pathlib,platform,re,subprocess,sys,tempfile,unittest
 from build_cli import ROOT,version
 from conformance_cases import lcg
 EXE=None
@@ -33,6 +33,72 @@ class CliFiles(unittest.TestCase):
     def test_help_version(self):
         h=self.run_cli(['--help']);self.assertIn(b'patch OLD_FILE PATCH_FILE OUTPUT_FILE',h.stdout);self.assertIn(b'131072',h.stdout);self.assertIn(b'never replaced',h.stdout)
         self.assertEqual(self.run_cli(['--version']).stdout.decode('utf8').strip(),'moonbsdiff '+version())
+    def test_command_help_pages(self):
+        file_limits = {'--max-old-bytes', '--max-new-bytes', '--max-output-bytes', '--max-patch-bytes'}
+        apply_limits = file_limits | {'--max-expanded-bytes', '--max-controls'}
+        generation = apply_limits | {'--max-sort-work', '--max-match-work', '--compression-level'}
+        plan = file_limits | {'--target-manifest', '--max-steps'}
+        pages = [
+            ('diff', '[OPTIONS] OLD_FILE NEW_FILE PATCH_FILE',
+             generation | {'--manifest', '--show-limits'}),
+            ('diff-many', '[OPTIONS] OLD (NEW PATCH MANIFEST)...', generation),
+            ('patch', '[OPTIONS] OLD_FILE PATCH_FILE OUTPUT_FILE',
+             apply_limits | {'--manifest', '--stream', '--progress', '--show-limits'}),
+            ('patch-chain', '--target-manifest FILE [--progress text|json] [LIMITS] OLD OUTPUT (PATCH MANIFEST)...',
+             apply_limits | {'--target-manifest', '--progress'}),
+            ('verify-chain', '--target-manifest FILE [--progress text|json] [LIMITS] OLD (PATCH MANIFEST)...',
+             apply_limits | {'--target-manifest', '--progress'}),
+            ('verify', '[--stream] --manifest MANIFEST_FILE [LIMITS] OLD_FILE PATCH_FILE',
+             apply_limits | {'--manifest', '--stream'}),
+            ('inspect', '[--deep] [--json] [--max-patch-bytes VALUE] PATCH_FILE',
+             {'--deep', '--json', '--max-patch-bytes', '--max-output-bytes', '--max-expanded-bytes', '--max-controls'}),
+            ('install-full',
+             '--target-manifest FILE [--max-new-bytes VALUE] [--max-output-bytes VALUE] DOWNLOADED_FILE OUTPUT_FILE',
+             {'--target-manifest', '--max-new-bytes', '--max-output-bytes'}),
+            ('manifest create', '[LIMITS] OLD_FILE NEW_FILE PATCH_FILE MANIFEST_FILE', apply_limits),
+            ('manifest select', '[LIMITS] OLD_FILE MANIFEST_FILE [MANIFEST_FILE...]', file_limits),
+            ('manifest plan',
+             '--target-manifest FILE [--max-steps COUNT] [--max-download-bytes VALUE] [--allow-full] [LIMITS] OLD_FILE [MANIFEST_FILE...]',
+             plan | {'--max-download-bytes', '--allow-full'}),
+            ('manifest plan-local',
+             '--target-manifest FILE [--local-patch FILE ...] [--max-steps COUNT] [LIMITS] OLD_FILE [MANIFEST_FILE...]',
+             plan | {'--local-patch'}),
+        ]
+        for command, usage, options in pages:
+            with self.subTest(command=command):
+                output = self.run_cli([*command.split(), '--help']).stdout.decode('utf8')
+                self.assertEqual(output.splitlines()[0], f'moonbsdiff {command} {usage}')
+                self.assertEqual(set(re.findall(r'--[a-z]+(?:-[a-z]+)*', output)), options)
+                if command == 'manifest plan-local':
+                    self.assertIn('Repeat for each available patch', output)
+                    self.assertIn('after OLD_FILE', output)
+
+    def test_command_help_aliases_and_manifest_group(self):
+        for command in ([], ['diff'], ['manifest']):
+            with self.subTest(command=command):
+                self.assertEqual(self.run_cli([*command, '-h']).stdout,
+                                 self.run_cli([*command, '--help']).stdout)
+        output = self.run_cli(['manifest', '--help']).stdout
+        for name, purpose in [(b'create', b'Write a manifest'), (b'select', b'smallest patch'),
+                              (b'plan', b'download route'), (b'plan-local', b'offline route')]:
+            with self.subTest(subcommand=name):
+                self.assertTrue(any(line.split()[:1] == [name] and purpose in line
+                                    for line in output.splitlines()))
+
+    def test_command_help_exact_forms(self):
+        for args, error in [
+            (['manifest', 'typo', '--help'], b'manifest requires create'),
+            (['manifest', 'plan', '--help', 'extra'], b'--help is not applicable'),
+            (['diff', '--compression-level', '--help'], b'--compression-level'),
+        ]:
+            with self.subTest(args=args):
+                self.assertIn(error, self.run_cli(args, 2).stderr)
+        self.old.unlink()
+        self.new.unlink()
+        self.assertEqual(list(self.p.iterdir()), [])
+        error = self.run_cli(['inspect', '--', '--help'], 1).stderr
+        self.assertIn(b"'--help': open input", error)
+
     def test_arguments(self):
         for args in [[],['unknown'],['diff'],['patch'],['diff','a','b'],['patch','a','b'],['diff','a','b','c','d'],['patch','a','b','c','d'],['--help','extra'],['--version','extra']]:
             with self.subTest(args=args):self.run_cli(args,2)
@@ -142,9 +208,19 @@ class CliFiles(unittest.TestCase):
     def test_patch_output_same_input(self):self.generate();self.run_cli(['patch',self.old,self.patch,self.patch],1)
 
 if __name__=='__main__':
-    parser=argparse.ArgumentParser();parser.add_argument('--exe',type=pathlib.Path,required=True);a=parser.parse_args();EXE=a.exe.resolve()
-    if not EXE.is_file():raise SystemExit('CLI executable missing')
-    result=unittest.TextTestRunner(verbosity=2).run(unittest.defaultTestLoader.loadTestsFromTestCase(CliFiles))
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--exe', type=pathlib.Path, required=True)
+    parser.add_argument('--help-only', action='store_true', help='Run only the command help tests')
+    args = parser.parse_args()
+    EXE = args.exe.resolve()
+    if not EXE.is_file():
+        raise SystemExit('CLI executable missing')
+    loader = unittest.TestLoader()
+    if args.help_only:
+        loader.testNamePatterns = ['*.test_command_help_*']
+    result = unittest.TextTestRunner(verbosity=2).run(loader.loadTestsFromTestCase(CliFiles))
+    if args.help_only:
+        raise SystemExit(0 if result.testsRun and result.wasSuccessful() else 1)
     private=None
     if result.wasSuccessful():
         r=subprocess.run([sys.executable,'scripts/native_test.py','io'],cwd=ROOT,capture_output=True,timeout=120)

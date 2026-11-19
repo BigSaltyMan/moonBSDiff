@@ -79,6 +79,14 @@ field/value/limit metadata where available. Successful diff/patch are silent.
 No overwrite switch, stdin protocol, network update or directory synchronization
 is provided.
 
+With a build of the current source, use standalone `--help` or `-h` after a
+command to see its paths and supported options.
+
+```sh
+moonbsdiff diff --help
+moonbsdiff manifest plan -h
+```
+
 ## Batch generation from one old version (Unreleased)
 
 ```sh

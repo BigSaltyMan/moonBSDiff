@@ -64,152 +64,6 @@ fn cli_args() -> Array[String] {
 }
 
 ///|
-fn print_help() -> Unit {
-  println("moonbsdiff diff OLD_FILE NEW_FILE PATCH_FILE")
-  println("moonbsdiff diff-many [OPTIONS] OLD (NEW PATCH MANIFEST)...")
-  println(
-    "Example: moonbsdiff diff-many --compression-level 6 stable.bin beta.bin beta.patch beta.json rc.bin rc.patch rc.json",
-  )
-  println(
-    "Each diff-many group names one input and two outputs. Earlier files remain if a later delivery fails.",
-  )
-  println("moonbsdiff patch OLD_FILE PATCH_FILE OUTPUT_FILE")
-  println(
-    "moonbsdiff patch-chain --target-manifest FILE [--progress text|json] [LIMITS] OLD OUTPUT (PATCH MANIFEST)...",
-  )
-  println(
-    "Apply verified local patches in order and deliver only the final file. Confirmed cancellation exits 130.",
-  )
-  println(
-    "moonbsdiff verify-chain --target-manifest FILE [--progress text|json] [LIMITS] OLD (PATCH MANIFEST)...",
-  )
-  println(
-    "Verify local patches in order. The final step hashes restored bytes without saving a file.",
-  )
-  println(
-    "moonbsdiff patch --stream [--manifest MANIFEST_FILE] [--progress text|json] OLD_FILE PATCH_FILE OUTPUT_FILE",
-  )
-  println(
-    "Progress/diagnostics go to stderr. Ctrl+C (Windows also Ctrl+Break) requests cooperative cancellation, exit 130 before commit; no rollback after commit begins.",
-  )
-  println(
-    "--stream: native bounded file apply; --manifest verifies private input copies and the restored bytes.",
-  )
-  println("moonbsdiff --help | --version")
-  println(
-    "moonbsdiff verify [--stream] --manifest MANIFEST_FILE [LIMITS] OLD_FILE PATCH_FILE",
-  )
-  println(
-    "moonbsdiff manifest create [LIMITS] OLD_FILE NEW_FILE PATCH_FILE MANIFEST_FILE",
-  )
-  println(
-    "manifest create applies the existing patch in memory and writes a manifest only if the result matches NEW_FILE byte for byte. The patch is unchanged.",
-  )
-  println(
-    "moonbsdiff manifest select [LIMITS] OLD_FILE MANIFEST_FILE [MANIFEST_FILE...]",
-  )
-  println(
-    "Select the smallest matching patch from manifests for one target. Equal sizes favor the first. Prints JSON and reads no patches.",
-  )
-  println(
-    "Manifest select limits: --max-old-bytes, --max-new-bytes, --max-output-bytes, --max-patch-bytes.",
-  )
-  println(
-    "moonbsdiff manifest plan --target-manifest FILE [--max-steps COUNT] [--max-download-bytes VALUE] [--allow-full] [LIMITS] OLD_FILE [MANIFEST_FILE...]",
-  )
-  println(
-    "Plan the fewest patch bytes, then the fewest steps. Prints JSON and reads no patches.",
-  )
-  println(
-    "Plan limits: --max-patch-bytes caps each patch, --max-steps caps patch applications (positive count), and --max-download-bytes caps the whole update (zero allowed).",
-  )
-  println(
-    "Use --allow-full to compare patch bytes with the complete target and print the download strategy.",
-  )
-  println(
-    "moonbsdiff manifest plan-local --target-manifest FILE [--local-patch FILE ...] [--max-steps COUNT] [LIMITS] OLD_FILE [MANIFEST_FILE...]",
-  )
-  println(
-    "Match local patches by size and SHA-256, then print the offline route in application order.",
-  )
-  println(
-    "moonbsdiff install-full --target-manifest FILE [--max-new-bytes VALUE] [--max-output-bytes VALUE] DOWNLOADED_FILE OUTPUT_FILE",
-  )
-  println(
-    "Verify the downloaded file against the target size and SHA-256 before delivering it without replacement.",
-  )
-  println(
-    "moonbsdiff patch --manifest MANIFEST_FILE [LIMITS] OLD_FILE PATCH_FILE OUTPUT_FILE",
-  )
-  println(
-    "Manifest input: at most 16384 bytes, schema 1, no duplicate/unknown keys. Verify uses memory by default; --stream hashes restored chunks. Neither saves restored output.",
-  )
-
-  println(
-    "--manifest MANIFEST_FILE: diff writes; patch/verify read and validate the SHA-256 JSON manifest.",
-  )
-  println(
-    "Patch then manifest are delivered without replacement; two-file delivery is not atomic.",
-  )
-  println(
-    "moonbsdiff inspect [--deep] [--json] [--max-patch-bytes VALUE] PATCH_FILE",
-  )
-  println(
-    "Deep inspect also accepts --max-output-bytes, --max-expanded-bytes and --max-controls.",
-  )
-  println(
-    "inspect reads the header by default. --deep checks streams, CRC, controls and consumption without restoring a file.",
-  )
-  println("With options: moonbsdiff diff|patch [OPTIONS] FILE FILE FILE")
-  println(
-    "Diff and diff-many: --compression-level VALUE (positive decimal 1..9; default 9; no units).",
-  )
-  println(
-    "Display only: moonbsdiff diff|patch [OPTIONS] --show-limits (no files)",
-  )
-  println(
-    "Options precede all paths; -- ends options and allows leading '-' paths.",
-  )
-  println(
-    "Byte options (diff/diff-many/patch/verify/patch-chain/verify-chain/manifest create): --max-old-bytes, --max-new-bytes, --max-output-bytes, --max-patch-bytes, --max-expanded-bytes VALUE",
-  )
-  println(
-    "Bytes: ASCII decimal with optional case-sensitive B, KiB or MiB. Positive except for the download budget; no spaces or signs.",
-  )
-  println(
-    "Count (diff/diff-many/patch/verify/patch-chain/verify-chain/manifest create): --max-controls VALUE. Diff and diff-many: --max-sort-work, --max-match-work VALUE.",
-  )
-  println(
-    "Counts/work: positive decimal integers, no units. Each option occurs at most once; use separate values, not '='.",
-  )
-  println(
-    "Expanded bytes: raw control/diff/extra for diff; cumulative decoded bytes for patch.",
-  )
-  println(
-    "New and output caps constrain the target independently; patch bytes have a separate cap.",
-  )
-  println(
-    "Match work includes generation; increasing one cap does not increase any other.",
-  )
-
-  println(
-    "Binary files only. Existing outputs (including links) are never replaced.",
-  )
-  println(
-    "diff: old/new/output 65536 bytes, patch 131072, raw 262144, 4096 controls; sort/match 8388608 each.",
-  )
-  println(
-    "patch: old/output 1048576 bytes, patch 131072, decoded 2097152, 16384 controls.",
-  )
-  println(
-    "Linux output prefers O_TMPFILE+/proc; guarded local-ext compatibility may work without them. No durability guarantee.",
-  )
-  println(
-    "Exit codes: 0 success, 2 arguments, 1 operation failure. BSDIFF40 does not identify the old file.",
-  )
-}
-
-///|
 // ASCII-only decimals; check both decimal and unit arithmetic before use.
 fn parse_limit(
   text : String,
@@ -291,7 +145,7 @@ fn leading_dash(text : String) -> Bool {
 }
 
 ///|
-fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
+fn parse_command(args : Array[String]) -> Result[(String, Int32), String] {
   if args.length() < 2 ||
     (
       args[1] != "diff" &&
@@ -325,6 +179,15 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
     }
   } else {
     (args[1], 2)
+  }
+  Ok((operation, options_start))
+}
+
+///|
+fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
+  let (operation, options_start) = match parse_command(args) {
+    Ok(command) => command
+    Err(message) => return Err(message)
   }
   let chain = is_chain(operation)
   let generation = operation == "diff" || operation == "diff-many"
@@ -742,9 +605,8 @@ fn show_limits(config : CliConfig) -> Unit {
 ///|
 fn main {
   let args = cli_args()
-  if args.length() == 2 && args[1] == "--help" {
-    print_help()
-    @env.exit(0)
+  if print_requested_help(args) {
+    return
   }
   if args.length() == 2 && args[1] == "--version" {
     println("moonbsdiff \{@manifest_support.PRODUCER_VERSION}")
