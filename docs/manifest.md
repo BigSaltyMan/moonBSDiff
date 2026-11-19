@@ -106,8 +106,26 @@ The target manifest identifies the destination by `new.size_bytes` and
 A route minimizes the sum of declared patch bytes, then the step count.
 The planner visits outgoing edges in positional order. At equal cost and step
 count it processes the earliest queued state first and retains the first route
-to an identity at that score. Two versions join only when both size and SHA-256
-agree. A route can use several versions even when their byte counts are equal.
+at that score. Two versions join only when both size and SHA-256 agree. A route
+can use several versions even when their byte counts are equal.
+
+Pass `--max-steps COUNT` before the paths to cap how many patches the client
+will apply. Only `manifest plan` accepts it. Use a positive decimal integer up
+to `9223372036854775807`. With a restrictive cap, the planner keeps separate
+arrivals at the same identity for different step counts. The search never
+needs more steps than a simple path through the supplied graph: removing a
+cycle saves bytes or steps. The JSON format stays the same.
+
+Both commands below were run against the same three candidates.
+
+```sh
+moonbsdiff manifest plan --max-steps 1 --target-manifest v2-to-v3.json -- installed.bin v1-to-v2.json v2-to-v3.json v1-to-v3.json
+moonbsdiff manifest plan --max-steps 2 --target-manifest v2-to-v3.json -- installed.bin v1-to-v2.json v2-to-v3.json v1-to-v3.json
+```
+
+The one-step cap selects `v1-to-v3.json` for 2532 bytes. The two-step cap
+selects `v1-to-v2.json` and `v2-to-v3.json` for 204 + 164 = 368 bytes.
+`verify-chain` confirmed this two-step route against the 2048-byte target.
 
 This example used the `testdata/upstream/seeded-random` old and new files as
 v1 and v2. The fixture flips the last bit of v2 for v3. The deliberate
@@ -158,6 +176,8 @@ If the installed identity already equals the target, success reports
 `"total_patch_bytes": "0"` and an empty `steps` array. The candidate list can
 be empty. All supplied manifests still need to pass preflight. An unreachable
 target, read or manifest error exits `1` with a diagnostic and empty stdout.
+If a route cannot be found under `--max-steps`, the diagnostic includes the
+target manifest and effective cap.
 Invalid arguments exit `2`. This command requires a CLI built from source
 containing this change. The published 0.4.0 CLI predates it.
 

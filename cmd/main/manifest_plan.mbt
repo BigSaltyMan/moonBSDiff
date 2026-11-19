@@ -11,48 +11,76 @@ fn plan_steps(
   outgoing : Map[ManifestIdentity, Array[PlanEdge]],
   start : ManifestIdentity,
   target : ManifestIdentity,
+  depth : Int64,
+  track_hops : Bool,
 ) -> (Int64, Array[PlanEdge])? {
+  // When the cap can exclude a simple path, a cheaper arrival with more
+  // hops cannot replace an arrival that has more steps left.
+  let state_key = (vertex, hops) => (vertex, if track_hops { hops } else { 0L })
+  let initial = state_key(start, 0L)
   // The core queue is a max-heap. Negate cost, hops and insertion sequence
   // so the cheapest, shortest and earliest queued entry is popped first.
   let queue = @priority_queue.from_array([(0L, 0L, 0L, start)])
-  let scores = Map([(start, (0L, 0L))])
-  let predecessor : Map[ManifestIdentity, PlanEdge] = Map([])
+  let scores = Map([(initial, (0L, 0L))])
+  let predecessor : Map[(ManifestIdentity, Int64), (PlanEdge, Int64)] = Map([])
   let mut sequence = 0L
   while queue.pop() is Some((cost_key, hops_key, _, vertex)) {
     let cost = -cost_key
     let hops = -hops_key
-    if scores.get(vertex) != Some((cost, hops)) {
+    let state = state_key(vertex, hops)
+    if scores.get(state) != Some((cost, hops)) {
       continue
     }
     if vertex == target {
       let steps : Array[PlanEdge] = []
-      let mut at = target
-      while at != start {
-        let edge = predecessor[at]
+      let mut at = state
+      while at != initial {
+        let (edge, prior_hops) = predecessor[at]
         steps.push(edge)
-        at = edge.old
+        at = state_key(edge.old, prior_hops)
       }
       return Some((cost, steps.rev()))
     }
+    if hops == depth {
+      continue
+    }
     if outgoing.get(vertex) is Some(edges) {
       for edge in edges {
-        // Each edge costs at most Int32.max after preflight. A settled
-        // path plus one edge uses at most the Int32-indexed argument count.
-        // Even that worst-case cost fits in Int64 (< 2^62).
+        // Depth is capped by the Int32-indexed candidate count, and each
+        // preflighted weight is at most Int32.max. Each settled layer scans
+        // each edge at most once. The total cost and sequence fit in Int64.
         let next_cost = cost + edge.patch.size
         let next_hops = hops + 1L
         let score = (next_cost, next_hops)
-        if scores.get(edge.new) is Some(previous) && previous <= score {
+        let next_state = state_key(edge.new, next_hops)
+        if scores.get(next_state) is Some(previous) && previous <= score {
           continue
         }
-        scores[edge.new] = score
-        predecessor[edge.new] = edge
+        scores[next_state] = score
+        predecessor[next_state] = (edge, hops)
         sequence += 1L
         queue.push((-next_cost, -next_hops, -sequence, edge.new))
       }
     }
   }
   None
+}
+
+///|
+fn simple_path_depth(
+  outgoing : Map[ManifestIdentity, Array[PlanEdge]],
+  candidates : Int64,
+) -> Int64 {
+  let vertices : Map[ManifestIdentity, Unit] = Map([])
+  for old, edges in outgoing {
+    vertices[old] = ()
+    for edge in edges {
+      vertices[edge.new] = ()
+    }
+  }
+  // Deleting a cycle lowers cost or preserves cost with fewer steps.
+  // An optimal nonempty route uses distinct identities and candidate edges.
+  candidates.min((vertices.length().to_int64() - 1L).max(0L))
 }
 
 ///|
@@ -94,9 +122,24 @@ fn manifest_plan_command(config : CliConfig) -> Unit {
       patch: manifest_identity(candidate.patch),
     })
   }
-  guard plan_steps(outgoing, start, target) is Some((cost, steps)) else {
+  let candidates = (config.files.length() - 1).to_int64()
+  let (depth, track_hops) = match config.max_steps {
+    Some(requested) => {
+      let simple_bound = simple_path_depth(outgoing, candidates)
+      (requested.min(simple_bound), requested < simple_bound)
+    }
+    None => (candidates, false)
+  }
+  guard plan_steps(outgoing, start, target, depth, track_hops)
+    is Some((cost, steps)) else {
+    let restriction = match config.max_steps {
+      Some(requested) =>
+        " (effective --max-steps=\{depth}, requested \{requested})"
+      None => ""
+    }
     failure(
-      "manifest plan: no reachable path from '\{old_path}' to the target in '\{target_path}'",
+      "manifest plan: no reachable path from '\{old_path}' to the target in '\{target_path}'" +
+      restriction,
     )
     return
   }

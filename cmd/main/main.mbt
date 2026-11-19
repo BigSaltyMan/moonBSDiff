@@ -115,10 +115,10 @@ fn print_help() -> Unit {
     "Manifest select limits: --max-old-bytes, --max-new-bytes, --max-output-bytes, --max-patch-bytes.",
   )
   println(
-    "moonbsdiff manifest plan --target-manifest FILE [LIMITS] OLD_FILE [MANIFEST_FILE...]",
+    "moonbsdiff manifest plan --target-manifest FILE [--max-steps COUNT] [LIMITS] OLD_FILE [MANIFEST_FILE...]",
   )
   println(
-    "Plan the fewest patch bytes, then the fewest steps, to the target manifest's new identity. Prints JSON and reads no patches.",
+    "Plan the fewest patch bytes, then the fewest steps. --max-steps accepts a positive decimal count. Prints JSON and reads no patches.",
   )
   println(
     "moonbsdiff patch --manifest MANIFEST_FILE [LIMITS] OLD_FILE PATCH_FILE OUTPUT_FILE",
@@ -249,6 +249,7 @@ struct CliConfig {
   deep : Bool
   manifest : String?
   target_manifest : String?
+  max_steps : Int64?
   files : Array[String]
 }
 
@@ -309,6 +310,7 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
   let mut deep = false
   let mut manifest : String? = None
   let mut target_manifest : String? = None
+  let mut max_steps : Int64? = None
   let mut escaped = false
   while i < args.length() {
     let option = args[i]
@@ -334,7 +336,8 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
       option != "--max-new-bytes" &&
       option != "--max-output-bytes" &&
       option != "--max-patch-bytes" &&
-      !(operation == "manifest plan" && option == "--target-manifest") {
+      !(operation == "manifest plan" &&
+      (option == "--target-manifest" || option == "--max-steps")) {
       return Err(option + " is not applicable to " + operation)
     }
     let bytes = match option {
@@ -367,6 +370,12 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
         }
         if chain {
           return Err(operation + " takes a MANIFEST file argument per step")
+        }
+        false
+      }
+      "--max-steps" => {
+        if operation != "manifest plan" {
+          return Err(option + " is only applicable to manifest plan")
         }
         false
       }
@@ -474,6 +483,11 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
     let value = match parse_limit(args[i + 1], bytes) {
       Ok(v) => v
       Err(e) => return Err(option + ": " + e)
+    }
+    if option == "--max-steps" {
+      max_steps = Some(value)
+      i += 2
+      continue
     }
     if option == "--compression-level" {
       if value < 1L || value > 9L {
@@ -590,6 +604,7 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
     deep,
     manifest,
     target_manifest,
+    max_steps,
     files,
   })
 }

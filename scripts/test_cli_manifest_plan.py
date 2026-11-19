@@ -30,7 +30,15 @@ def prepare_two_hop(write, invoke):
     return start, middle, target
 
 
-class ManifestPlan(unittest.TestCase):
+def prepare_direct(write, invoke, target):
+    # A valid direct patch that carries the complete target in Extra.
+    control = integer(0) + integer(len(target)) + integer(0)
+    write("v1-to-v3.patch", envelope([bz2.compress(control), bz2.compress(b""),
+                                      bz2.compress(target)], len(target)))
+    invoke("manifest", "create", "installed.bin", "v3.bin", "v1-to-v3.patch", "v1-to-v3.json")
+
+
+class ManifestPlanFixture(unittest.TestCase):
     def setUp(self):
         folder = tempfile.TemporaryDirectory(prefix="moonbsdiff-plan-")
         self.addCleanup(folder.cleanup)
@@ -69,13 +77,11 @@ class ManifestPlan(unittest.TestCase):
         self.write(path, json.dumps(record).encode("utf-8"))
         return path
 
+
+class ManifestPlan(ManifestPlanFixture):
     def test_cheaper_two_hops_actually_restore_target(self):
         start, middle, target = prepare_two_hop(self.write, self.invoke)
-        # A valid direct patch that carries the complete target in Extra.
-        control = integer(0) + integer(len(target)) + integer(0)
-        self.write("v1-to-v3.patch", envelope([bz2.compress(control), bz2.compress(b""),
-                                               bz2.compress(target)], len(target)))
-        self.invoke("manifest", "create", "installed.bin", "v3.bin", "v1-to-v3.patch", "v1-to-v3.json")
+        prepare_direct(self.write, self.invoke, target)
         paths = ("v1-to-v2.json", "v2-to-v3.json")
         inputs = ((start, middle), (middle, target))
         steps, patches = [], {}
@@ -155,11 +161,96 @@ class ManifestPlan(unittest.TestCase):
         self.assertIn(b"'broken.json': manifest JSON:", self.plan(marker, first, "broken.json", code=1).stderr)
 
 
+class ManifestPlanStepLimit(ManifestPlanFixture):
+    def test_real_one_and_two_step_routes(self):
+        start, _, target = prepare_two_hop(self.write, self.invoke)
+        prepare_direct(self.write, self.invoke, target)
+        candidates = ("v1-to-v2.json", "v2-to-v3.json", "v1-to-v3.json")
+        for max_steps, expected_paths, expected_sizes in [
+            ("1", candidates[2:], [2532]),
+            ("2", candidates[:2], [204, 164]),
+        ]:
+            with self.subTest(max_steps=max_steps):
+                raw = self.plan(candidates[1], *candidates, options=("--max-steps", max_steps, "--"))
+                plan = json.loads(raw.stdout)
+                paths = [step["manifest_path"] for step in plan["steps"]]
+                patches = [Path(path).with_suffix(".patch").name for path in paths]
+                sizes = [len(self.read(path)) for path in patches]
+                self.assertEqual(paths, list(expected_paths))
+                self.assertEqual(sizes, expected_sizes)
+                expected_steps = []
+                for path, patch in zip(paths, patches):
+                    manifest = json.loads(self.read(path))
+                    expected_steps.append({"manifest_path": path, "old": manifest["old"],
+                                           "new": manifest["new"], "patch": identity(self.read(patch))})
+                self.assertEqual(plan, {
+                    "schema_version": 1, "start": identity(start), "target": identity(target),
+                    "total_patch_bytes": str(sum(sizes)), "steps": expected_steps,
+                })
+                print(f"Cap {max_steps}: {sizes} = {sum(sizes)} bytes")
+                if max_steps == "2":
+                    ordered = [arg for patch, path in zip(patches, paths) for arg in (patch, path)]
+                    verified = self.invoke("verify-chain", "--target-manifest", candidates[1],
+                                           "--", "installed.bin", *ordered)
+                    self.assertTrue(verified.stdout.startswith(b"Chain verification succeeded:"))
+                    print(verified.stdout.decode().strip())
+
+    def test_higher_cost_arrival_can_save_a_step(self):
+        source, detour, middle, target = b"s", b"d", b"m", b"t"
+        self.write("installed.bin", source)
+        first = self.edge("detour.json", source, detour, 0)
+        second = self.edge("join.json", detour, middle, 0)
+        short = self.edge("short.json", source, middle, 5)
+        same = self.edge("same.json", source, middle, 5)
+        finish = self.edge("finish.json", middle, target, 1)
+        back = self.edge("back.json", middle, detour, 0)
+        loop = self.edge("loop.json", middle, middle, 0)
+        direct = self.edge("tie-direct.json", source, target, 6)
+        tail = (first, second, finish, back, loop)
+        for limit, candidates, cost, expected in [
+            ("2", (short, same, *tail), "6", [short, finish]),
+            ("2", (same, short, *tail), "6", [same, finish]),
+            ("2", (short, same, *tail, direct), "6", [direct]),
+            ("9223372036854775807", (short, same, *tail), "1", [first, second, finish]),
+        ]:
+            with self.subTest(limit=limit, expected=expected):
+                plan = json.loads(self.plan(finish, *candidates, options=("--max-steps", limit)).stdout)
+                self.assertEqual(plan["total_patch_bytes"], cost)
+                self.assertEqual([step["manifest_path"] for step in plan["steps"]], expected)
+                print(f"Limit {limit}: {expected}, {cost} bytes")
+
+    def test_unreachable_and_empty_with_step_limit(self):
+        _, _, target = prepare_two_hop(self.write, self.invoke)
+        edges = ("v1-to-v2.json", "v2-to-v3.json")
+        error = self.plan(edges[1], *edges, code=1, options=("--max-steps", "1"))
+        self.assertIn(b"no reachable path", error.stderr)
+        self.assertIn(b"effective --max-steps=1", error.stderr)
+        self.assertIn(b"v2-to-v3.json", error.stderr)
+        print(error.stderr.decode().strip())
+        for value in ("0", "9223372036854775808", "1KiB"):
+            with self.subTest(value=value):
+                error = self.plan(edges[1], *edges, code=2, options=("--max-steps", value))
+                self.assertIn(b"--max-steps", error.stderr)
+        self.assertIn(b"--max-steps", self.invoke(
+            "manifest", "select", "--max-steps", "1", "installed.bin", edges[0], code=2
+        ).stderr)
+        self.write("installed.bin", target)
+        self.assertEqual(json.loads(self.plan(edges[1], options=("--max-steps", "1")).stdout), {
+            "schema_version": 1, "start": identity(target), "target": identity(target),
+            "total_patch_bytes": "0", "steps": [],
+        })
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--exe", type=Path, required=True)
-    EXE = parser.parse_args().exe.resolve(strict=True)
-    result = unittest.TextTestRunner(verbosity=2).run(
-        unittest.defaultTestLoader.loadTestsFromTestCase(ManifestPlan))
-    if not result.wasSuccessful() or result.testsRun != 3 or result.skipped:
+    parser.add_argument("--steps-only", action="store_true")
+    args = parser.parse_args()
+    EXE = args.exe.resolve(strict=True)
+    loader = unittest.defaultTestLoader
+    tests = loader.loadTestsFromTestCase(ManifestPlanStepLimit)
+    if not args.steps_only:
+        tests.addTests(loader.loadTestsFromTestCase(ManifestPlan))
+    result = unittest.TextTestRunner(verbosity=2).run(tests)
+    if not result.wasSuccessful() or result.testsRun != (3 if args.steps_only else 6) or result.skipped:
         raise SystemExit(1)

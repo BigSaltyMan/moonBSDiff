@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- `manifest plan --max-steps COUNT` finds the cheapest route within a
+  client's patch count limit.
+
 - `verify-chain` checks a local patch chain through the final target hash.
   It keeps private intermediate files and hashes the last step in chunks
   without saving the final version.
