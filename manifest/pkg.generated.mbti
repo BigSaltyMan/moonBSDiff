@@ -13,6 +13,8 @@ pub fn diff(Bytes, Bytes, @moonbsdiff.Limits) -> Result[PatchBundle, @moonbsdiff
 
 pub fn diff_with_options(Bytes, Bytes, @moonbsdiff.Limits, @moonbsdiff.DiffOptions) -> Result[PatchBundle, @moonbsdiff.BsdiffError]
 
+pub fn plan(ContentIdentity, ContentIdentity, Array[PreparedManifest], max_steps? : Int64) -> Result[RoutePlan, PlanError]
+
 pub fn prepare(Bytes, @moonbsdiff.Limits) -> Result[PreparedManifest, ManifestError]
 
 // Errors
@@ -25,10 +27,14 @@ pub fn BundleIndex::build(Bytes, @moonbsdiff.Limits) -> Result[Self, @moonbsdiff
 pub fn BundleIndex::diff(Self, Bytes, @moonbsdiff.Limits) -> Result[PatchBundle, @moonbsdiff.BsdiffError]
 pub fn BundleIndex::diff_with_options(Self, Bytes, @moonbsdiff.Limits, @moonbsdiff.DiffOptions) -> Result[PatchBundle, @moonbsdiff.BsdiffError]
 
+#derive(Eq)
 pub struct ContentIdentity {
   size : Int64
   hash : String
 }
+pub fn ContentIdentity::equal(Self, Self) -> Bool
+pub fn ContentIdentity::not_equal(Self, Self) -> Bool
+pub fn ContentIdentity::of_bytes(Bytes) -> Self
 
 #derive(Eq, @debug.Debug)
 pub(all) enum ContentObject {
@@ -70,6 +76,15 @@ pub struct PatchBundle {
   manifest : Bytes
 }
 
+#derive(Eq, @debug.Debug)
+pub(all) enum PlanError {
+  InvalidMaxSteps(Int64)
+  NoRoute(effective_max_steps~ : Int64?)
+}
+pub fn PlanError::equal(Self, Self) -> Bool
+pub fn PlanError::not_equal(Self, Self) -> Bool
+pub fn PlanError::to_repr(Self) -> @debug.Repr
+
 pub struct PreparedManifest {
   old : ContentIdentity
   new : ContentIdentity
@@ -77,6 +92,11 @@ pub struct PreparedManifest {
   // private fields
 }
 pub fn PreparedManifest::restore(Self, Bytes, Bytes) -> Result[Bytes, ManifestError]
+
+pub struct RoutePlan {
+  total_patch_bytes : Int64
+  candidate_indices : ReadOnlyArray[Int32]
+}
 
 // Type aliases
 

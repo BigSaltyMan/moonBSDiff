@@ -4,4 +4,9 @@ import {
   "moonbitlang/core/debug",
   "moonbitlang/core/encoding/utf8",
   "moonbitlang/core/json",
+  "moonbitlang/core/priority_queue",
 }
+
+import {
+  "moonbitlang/core/encoding/base64",
+} for "test"

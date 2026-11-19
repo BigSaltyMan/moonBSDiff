@@ -1,17 +1,5 @@
 ///|
-#derive(Eq, Hash, Compare)
-priv struct ManifestIdentity {
-  size : Int64
-  hash : String
-}
-
-///|
-fn manifest_identity(identity : @manifest.ContentIdentity) -> ManifestIdentity {
-  { size: identity.size, hash: identity.hash, }
-}
-
-///|
-fn manifest_identity_json(identity : ManifestIdentity) -> @json.Json {
+fn manifest_identity_json(identity : @manifest.ContentIdentity) -> @json.Json {
   @json.Json::object({
     "size_bytes": @json.Json::string("\{identity.size}"),
     "sha256": @json.Json::string(identity.hash),
@@ -23,13 +11,13 @@ fn installed_identity(
   operation : String,
   path : String,
   limits : @moonbsdiff.Limits,
-) -> ManifestIdentity {
+) -> @manifest.ContentIdentity {
   let old = read_input(
     "\{operation} read old (max_old_bytes=\{limits.max_old_bytes} bytes)",
     path,
     limits.max_old_bytes,
   )
-  { size: old.length().to_int64(), hash: @manifest_support.sha256_hex(old), }
+  @manifest.ContentIdentity::of_bytes(old)
 }
 
 ///|

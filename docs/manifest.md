@@ -181,6 +181,71 @@ target manifest and effective cap.
 Invalid arguments exit `2`. This command requires a CLI built from source
 containing this change. The published 0.4.0 CLI predates it.
 
+### Plan downloads from MoonBit (Unreleased)
+
+On native, JS and Wasm-GC, prepare trusted manifests and compute the installed
+identity once with `ContentIdentity::of_bytes`. Reuse that identity to compare
+routes under different hop limits. Each entry here pairs trusted manifest
+bytes with a patch location supplied by the update catalog.
+
+In `moon.pkg`:
+
+```moonbit
+import {
+  "BigSaltyMan/moonbsdiff" @moonbsdiff,
+  "BigSaltyMan/moonbsdiff/manifest" @manifest,
+  "moonbitlang/core/debug" @debug,
+}
+```
+
+In MoonBit source:
+
+```moonbit
+fn plan_downloads(
+  installed : Bytes,
+  target_manifest : Bytes,
+  entries : Array[(Bytes, String)],
+) -> Result[Array[String], String] {
+  let limits = @moonbsdiff.Limits::for_apply()
+  let target = match @manifest.prepare(target_manifest, limits) {
+    Ok(prepared) => prepared
+    Err(error) => return Err(@debug.to_string(error))
+  }
+  let candidates : Array[@manifest.PreparedManifest] = []
+  for (manifest, _) in entries {
+    match @manifest.prepare(manifest, limits) {
+      Ok(prepared) => candidates.push(prepared)
+      Err(error) => return Err(@debug.to_string(error))
+    }
+  }
+  let start = @manifest.ContentIdentity::of_bytes(installed)
+  match @manifest.plan(start, target.new, candidates, max_steps=2L) {
+    Ok(route) => {
+      let downloads : Array[String] = []
+      for index in route.candidate_indices {
+        let (_, patch_location) = entries[index]
+        downloads.push(patch_location)
+      }
+      Ok(downloads)
+    }
+    Err(error) => Err(@debug.to_string(error))
+  }
+}
+```
+
+`plan` reports total declared patch bytes and a read-only sequence of
+zero-based candidate indices in application order. Omitting `max_steps`
+allows any route. `InvalidMaxSteps` reports a nonpositive cap and `NoRoute`
+reports an unreachable target, with the effective cap when requested. An
+already-installed target yields zero bytes and an empty sequence.
+
+The plan uses declarations from trusted manifests. After downloading a
+patch at the selected location, pass it and the current bytes to
+`candidates[index].restore` before advancing to the next index. The two-step
+fixture above produced indices `[0, 1]` and 368 bytes. Applying those entries
+restored all 2048 target bytes. This library API is available from this
+source change. The public 0.4.0 package predates it.
+
 ## Apply a local patch chain (Unreleased)
 
 First obtain the route for the installed file, then fetch the patches through

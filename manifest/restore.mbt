@@ -47,10 +47,20 @@ pub extend ManifestError with Eq::{equal, not_equal}
 pub extend ManifestError with @debug.Debug::{to_repr}
 
 ///|
-/// Declared content identity. A successful preflight alone has not checked it.
+/// Identity by byte count and SHA-256. Preflight checks declared identities.
+#derive(Eq)
 pub struct ContentIdentity {
   size : Int64
   hash : String
+}
+
+///|
+pub extend ContentIdentity with Eq::{equal, not_equal}
+
+///|
+/// Compute size and SHA-256 once for an actual buffer.
+pub fn ContentIdentity::of_bytes(data : Bytes) -> ContentIdentity {
+  { size: data.length().to_int64(), hash: @manifest_support.sha256_hex(data), }
 }
 
 ///|

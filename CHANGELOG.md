@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- `manifest.plan` exposes cross-target route planning using prepared manifests.
+  The CLI and library share byte, hop and candidate ordering.
+
 - `manifest plan --max-steps COUNT` finds the cheapest route within a
   client's patch count limit.
 

@@ -7,7 +7,6 @@ import {
   "moonbitlang/core/encoding/utf8",
   "moonbitlang/core/debug",
   "moonbitlang/core/json",
-  "moonbitlang/core/priority_queue",
   "moonbitstack/mooncrypt/hash/sha2",
 }
 

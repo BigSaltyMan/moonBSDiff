@@ -3,12 +3,12 @@ fn manifest_select_command(config : CliConfig) -> Unit {
   let limits = config.limits
   let old_path = config.files[0]
   let old = installed_identity("manifest select", old_path, limits)
-  let mut target : ManifestIdentity? = None
-  let mut best : (String, ManifestIdentity)? = None
+  let mut target : @manifest.ContentIdentity? = None
+  let mut best : (String, @manifest.ContentIdentity)? = None
   for i in 1..<config.files.length() {
     let path = config.files[i]
     let candidate = read_prepared_manifest("manifest select", path, limits)
-    let new = manifest_identity(candidate.new)
+    let new = candidate.new
     if target is Some(expected) {
       if new != expected {
         let field = if new.size != expected.size {
@@ -24,12 +24,12 @@ fn manifest_select_command(config : CliConfig) -> Unit {
     } else {
       target = Some(new)
     }
-    if manifest_identity(candidate.old) == old {
+    if candidate.old == old {
       // Strictly smaller wins. Equal sizes keep the earlier command-line item.
       if best is Some((_, current)) && current.size <= candidate.patch.size {
         continue
       }
-      best = Some((path, manifest_identity(candidate.patch)))
+      best = Some((path, candidate.patch))
     }
   }
   guard best is Some((path, patch)) && target is Some(new) else {
