@@ -91,7 +91,7 @@ pub fn apply(
   }
   let control = match
     decompress_block(
-      patch_bytes[ranges.control_start:ranges.control_end].to_owned(),
+      patch_bytes[ranges.control_start:ranges.control_end],
       control_cap,
       budget,
       Control,
@@ -102,7 +102,7 @@ pub fn apply(
   }
   let diff = match
     decompress_block(
-      patch_bytes[ranges.control_end:ranges.diff_end].to_owned(),
+      patch_bytes[ranges.control_end:ranges.diff_end],
       ranges.new_size,
       budget,
       Diff,
@@ -113,7 +113,7 @@ pub fn apply(
   }
   let extra = match
     decompress_block(
-      patch_bytes[ranges.diff_end:ranges.extra_end].to_owned(),
+      patch_bytes[ranges.diff_end:ranges.extra_end],
       ranges.new_size,
       budget,
       Extra,

@@ -107,7 +107,7 @@ fn compress_generation_block(
 
 ///|
 fn decompress_block(
-  data : Bytes,
+  data : BytesView,
   cap : Int64,
   budget : @bounded.Budget,
   stage : ErrorStage,
@@ -156,7 +156,7 @@ fn decompress_block(
       ),
     )
   }
-  Ok(@bounded.decode(data[:], cap.to_int(), budget).output) catch {
+  Ok(@bounded.decode(data, cap.to_int(), budget).output) catch {
     fault => Err(compression_fault(fault, stage, start))
   }
 }

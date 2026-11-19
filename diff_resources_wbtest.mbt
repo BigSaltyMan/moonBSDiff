@@ -247,7 +247,7 @@ test "diff-resource-native-writer-block-boundary" {
     Ok(v) => v
     Err(_) => abort("decode budget")
   }
-  assert_eq(decompress_block(encoded, 900010L, budget, Extra, 0L), Ok(raw))
+  assert_eq(decompress_block(encoded[:], 900010L, budget, Extra, 0L), Ok(raw))
   let text = StringBuilder()
   let digits = b"0123456789abcdef"
   for b in encoded {

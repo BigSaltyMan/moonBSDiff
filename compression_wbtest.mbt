@@ -21,7 +21,8 @@ fn compression_error(
   stage : ErrorStage,
   field : String?,
 ) -> BsdiffError {
-  match decompress_block(data, 20000L, compression_budget(20000L), stage, 32L) {
+  match
+    decompress_block(data[:], 20000L, compression_budget(20000L), stage, 32L) {
     Ok(_) => abort("expected compression failure")
     Err(e) => {
       try! assert_eq(e.kind, kind)
@@ -70,7 +71,7 @@ test "compression-compact-independent-levels-and-encoding" {
       let budget = compression_budget(plain.length().to_int64())
       assert_eq(
         decompress_block(
-          packed,
+          packed[:],
           plain.length().to_int64(),
           budget,
           Control,
@@ -133,7 +134,7 @@ test "compression-compact-truncation-crcs-and-single-stream" {
     bytes[3] = (48 + level).to_byte()
     assert_eq(
       decompress_block(
-        Bytes::from_array(bytes),
+        Bytes::from_array(bytes)[:],
         12L,
         compression_budget(12L),
         Control,
@@ -158,7 +159,7 @@ test "compression-compact-pre-expansion-budgets-and-reuse" {
   assert_eq(e.stage, Configuration)
   let packed = compression_fixture_repeat_9()
   let budget = compression_budget(4095L)
-  let result = decompress_block(packed, 4096L, budget, Extra, 32L)
+  let result = decompress_block(packed[:], 4096L, budget, Extra, 32L)
   guard result is Err(e) else { abort("expected budget error") }
   assert_eq(e.kind, ResourceLimitExceeded)
   assert_eq(e.stage, Extra)
@@ -168,29 +169,29 @@ test "compression-compact-pre-expansion-budgets-and-reuse" {
   assert_eq(budget.remaining + budget.emitted, 4095L)
   assert_true(e.value.unwrap() > e.limit.unwrap())
   let budget = compression_budget(5000L)
-  guard decompress_block(packed, 4095L, budget, Diff, 0L) is Err(e) else {
+  guard decompress_block(packed[:], 4095L, budget, Diff, 0L) is Err(e) else {
     abort("expected cap error")
   }
   assert_eq(e.field, Some("block_output_bytes"))
   assert_true(budget.emitted <= 4095L)
   assert_eq(
-    decompress_block(packed, 4096L, compression_budget(4096L), Control, 32L),
+    decompress_block(packed[:], 4096L, compression_budget(4096L), Control, 32L),
     Ok(compression_body(3)),
   )
   let shared = compression_budget(24L)
   let small = compression_fixture_binary_9()
   for stage in [Control, Diff] {
     assert_eq(
-      decompress_block(small, 12L, shared, stage, 0L),
+      decompress_block(small[:], 12L, shared, stage, 0L),
       Ok(compression_body(1)),
     )
   }
   assert_eq(shared.remaining, 0L)
   assert_eq(
-    decompress_block(compression_fixture_empty_9(), 0L, shared, Extra, 0L),
+    decompress_block(compression_fixture_empty_9()[:], 0L, shared, Extra, 0L),
     Ok(b""),
   )
-  guard decompress_block(small, 12L, shared, Extra, 0L) is Err(e) else {
+  guard decompress_block(small[:], 12L, shared, Extra, 0L) is Err(e) else {
     abort("expected shared budget error")
   }
   assert_eq(e.kind, ResourceLimitExceeded)
@@ -198,28 +199,28 @@ test "compression-compact-pre-expansion-budgets-and-reuse" {
   let exact = compression_budget(36L)
   for stage in [Control, Diff, Extra] {
     assert_eq(
-      decompress_block(small, 12L, exact, stage, 0L),
+      decompress_block(small[:], 12L, exact, stage, 0L),
       Ok(compression_body(1)),
     )
   }
   assert_eq(exact.remaining, 0L)
-  guard decompress_block(small, 0L, compression_budget(20L), Control, 0L)
+  guard decompress_block(small[:], 0L, compression_budget(20L), Control, 0L)
     is Err(e) else {
     abort("expected zero cap")
   }
   assert_eq(e.kind, ResourceLimitExceeded)
-  guard decompress_block(small, -1L, compression_budget(20L), Control, 0L)
+  guard decompress_block(small[:], -1L, compression_budget(20L), Control, 0L)
     is Err(e) else {
     abort("expected invalid cap")
   }
   assert_eq(e.kind, InvalidConfiguration)
-  guard decompress_block(small, 12L, compression_budget(-1L), Control, 0L)
+  guard decompress_block(small[:], 12L, compression_budget(-1L), Control, 0L)
     is Err(e) else {
     abort("expected invalid budget")
   }
   assert_eq(e.kind, InvalidConfiguration)
   guard decompress_block(
-      small,
+      small[:],
       2147483648L,
       compression_budget(20L),
       Control,
@@ -230,7 +231,7 @@ test "compression-compact-pre-expansion-budgets-and-reuse" {
   }
   assert_eq(e.kind, InvalidConfiguration)
   guard decompress_block(
-      small,
+      small[:],
       12L,
       compression_budget(20L),
       Control,
@@ -256,7 +257,7 @@ test "compression-compact-logical-position-and-padding" {
   // No invented zero-padding requirement: only additional full bytes are rejected.
   assert_eq(
     decompress_block(
-      Bytes::from_array(changed),
+      Bytes::from_array(changed)[:],
       12L,
       compression_budget(12L),
       Control,

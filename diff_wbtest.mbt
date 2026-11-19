@@ -99,7 +99,7 @@ test "diff-public-residual-wrap" {
   }
   let raw = match
     decompress_block(
-      patch[ranges.control_end:ranges.diff_end].to_owned(),
+      patch[ranges.control_end:ranges.diff_end],
       32L,
       budget,
       Diff,

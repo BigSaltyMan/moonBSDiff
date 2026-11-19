@@ -6,6 +6,8 @@
   of 128 KiB.
 - Native CLI builds omit private I/O fault injection. On Windows, zero-progress
   writes and premature EOF on required reads now have distinct diagnostics.
+- In-memory apply decodes all three compressed intervals directly from the
+  original patch, avoiding a copy of each interval.
 
 ## 0.5.0 — 2026-11-19
 
