@@ -450,9 +450,11 @@ the installed file is already the target and the caller can skip recovery.
 requires at least one complete pair. The application limits accepted by
 `patch --stream` apply. Put options before paths and use `--` before a path
 starting with a hyphen. Use trusted manifests. Each manifest goes through the
-16 KiB read cap and strict schema checks. The command retains the validated
-identities for this call and checks every link and the final target, matching
-both size and SHA-256 before any patch is applied. The actual output path
+16 KiB read cap and strict schema checks. Both `patch-chain` and `verify-chain`
+use the target manifest's `new` size and SHA-256, subject to the output limits.
+Old-file and patch limits apply to every executed step, including a step that
+uses the same manifest as the target. The commands check every link and the
+final target before applying any patch. The actual output path
 must be fresh and distinct from the inputs. The final publication again
 checks for a competing destination and never replaces it.
 

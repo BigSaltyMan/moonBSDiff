@@ -12,7 +12,7 @@ import unittest
 
 from build_cli import ROOT
 from test_cli_manifest_create import identity
-from test_cli_manifest_plan import prepare_two_hop
+from run_update_demo import prepare_direct, prepare_two_hop, run_cli
 from test_cli_progress import snapshot
 from test_cli_verify_stream import guard_output_paths
 
@@ -142,6 +142,53 @@ class PatchChain(ChainFixture):
         print(f"Restored only the final 2048 bytes, SHA-256 {identity(self.target)['sha256']}")
         for index in (5, 6, 10, 11):
             print(raw.decode("utf-8").splitlines()[index])
+
+    def test_target_manifest_is_not_an_executed_patch(self):
+        prepare_direct(self.write, self.invoke, self.target)
+        target = "v1-to-v3.json"
+        args = ("--max-patch-bytes", "204", "--target-manifest", target, "--")
+        self.assertEqual([len(self.read(p)) for p in (FIRST[0], SECOND[0], "v1-to-v3.patch")],
+                         [204, 164, 2532])
+        plan = json.loads(run_cli(EXE, self.folder, "target manifest planning",
+                                  "manifest", "plan", "--allow-full", *args,
+                                  "installed.bin", FIRST[1], SECOND[1]))
+        self.assertEqual((plan["strategy"], plan["download_bytes"]), ("patches", "368"))
+        self.assertEqual([int(step["patch"]["size_bytes"]) for step in plan["steps"]], [204, 164])
+        before = self.files()
+        self.invoke("verify-chain", *args, "installed.bin", *FIRST, *SECOND,
+                    stdout=(b"Chain verification succeeded: all steps match the supplied manifests.",))
+        self.assertEqual(self.files(), before)
+        self.invoke("patch-chain", *args, "installed.bin", "restored.bin", *FIRST, *SECOND)
+        self.assertEqual(len(self.target), 2048)
+        self.assertEqual(self.files(), {**before, "restored.bin": self.target})
+        print("204-byte cap: 204 + 164 = 368 bytes planned; chain verified and restored 2048 bytes")
+
+        smaller = ("--max-patch-bytes", "203", *args[2:])
+        error = self.invoke("patch-chain", *smaller, "installed.bin", "too-small.bin",
+                            *FIRST, *SECOND, code=1)
+        self.assertIn(b"v1-to-v2.json", error)
+        self.assertIn(b"max_patch_bytes", error)
+        self.assertFalse((self.folder / "too-small.bin").exists())
+        print("203-byte cap:", error.decode().strip())
+
+        # The same file can be an identity marker and an executed step. Its
+        # patch size must still be validated when preparing that step.
+        error = self.invoke("patch-chain", *args, "installed.bin", "direct-step.bin",
+                            "v1-to-v3.patch", target, code=1)
+        self.assertIn(b"max_patch_bytes", error)
+        self.assertIn(b"2532", error)
+        self.assertFalse((self.folder / "direct-step.bin").exists())
+
+        marker = json.loads(self.read(target))
+        marker["new"]["sha256"] = identity(self.middle)["sha256"]
+        self.write(target, json.dumps(marker).encode())
+        error = self.invoke("patch-chain", *args, "installed.bin", "wrong-target.bin",
+                            *FIRST, *SECOND, code=1)
+        self.assertIn(b"final new vs target", error)
+        self.assertIn(b"sha256 mismatch", error)
+        self.assertFalse((self.folder / "wrong-target.bin").exists())
+        self.assertEqual(list(self.scratch.iterdir()), [])
+        print("Wrong target SHA-256:", error.decode().strip())
 
     def test_text_progress_and_silent_default(self):
         expected = self.files()

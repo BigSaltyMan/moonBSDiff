@@ -82,7 +82,14 @@ fn chain_preflight(
   } else {
     None
   }
-  let target = stream_read_manifest(target_path, config.limits, progress)
+  let target_data = stream_read_manifest_data(target_path, progress)
+  let target = match @manifest.prepare_target(target_data, config.limits) {
+    Ok(identity) => identity
+    Err(error) =>
+      raise StreamError(
+        "manifest '\{target_path}': " + manifest_diagnostic(error),
+      )
+  }
   let prepared : Array[@manifest.PreparedManifest] = []
   for (patch_path, manifest_path) in paths.pairs {
     progress.chain_step = prepared.length() + 1
@@ -91,11 +98,12 @@ fn chain_preflight(
       chain_check_output(out, patch_path)
       chain_check_output(out, manifest_path)
     }
-    let step = if manifest_path == target_path {
-      target
+    let data = if manifest_path == target_path {
+      target_data
     } else {
-      stream_read_manifest(manifest_path, config.limits, progress)
+      stream_read_manifest_data(manifest_path, progress)
     }
+    let step = stream_prepare_manifest(data, manifest_path, config.limits)
     if prepared.length() != 0 {
       chain_check_identity(
         prepared[prepared.length() - 1].new,
@@ -107,7 +115,7 @@ fn chain_preflight(
   }
   chain_check_identity(
     prepared[prepared.length() - 1].new,
-    target.new,
+    target,
     "final new vs target in '\{target_path}'",
   )
   prepared

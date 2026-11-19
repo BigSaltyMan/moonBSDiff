@@ -4,6 +4,8 @@
 
 - Keep bzip2 runs within their block size at every compression level, including
   a pending final run. Generated patches pass strict stream and CRC checks.
+- Apply patch size limits only to executed steps in patch and verification
+  chains. A target manifest can describe a larger patch outside the chain.
 
 ## 0.5.1
 
