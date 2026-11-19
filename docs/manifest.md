@@ -251,8 +251,10 @@ source change. The public 0.4.0 package predates it.
 Use `--allow-full` when the publisher offers the complete target described
 by the trusted `--target-manifest`. The planner compares the declared patch
 bytes within the hop limit against the raw target size. An equal cost favors
-the full file and avoids applying patches. Every supplied manifest still goes
-through strict preflight. You can also omit all candidate manifests.
+the full file and avoids applying patches. The entire target manifest must
+pass schema checks and its `new` size must fit the new and output limits.
+Its `old` and `patch` sizes only affect eligibility as a patch candidate.
+You can omit all candidate manifests.
 
 ```sh
 moonbsdiff manifest plan --max-steps 1 --target-manifest v2-to-v3.json -- installed.bin v1-to-v2.json v2-to-v3.json v1-to-v3.json
@@ -267,6 +269,22 @@ The fixed fixture gives these results.
 | `--max-steps 1` | `total_patch_bytes` with `v1-to-v3.json` | 2532 |
 | `--allow-full --max-steps 1` | `strategy: full-file` | 2048 |
 | `--allow-full --max-steps 2` | `strategy: patches` with `v1-to-v2.json`, then `v2-to-v3.json` | 368 |
+
+A valid candidate is excluded when its declared old, patch, or new size exceeds
+the corresponding apply limit. Remaining candidates retain their argument
+order. A read error, a manifest larger than 16 KiB, or a schema error fails
+planning even when a full download is available. The actual installed file
+must fit its read limit. Without `--allow-full`, an over-budget declaration
+still fails patch-only planning.
+
+```sh
+moonbsdiff manifest plan --allow-full --max-patch-bytes 200 --target-manifest v2-to-v3.json -- installed.bin v1-to-v2.json v2-to-v3.json v1-to-v3.json
+```
+
+This run excludes the 204-byte and 2532-byte patches. The 164-byte patch
+alone cannot reach the target from `installed.bin`, so the planner returns
+`full-file` and `"2048"` download bytes. Raising the patch cap to 204 bytes
+makes the 368-byte two-hop route available.
 
 With `--allow-full`, schema 1 JSON includes `start`, `target`, `strategy` and
 `download_bytes`. `already-current` gives `"0"`. Only `patches` includes

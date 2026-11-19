@@ -278,23 +278,31 @@ class ManifestUpdatePlan(ManifestPlanFixture):
         print(f"Two-step strategy: {patches['strategy']}, {patches['download_bytes']} bytes")
 
 
+def captured_manifest(old, new, patch):
+    return {
+        "schema_version": 1,
+        "patch_format": "BSDIFF40",
+        "producer": {"name": "moonbsdiff", "version": version()},
+        "old": identity(old),
+        "new": identity(new),
+        "patch": patch,
+    }
+
+
+def fixed_full_target():
+    middle = (UPSTREAM / "new.bin").read_bytes()
+    target = middle[:-1] + bytes([middle[-1] ^ 1])
+    manifest = captured_manifest(middle, target, {
+        "size_bytes": "164",
+        "sha256": "3470eb1ac7e7d52c7402d5ee6d142132760e079ba524f8aca8f3bf279959e57e",
+    })
+    return middle, target, manifest
+
+
 class InstallFull(ManifestPlanFixture):
     def setUp(self):
         super().setUp()
-        middle = (UPSTREAM / "new.bin").read_bytes()
-        self.target = middle[:-1] + bytes([middle[-1] ^ 1])
-        # Same trusted v2-to-v3 manifest as the fixed planner example.
-        self.manifest = {
-            "schema_version": 1,
-            "patch_format": "BSDIFF40",
-            "producer": {"name": "moonbsdiff", "version": version()},
-            "old": identity(middle),
-            "new": identity(self.target),
-            "patch": {
-                "size_bytes": "164",
-                "sha256": "3470eb1ac7e7d52c7402d5ee6d142132760e079ba524f8aca8f3bf279959e57e",
-            },
-        }
+        _, self.target, self.manifest = fixed_full_target()
         self.write("downloaded-v3.bin", self.target)
         self.write_manifest()
 
@@ -364,6 +372,86 @@ class InstallFull(ManifestPlanFixture):
         print("Existing destination and source aliases were preserved")
 
 
+class ManifestPlanFullLimits(ManifestPlanFixture):
+    def setUp(self):
+        super().setUp()
+        self.middle, self.target, self.marker = fixed_full_target()
+        self.write("v2-to-v3.json", json.dumps(self.marker).encode())
+        self.write("installed.bin", self.middle)
+
+    def test_target_with_over_budget_patch_is_still_installable(self):
+        marker = "v2-to-v3.json"
+        budget = ("--max-patch-bytes", "163")
+        raw = self.plan(marker, marker, options=("--allow-full", *budget)).stdout
+        plan = json.loads(raw)
+        self.assertEqual(plan, {
+            "schema_version": 1,
+            "start": identity(self.middle),
+            "target": {
+                "size_bytes": "2048",
+                "sha256": "66da6542f8276608790055ac88e6af6bf3af76b88bf3aedbcb517c2ce98ab1a6",
+            },
+            "strategy": "full-file",
+            "download_bytes": "2048",
+        })
+        strict = self.plan(marker, marker, code=1, options=budget)
+        self.assertIn(b"patch/max_patch_bytes declared size 164 exceeds limit 163", strict.stderr)
+        print(raw.decode().strip())
+
+    def test_filtered_edges_preserve_original_paths_and_order(self):
+        start = (UPSTREAM / "old.bin").read_bytes()
+        self.write("installed.bin", start)
+        first = captured_manifest(start, self.middle, identity((UPSTREAM / "patch.bin").read_bytes()))
+        direct = captured_manifest(start, self.target, {
+            "size_bytes": "2532",
+            "sha256": "d427a8a80e0bef54802556d0b2db9af2f34f6679597d25d4a45fa9f87005d4e0",
+        })
+        self.write("v1-to-v3.json", json.dumps(direct).encode())
+        self.write("v1-to-v2.json", json.dumps(first).encode())
+        self.write("parallel.json", self.read("v1-to-v2.json"))
+        edge_paths = ("v1-to-v2.json", "v2-to-v3.json")
+        expected_steps = [
+            {"manifest_path": path, **{key: candidate[key] for key in ("old", "new", "patch")}}
+            for path, candidate in zip(edge_paths, (first, self.marker))
+        ]
+        eligible = self.plan(edge_paths[1], "v1-to-v3.json", edge_paths[0], "parallel.json",
+                             edge_paths[1], options=("--allow-full", "--max-patch-bytes", "204", "--"))
+        plan = json.loads(eligible.stdout)
+        self.assertEqual(plan["strategy"], "patches")
+        self.assertEqual(plan["download_bytes"], "368")
+        self.assertEqual(plan["target"], identity(self.target))
+        self.assertEqual(plan["steps"], expected_steps)
+        print(f"Filtered plan: {[step['manifest_path'] for step in plan['steps']]}, {plan['download_bytes']} bytes")
+
+        tight = self.plan(edge_paths[1], *edge_paths, "v1-to-v3.json",
+                          options=("--allow-full", "--max-patch-bytes", "200", "--"))
+        plan = json.loads(tight.stdout)
+        self.assertEqual((plan["strategy"], plan["download_bytes"]), ("full-file", "2048"))
+
+    def test_invalid_and_oversized_manifests_do_not_fall_back(self):
+        marker = "v2-to-v3.json"
+        broken = json.loads(self.read(marker))
+        broken["patch"] = {"size_bytes": "131073", "sha256": "invalid"}
+        self.write("broken.json", json.dumps(broken).encode())
+        self.write("too-large.json", b" " * 16385)
+        options = ("--allow-full", "--max-patch-bytes", "163")
+        for path, diagnostic in [
+            ("broken.json", b"manifest sha256: patch requires 64 lowercase hex digits"),
+            ("too-large.json", b"16384"),
+            ("missing.json", b"read"),
+        ]:
+            error = self.plan(marker, marker, path, code=1, options=options)
+            self.assertIn(f"'{path}'".encode(), error.stderr)
+            self.assertIn(diagnostic, error.stderr)
+            print(error.stderr.decode().strip())
+
+        error = self.plan(marker, marker, code=1, options=(*options, "--max-output-bytes", "2047"))
+        self.assertIn(b"'v2-to-v3.json'", error.stderr)
+        self.assertIn(b"new/max_output_bytes declared size 2048 exceeds limit 2047", error.stderr)
+        error = self.plan(marker, marker, code=1, options=(*options, "--max-old-bytes", "2047"))
+        self.assertIn(b"read old (max_old_bytes=2047 bytes) 'installed.bin'", error.stderr)
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--exe", type=Path, required=True)
@@ -376,6 +464,7 @@ if __name__ == "__main__":
         tests.addTests(loader.loadTestsFromTestCase(ManifestPlan))
         tests.addTests(loader.loadTestsFromTestCase(ManifestUpdatePlan))
         tests.addTests(loader.loadTestsFromTestCase(InstallFull))
+        tests.addTests(loader.loadTestsFromTestCase(ManifestPlanFullLimits))
     result = unittest.TextTestRunner(verbosity=2).run(tests)
-    if not result.wasSuccessful() or result.testsRun != (3 if args.steps_only else 10) or result.skipped:
+    if not result.wasSuccessful() or result.testsRun != (3 if args.steps_only else 13) or result.skipped:
         raise SystemExit(1)

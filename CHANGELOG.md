@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- `manifest plan --allow-full` excludes valid over-budget patch candidates
+  while keeping a full target eligible under its own limits.
+
 - `install-full` streams a complete downloaded target through SHA-256 verification
   and publishes the checked bytes without replacing an existing file.
 

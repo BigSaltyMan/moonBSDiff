@@ -21,14 +21,18 @@ fn installed_identity(
 }
 
 ///|
+fn read_manifest_data(operation : String, path : String) -> Bytes {
+  let cap = @manifest_support.MAX_MANIFEST_BYTES.to_int64()
+  read_input("\{operation} read (limit=\{cap} bytes)", path, cap)
+}
+
+///|
 fn read_prepared_manifest(
   operation : String,
   path : String,
   limits : @moonbsdiff.Limits,
 ) -> @manifest.PreparedManifest {
-  let cap = @manifest_support.MAX_MANIFEST_BYTES.to_int64()
-  let data = read_input("\{operation} read (limit=\{cap} bytes)", path, cap)
-  match @manifest.prepare(data, limits) {
+  match @manifest.prepare(read_manifest_data(operation, path), limits) {
     Ok(value) => value
     Err(error) =>
       manifest_failure("\{operation} '\{path}': " + manifest_diagnostic(error))

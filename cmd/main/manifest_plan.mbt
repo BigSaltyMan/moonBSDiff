@@ -12,14 +12,17 @@ fn plan_edge_json(
 }
 
 ///|
+type PlanCandidate = (String, @manifest.PreparedManifest)
+
+///|
 fn plan_steps_json(
-  files : Array[String],
-  candidates : Array[@manifest.PreparedManifest],
+  entries : Array[PlanCandidate],
   route : @manifest.RoutePlan,
 ) -> @json.Json {
   let steps : Array[@json.Json] = []
   for index in route.candidate_indices {
-    steps.push(plan_edge_json(files[index + 1], candidates[index]))
+    let (path, candidate) = entries[index]
+    steps.push(plan_edge_json(path, candidate))
   }
   @json.Json::array(steps)
 }
@@ -28,8 +31,7 @@ fn plan_steps_json(
 fn update_plan_json(
   start : @manifest.ContentIdentity,
   target : @manifest.ContentIdentity,
-  files : Array[String],
-  candidates : Array[@manifest.PreparedManifest],
+  entries : Array[PlanCandidate],
   decision : @manifest.UpdatePlan,
 ) -> @json.Json {
   let fields = {
@@ -40,7 +42,7 @@ fn update_plan_json(
   let (strategy, download_bytes) = match decision {
     UpToDate => ("already-current", 0L)
     Patches(route) => {
-      fields["steps"] = plan_steps_json(files, candidates, route)
+      fields["steps"] = plan_steps_json(entries, route)
       ("patches", route.total_patch_bytes)
     }
     FullFile(identity) => ("full-file", identity.size)
@@ -74,50 +76,71 @@ fn plan_failure(error : @manifest.PlanError, config : CliConfig) -> Unit {
 }
 
 ///|
+fn[T] plan_manifest_failure(
+  path : String,
+  error : @manifest.ManifestError,
+) -> T {
+  manifest_failure("manifest plan '\{path}': " + manifest_diagnostic(error))
+}
+
+///|
 fn manifest_plan_command(config : CliConfig) -> Unit {
+  let limits = config.limits
   let target_path = config.target_manifest.unwrap()
-  let marker = read_prepared_manifest(
-    "manifest plan",
-    target_path,
-    config.limits,
-  )
+  let data = read_manifest_data("manifest plan", target_path)
+  let marker = @manifest.prepare(data, limits)
+  // Successful patch preflight already includes the target checks. If only
+  // old or patch limits prevent that preflight, use the same bytes to check
+  // the full-file role. Keep the patch result for any matching candidate.
+  let target = match marker {
+    Ok(prepared) => prepared.new
+    Err(LimitExceeded(field~, ..)) if config.allow_full &&
+      (field == "max_old_bytes" || field == "max_patch_bytes") =>
+      match @manifest.prepare_target(data, limits) {
+        Ok(identity) => identity
+        Err(error) => plan_manifest_failure(target_path, error)
+      }
+    Err(error) => plan_manifest_failure(target_path, error)
+  }
   let old_path = config.files[0]
-  let start = installed_identity("manifest plan", old_path, config.limits)
-  let candidates : Array[@manifest.PreparedManifest] = []
+  let start = installed_identity("manifest plan", old_path, limits)
+  let entries : Array[PlanCandidate] = []
   for i in 1..<config.files.length() {
     let path = config.files[i]
-    candidates.push(
-      if path == target_path {
-        marker
-      } else {
-        read_prepared_manifest("manifest plan", path, config.limits)
-      },
-    )
+    let prepared = if path == target_path {
+      marker
+    } else {
+      @manifest.prepare(read_manifest_data("manifest plan", path), limits)
+    }
+    match prepared {
+      Ok(candidate) => entries.push((path, candidate))
+      Err(LimitExceeded(field~, ..)) if config.allow_full &&
+        (
+          field == "max_old_bytes" ||
+          field == "max_patch_bytes" ||
+          field == "max_new_bytes" ||
+          field == "max_output_bytes"
+        ) => ()
+      Err(error) => plan_manifest_failure(path, error)
+    }
   }
+  let candidates = entries.map(entry => entry.1)
   if config.allow_full {
     match
       @manifest.plan_update(
         start,
-        marker.new,
+        target,
         candidates,
         max_steps?=config.max_steps,
       ) {
       Ok(decision) =>
-        println(
-          update_plan_json(
-            start,
-            marker.new,
-            config.files,
-            candidates,
-            decision,
-          ).stringify(),
-        )
+        println(update_plan_json(start, target, entries, decision).stringify())
       Err(error) => plan_failure(error, config)
     }
     return
   }
   let route = match
-    @manifest.plan(start, marker.new, candidates, max_steps?=config.max_steps) {
+    @manifest.plan(start, target, candidates, max_steps?=config.max_steps) {
     Ok(route) => route
     Err(error) => {
       plan_failure(error, config)
@@ -128,9 +151,9 @@ fn manifest_plan_command(config : CliConfig) -> Unit {
     @json.Json::object({
       "schema_version": @json.Json::number(1.0),
       "start": manifest_identity_json(start),
-      "target": manifest_identity_json(marker.new),
+      "target": manifest_identity_json(target),
       "total_patch_bytes": @json.Json::string("\{route.total_patch_bytes}"),
-      "steps": plan_steps_json(config.files, candidates, route),
+      "steps": plan_steps_json(entries, route),
     }).stringify(),
   )
 }
