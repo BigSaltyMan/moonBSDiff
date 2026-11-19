@@ -58,7 +58,9 @@ fn main {
   let expected = b"MoonBSDiff\x00version 2!\xff"
   let patch = @moonbsdiff.diff(old, expected, @moonbsdiff.Limits::for_diff()).unwrap()
   let restored = @moonbsdiff.apply(old, patch, @moonbsdiff.Limits::for_apply()).unwrap()
-  assert_eq(restored, expected)
+  if restored != expected {
+    abort("restored bytes differ from the expected version")
+  }
 }
 ```
 
