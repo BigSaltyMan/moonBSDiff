@@ -330,7 +330,7 @@ if __name__ == "__main__":
     with tempfile.TemporaryDirectory(prefix="chain-probe-", dir=ROOT / "_build") as workdir:
         folder = Path(workdir)
         for name, test_case, transform, count in [
-            ("patch", PatchChain, probe_handoffs, 4),
+            ("patch", PatchChain, probe_handoffs, 5),
             ("verify", VerifyChain, lambda source: guard_output_paths(probe_handoffs(source)), 3),
         ]:
             if args.verify_only and test_case == PatchChain:

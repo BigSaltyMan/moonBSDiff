@@ -55,6 +55,15 @@ def production():
     return sorted([p for p in ROOT.glob('*.mbt') if not p.name.endswith(('_test.mbt', '_wbtest.mbt'))])
 
 
+def copy_generation_sources(snapshot):
+    # Keep the root white-box sources and imports together for compilation.
+    # The probes still run only the selected probe file.
+    files = production() + sorted(ROOT.glob('*_wbtest.mbt')) + [ROOT/'moon.mod', ROOT/'moon.pkg']
+    for source in files:
+        shutil.copyfile(source, snapshot/source.name)
+    shutil.copytree(ROOT/'internal', snapshot/'internal')
+
+
 def identities():
     files = production()+sorted((ROOT/'internal/bzip2').glob('*.mbt'))+[ROOT/'moon.mod', ROOT/'moon.pkg']
     return {p.relative_to(ROOT).as_posix(): sha(p.read_bytes()) for p in files}
@@ -163,9 +172,7 @@ def measure(stage, output, prior):
     rows = []
     with tempfile.TemporaryDirectory(prefix='moonbsdiff-scale-source-') as temp:
         snapshot = pathlib.Path(temp)
-        for p in production()+[ROOT/'moon.mod', ROOT/'moon.pkg']:
-            shutil.copyfile(p, snapshot/p.name)
-        shutil.copytree(ROOT/'internal', snapshot/'internal')
+        copy_generation_sources(snapshot)
         cache = ROOT/'.mooncakes'
         cache.mkdir(exist_ok=True)
         os.symlink(cache, snapshot/'.mooncakes', target_is_directory=True)

@@ -8,14 +8,13 @@ import re
 import os
 import pathlib
 import platform
-import shutil
 import subprocess
 import tempfile
 import uuid
 
 from build_cli import ROOT
 from check_diff import parse, sha
-from generation_scale import production, identities
+from generation_scale import copy_generation_sources, identities
 from oracle_identity import verified_tools
 from measure_diff import encoder_identity
 
@@ -59,9 +58,7 @@ def evidence(output, oracle, oracle_record=None):
     require('moon 0.1.20261102 (ea07287 2026-11-02)' in toolchain and 'moonc v0.10.19+bee578715' in toolchain, 'wrong SDK')
     with tempfile.TemporaryDirectory(prefix='moonbsdiff-options-source-') as tmp:
         snapshot = pathlib.Path(tmp)
-        for p in production()+[ROOT/'moon.mod', ROOT/'moon.pkg']:
-            shutil.copyfile(p, snapshot/p.name)
-        shutil.copytree(ROOT/'internal', snapshot/'internal')
+        copy_generation_sources(snapshot)
         cache = ROOT/'.mooncakes'; cache.mkdir(exist_ok=True)
         os.symlink(cache, snapshot/'.mooncakes', target_is_directory=True)
         for name, digest in sources.items():
