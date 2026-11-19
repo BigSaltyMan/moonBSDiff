@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Keep bzip2 runs within their block size at every compression level, including
+  a pending final run. Generated patches pass strict stream and CRC checks.
+
 ## 0.5.1
 
 - The library application defaults now share the generator and CLI patch cap

@@ -88,21 +88,16 @@ semantics are unchanged.
 
 ## Workspace, emission and work proof
 
-The exact moonzip 0.3.5 Writer/engine source hashes were rechecked against the
-existing encoder-source record. There is no upgrade, engine rewrite or copied
-decoder adaptation. Writer::new itself clamps values; project validation occurs
-first. For level k, the RLE block threshold is 100000*k. A pending atomic RLE
-flush can cross by at most four bytes, so retained block length is at most
-100000*k+4, no larger than 900004 for supported levels.
+Generation uses the [internal moonzip 0.3.5 Writer adaptation](../internal/bzip2/README.md).
+The project validates the level before creating the Writer. For level k, an
+encoded run stays in the current block if it fits within 100000*k bytes.
+Otherwise the Writer ends that block before adding the run to the new block
+and its CRC.
 
-One 32768-byte push adds at most 40960 RLE bytes plus a pending atomic flush,
-less than the smallest 100000-byte threshold. Even if it first completes an old
-block, it cannot complete a second. Finish flushes one run and at most one
-block. The level-9 emission bit bound in [generation resources](generation-resources.md)
-is monotone in block length and its alphabet/table constants do not increase at
-lower levels. Thus the same conservative <3 MB single-emission bound applies
-to every supported level; this is not a measured allocation or zero-overshoot
-claim at the patch quota.
+A 32768-byte push can emit one block. Finish can emit the buffered block and
+a second block of at most five RLE bytes. The bound for both emissions stays
+below 3 MB for all levels. See [the emission derivation](generation-resources.md#fixed-encoder-and-bounded-output)
+for the limits on table size and compressed output.
 
 BWT uses four L-element Int32 arrays, per-round class buckets, last column and
 MTF/Huffman structures bounded by actual block length and fixed alphabets.

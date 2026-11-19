@@ -308,3 +308,22 @@ test "compression-dependency-gaps-native" {
     "DEPENDENCY-GAPS: public bunzip2 accepted trailing data; Reader push total=110080 with limit=100000",
   )
 }
+
+// The second C continues the pending run from the previous feed. D flushes
+// that run when the old block has room for only one encoded byte.
+
+///|
+#cfg(target="native")
+test "compression writer moves a run split across feeds to a new block" {
+  let prefix = Bytes::makei(99999, i => (65 + i % 2).to_byte())
+  let first = prefix + b"C"
+  let writer = @bounded.Writer::new(level=1)
+  let header = writer.push(first[:])
+  assert_eq(header, b"BZh1")
+  let emitted = writer.push(b"CD"[:])
+  assert_false(emitted.is_empty())
+  let packed = header + emitted + writer.finish()
+  let decoded = @bounded.decode(packed[:], 100002, compression_budget(100002L))
+  assert_eq(decoded.blocks, 2)
+  assert_eq(decoded.output, prefix + b"CCD")
+}

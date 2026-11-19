@@ -38,6 +38,11 @@ pub struct StreamReader {
 pub fn StreamReader::new(Int32, () -> Bytes, Int32, Budget) -> Self raise Fault
 pub fn StreamReader::read(Self, Int32) -> Bytes raise Fault
 
+type Writer
+pub fn Writer::finish(Self) -> Bytes
+pub fn Writer::new(level? : Int32) -> Self
+pub fn Writer::push(Self, BytesView) -> Bytes
+
 // Type aliases
 
 // Traits

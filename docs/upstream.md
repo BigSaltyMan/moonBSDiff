@@ -40,7 +40,7 @@ The fixed BSDiff 4.3 archive was downloaded again on 2026-11-06: 5740 bytes, SHA
 
 ## Commit 4 decoder adaptation
 
-Compression still calls the installed `moonbitstack/moonzip@0.3.5` encoder. Bounded decoding uses a source subset copied from that exact installed package (its manifest was checked). [Source lock](../internal/bzip2/source-lock.json) records original per-file SHA-256 and adapted-file hashes; [changes.patch](../internal/bzip2/changes.patch) records the copied-source changes. `bounded.mbt` and the root adapter are new integration code. The cache itself was not changed. [Internal source notes](../internal/bzip2/README.md) explain scope and licensing.
+Compression and bounded decoding use source subsets from the verified `moonbitstack/moonzip@0.3.5` package. The encoder adaptation checks remaining block space before adding a complete run and updating its CRC. [Source lock](../internal/bzip2/source-lock.json) records original per-file SHA-256 and adapted-file hashes; [changes.patch](../internal/bzip2/changes.patch) records the copied-source changes. `bounded.mbt` and the root adapter are new integration code. The cache itself was not changed. [Internal source notes](../internal/bzip2/README.md) explain scope and licensing.
 
 The copied files retain Copyright 2026 Leo Cheng and Apache-2.0 notices. Their Apache-2.0 terms are retained in `internal/bzip2/LICENSE`; these files are not relicensed by the root BSD-2-Clause LICENSE. No upstream NOTICE file was present in the installed moonzip package. The original BSDiff reference, C-tool hashes and 13-fixture manifest are unchanged. The historical six-case level-1 dependency probe remains historical evidence; Commit 4's bounded-decoder results are separate in [compression.md](compression.md).
 

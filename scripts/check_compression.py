@@ -1,5 +1,5 @@
 """Offline bzip2 fixtures; --generate is explicit. --log verifies emitted MoonBit streams."""
-import argparse, bz2, hashlib, json, pathlib, re, sys
+import argparse, bz2, hashlib, json, pathlib, re, subprocess, sys, tempfile
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 DATA = ROOT / 'testdata/compression'
 
@@ -35,6 +35,29 @@ def strict(packed, expected):
     assert dec.eof and dec.unused_data==b'', 'not exactly one complete bzip2 stream'
     assert out==expected, 'content mismatch'
 
+def verify_encoder_source():
+    adapted = ROOT / 'internal/bzip2'
+    lock = json.loads((adapted / 'source-lock.json').read_text())
+    package = ROOT / '.mooncakes' / lock['module']
+    manifest = (package / 'moon.mod').read_text(encoding='utf8')
+    assert re.search(r'^version\s*=\s*"' + re.escape(lock['version']) + r'"\s*$', manifest, re.M)
+    upstream = package / 'src/bzip2'
+    patch = adapted / 'encoder-changes.patch'
+    assert sha(patch.read_bytes()) == lock['encoder_patch_sha256']
+    with tempfile.TemporaryDirectory(prefix='moonbsdiff-encoder-source-') as directory:
+        replay = pathlib.Path(directory)
+        for local, source in lock['encoder_sources'].items():
+            raw = (upstream / source['upstream']).read_bytes().replace(b'\r\n', b'\n')
+            assert sha(raw) == source['sha256'], 'unexpected upstream encoder bytes: ' + source['upstream']
+            (replay / local).write_bytes(raw)
+        subprocess.run(['git', '-c', 'core.autocrlf=false', 'apply', '--no-index', '--unidiff-zero', str(patch)], cwd=replay, check=True)
+        for local in lock['encoder_sources']:
+            raw = (replay / local).read_bytes()
+            assert sha(raw) == lock['adapted_files'][local], 'encoder replay hash mismatch: ' + local
+            assert raw == (adapted / local).read_bytes(), 'encoder replay differs: ' + local
+    print(f'Bzip2 encoder patch reproduced {len(lock["encoder_sources"])} locked files')
+
+
 def verify():
     manifest=json.loads((DATA/'manifest.json').read_text())
     assert [r['id'] for r in manifest['cases']]==[f'{n}_{l}' for n,l in cases()]
@@ -68,7 +91,10 @@ def verify_log(path, large=False):
     print(f'MoonBit -> Python: {len(rows)} level-9 strict streams verified')
 
 if __name__=='__main__':
-    p=argparse.ArgumentParser(__doc__); p.add_argument('--generate',action='store_true'); p.add_argument('--log'); p.add_argument('--large',action='store_true'); args=p.parse_args()
-    if args.generate: generate()
-    verify()
-    if args.log: verify_log(args.log, args.large)
+    p=argparse.ArgumentParser(__doc__); p.add_argument('--generate',action='store_true'); p.add_argument('--log'); p.add_argument('--large',action='store_true'); p.add_argument('--encoder-source',action='store_true'); args=p.parse_args()
+    if args.encoder_source:
+        verify_encoder_source()
+    else:
+        if args.generate: generate()
+        verify()
+        if args.log: verify_log(args.log, args.large)

@@ -1,14 +1,10 @@
 # Generation resources and call isolation
 
 Commit 25 adds [bzip2 generation preferences](generation-options.md), default 9,
-valid 1..9, without changing Limits. The reviewed Writer threshold is 100000*k;
-one 32768-byte feed grows RLE by at most 40960 plus a pending flush, below even
-the level-1 threshold. Block length <=100000*k+4 stays <=900004, so the existing
-level-9 conservative emission bit bound applies at all supported levels. Work,
-copy, raw/control and aggregate patch quotas remain active. This is a structural
-bound, not reuse of level-9 time/peak-memory measurements for other levels; see
-the new small measurements and exact level-1 parsed-block evidence separately.
-No default factory or encoder/decoder source dependency was changed.
+valid 1..9, without changing Limits. The current Writer keeps each RLE block
+within 100000 bytes per level. Work, copy, raw/control and aggregate patch quotas
+remain active. See the emission bounds below and the historical level-1
+measurements in the generation-options report.
 
 Commit 23 adds [explicit 256 KiB/1 MiB source policies](generation-scales.md)
 (0.3.0 Unreleased), with six new native-release measurements and two CLI replays.
@@ -102,27 +98,31 @@ exhausted, never unlimited. No partial patch is returned on failure.
 
 ## Fixed encoder and bounded output
 
-Dependency: `moonbitstack/moonzip@0.3.5`, Apache-2.0. The installed manifest/version
-and exact unchanged Writer/engine file hashes are recorded in
-[testdata/generation/encoder-source.json](../testdata/generation/encoder-source.json).
-`measure_diff.py --verify-report` rechecks those hashes. We call the public Writer
-at level 9; decoder copies, source lock and adaptation patch are unchanged.
+The [internal Writer](../internal/bzip2/README.md) adapts the encoding subset
+from `moonbitstack/moonzip@0.3.5` under Apache-2.0. Its source lock and
+replay patch identify the files used by generation. The installed source hashes
+in [encoder-source.json](../testdata/generation/encoder-source.json) identify the
+upstream baseline used by historical measurement checks.
 
-The reviewed implementation's RLE stage expands a run of 4 to 5 bytes (other
-runs expand less), and emits once its RLE block reaches 900000 bytes. Atomic
-flushes add at most 5, so a block is at most **900004 RLE bytes**. A 32768-byte
-push adds at most 40960 encoded bytes plus one pending atomic flush, hence can
-complete at most one block. Finish flushes one pending run and at most one block.
-This avoids the one-shot encoder's complete raw-input copy and complete-stream
-output accumulation inside one call.
+A four-byte run expands to five RLE bytes. Before folding in a run, the Writer
+checks its actual encoded length. A run that fits exactly stays in the current
+block. When it exceeds remaining space the Writer completes that block, then
+counts the whole run in the new block's CRC. RLE length is at most
+**100000 × level bytes**, or **900000** at level 9.
 
-For a block of length L<=900004, MTF/RLE emits at most M=L+1 symbols. Code lengths
+A 32768-byte push adds at most 40960 RLE bytes plus one pending run of at most
+five RLE bytes. It can emit at most one block. Finish can emit a buffered block
+followed by a second block of at most five RLE bytes, then the stream trailer.
+The wrapper checks every returned emission before accumulating its bytes.
+
+For a block of length L<=900000, MTF/RLE emits at most M=L+1 symbols. Code lengths
 are 1..20 bits, <=6 tables with <=258 symbols, and <=ceil(M/50) selectors, each
 at most 6 bits. A conservative per-block bit bound is
 `20*M + 6*ceil(M/50) + 6*(5+258*39) + 395`.
 Here 39 covers a 19-step two-bit length delta plus terminator; 395 covers block
-marker, CRC, flags, origin, alphabet map and table counts. With stream headers,
-trailers and byte rounding a single push/finish emission is **less than 3 MB**.
+marker, CRC, flags, origin, alphabet map and table counts. Applying the bound
+to one maximum-sized block plus one five-byte block, headers, trailer and byte
+rounding gives **less than 3 MB** for either push or finish.
 Selector count <=18001 fits its 15-bit format field. BWT positions/steps remain
 below this fixed block scale; Huffman alphabet/table arithmetic is bounded by
 258 and 6. This derivation is specific to the pinned source, not a general

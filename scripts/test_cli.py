@@ -2,6 +2,7 @@
 import argparse,bz2,ctypes,getpass,hashlib,json,os,pathlib,platform,re,subprocess,sys,tempfile,unittest
 from build_cli import ROOT,version
 from conformance_cases import lcg
+from check_compression import strict
 EXE=None
 INVOCATIONS=0
 LARGE_PATCH={}
@@ -118,6 +119,32 @@ class CliFiles(unittest.TestCase):
         self.old.write_bytes(lcg(2026110801+65536,65536));self.new.write_bytes(lcg(2026110803+65536,65536))
         self.roundtrip();self.assertGreater(self.patch.stat().st_size,65536);self.assertLessEqual(self.patch.stat().st_size,131072)
         LARGE_PATCH.update(old_bytes=self.old.stat().st_size,new_bytes=self.new.stat().st_size,patch_bytes=self.patch.stat().st_size,old_sha256=hashlib.sha256(self.old.read_bytes()).hexdigest(),new_sha256=hashlib.sha256(self.new.read_bytes()).hexdigest(),patch_sha256=hashlib.sha256(self.patch.read_bytes()).hexdigest(),recipe='LCG32 v1 independent old/new, seeds 2026110801+65536 and 2026110803+65536')
+    def test_bzip2_rle_at_block_boundary(self):
+        self.old.write_bytes(b'')
+        for level in (1, 9):
+            block_size = 100000 * level
+            prefix = (b'AB' * (block_size // 2))[:-1]
+            options = ['--compression-level', '1'] if level == 1 else []
+            for tail in (b'CDE', b'CCD', b'CC'):
+                with self.subTest(level=level, tail=tail):
+                    payload = prefix + tail
+                    self.new.write_bytes(payload)
+                    patch = self.p / f'level{level}-{tail.decode()}.patch'
+                    output = patch.with_suffix('.restored')
+                    self.run_cli(['diff', *options, '--max-new-bytes', '1MiB',
+                                  '--max-output-bytes', '1MiB', '--max-expanded-bytes', '2MiB',
+                                  '--max-match-work', '50000000', self.old, self.new, patch])
+                    raw = patch.read_bytes()
+                    self.assertEqual(raw[:8], b'BSDIFF40')
+                    extra_start = 32 + int.from_bytes(raw[8:16], 'little') + int.from_bytes(raw[16:24], 'little')
+                    extra = raw[extra_start:]
+                    self.assertEqual(extra[:4], f'BZh{level}'.encode())
+                    self.run_cli(['inspect', '--deep', patch])
+                    self.run_cli(['patch', self.old, patch, output])
+                    self.assertEqual(output.read_bytes(), payload)
+                    strict(extra, payload)
+                    print(f'bzip2 level {level}, {tail.decode()}: {len(payload)} bytes restored; '
+                          'deep inspect and independent single-stream bz2 passed')
     def test_missing_input(self):self.run_cli(['diff','missing',self.new,self.patch],1);self.assertFalse(self.patch.exists())
     def test_directory_input(self):self.run_cli(['diff',self.p,self.new,self.patch],1);self.assertFalse(self.patch.exists())
     def test_old_over_limit(self):self.old.write_bytes(b'X'*65537);r=self.run_cli(['diff',self.old,self.new,self.patch],1);self.assertIn(b'input size',r.stderr);self.assertFalse(self.patch.exists())

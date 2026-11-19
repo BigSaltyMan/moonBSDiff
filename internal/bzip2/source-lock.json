@@ -19,7 +19,30 @@
     "LICENSE": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
     "moon.pkg": "f55457e90e133b551bb83a9ac6b3f26b4d21e6678155f918c885105a723bf059",
     "rand.mbt": "9c05bdd91d74a3afedc80a3db748106da93c781a88322faa12f0b50ec268dbdf",
-    "stream.mbt": "5196242609866c5d603b1f174a85ef989de6eaa2c5be806f66578383a626e546"
+    "stream.mbt": "5196242609866c5d603b1f174a85ef989de6eaa2c5be806f66578383a626e546",
+    "writer.mbt": "acf9d58d36426f282b7fb1588574d9fdd01ff9b07a5d19fee6d468d12ce492d2",
+    "encode.mbt": "1130caf8998e75fc5e52988bda73651d6d5c0462cc914ca990e2bf46fcc9366a",
+    "bwt.mbt": "2a15c78cd050729d68dcb526b8d27a3bdfd31edf040b62a2a5570fda129dbf33",
+    "sink.mbt": "f190919d1fc7bc2806d290624060ccb8896d55282103598656c6909e3b266d12"
   },
-  "adaptation_patch_sha256": "e0645642698baab584e0e40b0723b6f71e8bdac3712f7c30b96aeb1bc09f02a8"
+  "adaptation_patch_sha256": "e0645642698baab584e0e40b0723b6f71e8bdac3712f7c30b96aeb1bc09f02a8",
+  "encoder_sources": {
+    "writer.mbt": {
+      "upstream": "stream.mbt",
+      "sha256": "c54969748676396e5b0b98869f9d55314924599d14d243161cabea60096bd441"
+    },
+    "encode.mbt": {
+      "upstream": "encode.mbt",
+      "sha256": "8dfb6e8968e975159067996846dccf99a58c10ec4306db6415fb21c127bd314a"
+    },
+    "bwt.mbt": {
+      "upstream": "bwt.mbt",
+      "sha256": "88fe89d1ce03992bfe32a3b82c6144b3b1df6afa2234790807883294a1d31980"
+    },
+    "sink.mbt": {
+      "upstream": "bits.mbt",
+      "sha256": "135fc305e898a0b5deecc6678768dcff0bfb02183668545cf5b8ef80187bd19d"
+    }
+  },
+  "encoder_patch_sha256": "2fb257c880f70749c9cc90ab98d2d79549ce4c91e5e0af4c5a72fd4027736a7a"
 }

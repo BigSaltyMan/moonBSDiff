@@ -3,13 +3,13 @@
 Commit 25 adds validated generation levels 1..9, default 9, through independent
 [DiffOptions and CLI preferences](generation-options.md). The same level feeds
 all three standard streams; decoding still reads each BZh header without caller
-options. Engine/decoder source and strict consumption/CRC rules below are
-unchanged. The all-level workspace/emission proof and new parsed level-1
-cross-block evidence are separate from the historical decoder tests below.
+options. The [internal Writer](../internal/bzip2/README.md) checks encoded run
+size before adding it to a block. Strict decoder consumption and CRC rules
+remain as described below.
 
 ## Scope and integration
 
-`compression.mbt` is private root-library plumbing. `compress_block` calls moonzip 0.3.5 at fixed level 9, including a real empty stream. `decompression_budget(limits)` validates the existing Limits and creates one budget from `max_decompressed_bytes`; apply creates it once and passes the same object to Control, Diff and Extra. `decompress_block` accepts one compressed interval, a per-call output cap (0..2147483647), shared budget, stage, and interval start offset. A zero internal cap or remaining budget permits only zero output. Negative values never mean unlimited.
+`compression.mbt` is private root-library plumbing. `compress_block` exercises the adapted Writer at level 9, including a complete empty stream. `decompression_budget(limits)` validates the existing Limits and creates one budget from `max_decompressed_bytes`; apply creates it once and passes the same object to Control, Diff and Extra. `decompress_block` accepts one compressed interval, a per-call output cap (0..2147483647), shared budget, stage, and interval start offset. A zero internal cap or remaining budget permits only zero output. Negative values never mean unlimited.
 
 The public apply API now executes control instructions and requires exact decoded-data consumption; see [apply.md](apply.md). Diff and a product CLI remain planned. No library call invokes an external process. Root `pkg.generated.mbti` is unchanged; the internal decoder package has a generated implementation interface.
 
@@ -19,7 +19,10 @@ Rechecked source: moonzip `bzip2.mbt::decode_all` calls `read_block` before its 
 
 The native dependency-gap test actually reproduced both exposed symptoms: bunzip2 accepted a valid stream plus garbage, and Reader(limit=100000) returned 110080 bytes across 100-byte pushes. The late RLE limit is established by the actual source order; no claim is made that an external memory profiler measured the original excess allocation.
 
-The encoder remains in the fixed dependency. Only decoder/bit-reader/CRC/randomisation source is copied under `internal/bzip2/`, retaining the original copyright and Apache-2.0 LICENSE. The cache is unchanged. The source lock and patch document the subset and modifications; Huffman, MTF and inverse BWT are preserved. A small local driver and error bridge replace the original one-shot driver. This does not upgrade or rewrite the compression engine.
+The copied encoder and decoder sources under `internal/bzip2/` retain
+the upstream copyright and Apache-2.0 license. The source lock and replay
+patches document the subsets and modifications. The adapted Writer and strict
+decoder share marker and CRC code, with the original bzip2 transforms retained.
 
 ## Single-stream boundary and checksums
 

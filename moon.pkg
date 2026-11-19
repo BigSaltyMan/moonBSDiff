@@ -1,5 +1,8 @@
 import {
   "moonbitlang/core/debug",
-  "moonbitstack/moonzip/bzip2",
   "BigSaltyMan/moonbsdiff/internal/bzip2" @bounded,
 }
+
+import {
+  "moonbitstack/moonzip/bzip2",
+} for "wbtest"
