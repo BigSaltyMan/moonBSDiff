@@ -22,7 +22,9 @@ PROBES = {
     "0.2.0": "cmd/example/main.mbt",
     "0.4.0": "scripts/release_consumer.mbt.in",
     "0.5.0": "scripts/release_consumer_050.mbt.in",
+    "0.5.1": "scripts/release_consumer_050.mbt.in",
 }
+MANIFEST_PROBE_PATCH_CAPS = {"0.5.0": 65536, "0.5.1": 131072}
 MANIFEST_PROBE_PACKAGE = """import {
   "BigSaltyMan/moonbsdiff",
   "BigSaltyMan/moonbsdiff/manifest",
@@ -55,10 +57,15 @@ def main():
     require(audit.get("module") == MODULE, "audit names another module")
     probe_path = PROBES[target_version]
     probe = (ROOT / probe_path).read_bytes()
-    expected_marker = "manifest 0.5.0 probe: candidate=1 " if target_version == "0.5.0" else None
-    if expected_marker:
+    patch_cap = MANIFEST_PROBE_PATCH_CAPS.get(target_version)
+    expected_marker = f"manifest {target_version} probe: candidate=1 " if patch_cap is not None else None
+    if patch_cap is not None:
         require(b"@manifest.plan_update" in probe and b"@manifest.diff" in probe,
-                "0.5.0 consumer template must exercise the manifest subpackage")
+                f"{target_version} consumer template must exercise the manifest subpackage")
+        probe += (
+            f'\n///|\nconst RELEASE_VERSION : String = "{target_version}"\n'
+            f'\n///|\nconst RELEASE_APPLY_PATCH_CAP : Int64 = {patch_cap}L\n'
+        ).encode("utf8")
 
     folder = Path(tempfile.mkdtemp(prefix="moonbsdiff-consumer-"))
     sdk = folder / "sdk"
@@ -137,7 +144,8 @@ def main():
         require(COMMON_MARKER in lines, "consumer success marker missing")
         if expected_marker:
             lines = [line for line in lines if line.startswith(expected_marker)]
-            require(len(lines) == 1, f"{target} did not run the 0.5.0 manifest probe")
+            require(len(lines) == 1 and lines[0].endswith(f" apply_patch_cap={patch_cap}"),
+                    f"{target} did not run the {target_version} manifest and default limit probe")
         observations[target] = lines
 
     tree = run(["moon", "tree"])

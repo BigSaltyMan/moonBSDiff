@@ -4,7 +4,7 @@ package "BigSaltyMan/moonbsdiff/internal/manifest"
 // Values
 pub const MAX_MANIFEST_BYTES : Int32 = 16384
 
-pub const PRODUCER_VERSION : String = "0.5.0"
+pub const PRODUCER_VERSION : String = "0.5.1"
 
 pub fn digest_hex(Bytes) -> String
 

@@ -41,7 +41,7 @@ def main():
     module_version=re.search(r'^version\s*=\s*"([^"]+)"', (source/'moon.mod').read_text(encoding='utf8'),re.M)[1]
     package=source/('_build/publish/BigSaltyMan-moonbsdiff-'+module_version+'.zip')
     count=audit_zip(package,expected)
-    if module_version == "0.5.0":
+    if module_version in ("0.5.0", "0.5.1"):
         for name in (
             "manifest/moon.pkg", "manifest/pkg.generated.mbti", "manifest/bundle.mbt",
             "manifest/parse.mbt", "manifest/plan.mbt", "manifest/restore.mbt",
@@ -52,7 +52,10 @@ def main():
             "testdata/upstream/seeded-random/old.bin", "testdata/upstream/seeded-random/new.bin",
             "testdata/upstream/seeded-random/patch.bin",
         ):
-            require(name in expected, "missing 0.5.0 release member: " + name)
+            require(name in expected, f"missing {module_version} release member: {name}")
+    if module_version == "0.5.1":
+        for name in ("cmd/main/help.mbt", "scripts/native_test.py"):
+            require(name in expected, f"missing {module_version} release member: {name}")
     for name in ['LICENSE','README.md','CHANGELOG.md','moon.mod','moon.pkg','pkg.generated.mbti','internal/bzip2/LICENSE','internal/bzip2/source-lock.json','internal/bzip2/changes.patch','tools/oracle/BSDIFF-LICENSE.txt','tools/oracle/BZIP2-LICENSE.txt','docs/acceptance.md']:
         require(name in expected,'required source/license missing: '+name)
     dependencies={}

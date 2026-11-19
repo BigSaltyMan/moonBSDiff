@@ -5,6 +5,9 @@ fn main {
   let expected = prefix + b"release consumer\x00v2!\xff"
   let generation_limits = @moonbsdiff.Limits::for_diff()
   let apply_limits = @moonbsdiff.Limits::for_apply()
+  if apply_limits.max_patch_bytes != RELEASE_APPLY_PATCH_CAP {
+    abort("unexpected default apply patch cap")
+  }
   let forward = @manifest.diff(old, expected, generation_limits).unwrap()
   let reverse = @manifest.diff(expected, old, generation_limits).unwrap()
   if forward.patch[:8].to_owned() != b"BSDIFF40" {
@@ -30,6 +33,6 @@ fn main {
   if restored != expected {
     abort("manifest restore differs from predefined target")
   }
-  println("manifest 0.5.0 probe: candidate=\{index} patch_bytes=\{route.total_patch_bytes} target_bytes=\{expected.length()}")
+  println("manifest \{RELEASE_VERSION} probe: candidate=\{index} patch_bytes=\{route.total_patch_bytes} target_bytes=\{expected.length()} apply_patch_cap=\{apply_limits.max_patch_bytes}")
   println("restored bytes equal predefined new bytes: PASS")
 }
