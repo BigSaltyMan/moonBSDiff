@@ -2,13 +2,18 @@
 fn plan_edge_json(
   path : String,
   candidate : @manifest.PreparedManifest,
+  patch_path? : String,
 ) -> @json.Json {
-  @json.Json::object({
+  let fields = {
     "manifest_path": @json.Json::string(path),
     "old": manifest_identity_json(candidate.old),
     "new": manifest_identity_json(candidate.new),
     "patch": manifest_identity_json(candidate.patch),
-  })
+  }
+  if patch_path is Some(local_path) {
+    fields["patch_path"] = @json.Json::string(local_path)
+  }
+  @json.Json::object(fields)
 }
 
 ///|
@@ -75,8 +80,13 @@ fn plan_failure(error : @manifest.PlanError, config : CliConfig) -> Unit {
       } else {
         ""
       }
+      let reason = if config.operation == "manifest plan-local" {
+        "local patches cannot connect"
+      } else {
+        "no reachable path from"
+      }
       failure(
-        "manifest plan: no reachable path from '\{old_path}' to the target in '\{target_path}'" +
+        "\{config.operation}: \{reason} '\{old_path}' to the target in '\{target_path}'" +
         restriction,
       )
     }
@@ -88,17 +98,31 @@ fn plan_failure(error : @manifest.PlanError, config : CliConfig) -> Unit {
 
 ///|
 fn[T] plan_manifest_failure(
+  operation : String,
   path : String,
   error : @manifest.ManifestError,
 ) -> T {
-  manifest_failure("manifest plan '\{path}': " + manifest_diagnostic(error))
+  manifest_failure("\{operation} '\{path}': " + manifest_diagnostic(error))
+}
+
+///|
+fn plan_edge_over_budget(error : @manifest.ManifestError) -> Bool {
+  match error {
+    LimitExceeded(field~, ..) =>
+      field == "max_old_bytes" ||
+      field == "max_patch_bytes" ||
+      field == "max_new_bytes" ||
+      field == "max_output_bytes"
+    _ => false
+  }
 }
 
 ///|
 fn manifest_plan_command(config : CliConfig) -> Unit {
   let limits = config.limits
   let target_path = config.target_manifest.unwrap()
-  let data = read_manifest_data("manifest plan", target_path)
+  let operation = config.operation
+  let data = read_manifest_data(operation, target_path)
   let marker = @manifest.prepare(data, limits)
   // Successful patch preflight already includes the target checks. If only
   // old or patch limits prevent that preflight, use the same bytes to check
@@ -109,9 +133,9 @@ fn manifest_plan_command(config : CliConfig) -> Unit {
       (field == "max_old_bytes" || field == "max_patch_bytes") =>
       match @manifest.prepare_target(data, limits) {
         Ok(identity) => identity
-        Err(error) => plan_manifest_failure(target_path, error)
+        Err(error) => plan_manifest_failure(operation, target_path, error)
       }
-    Err(error) => plan_manifest_failure(target_path, error)
+    Err(error) => plan_manifest_failure(operation, target_path, error)
   }
   let old_path = config.files[0]
   let start = installed_identity("manifest plan", old_path, limits)
@@ -125,14 +149,8 @@ fn manifest_plan_command(config : CliConfig) -> Unit {
     }
     match prepared {
       Ok(candidate) => entries.push((path, candidate))
-      Err(LimitExceeded(field~, ..)) if config.allow_full &&
-        (
-          field == "max_old_bytes" ||
-          field == "max_patch_bytes" ||
-          field == "max_new_bytes" ||
-          field == "max_output_bytes"
-        ) => ()
-      Err(error) => plan_manifest_failure(path, error)
+      Err(error) if config.allow_full && plan_edge_over_budget(error) => ()
+      Err(error) => plan_manifest_failure(operation, path, error)
     }
   }
   let candidates = entries.map(entry => entry.1)

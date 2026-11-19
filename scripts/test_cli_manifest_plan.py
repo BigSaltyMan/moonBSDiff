@@ -533,6 +533,104 @@ class ManifestPlanDownloadBudget(ManifestPlanFixture):
         print("Already current: accepted a zero-byte download budget")
 
 
+class ManifestPlanLocal(ManifestPlanFixture):
+    marker = "v2-to-v3.json"
+    candidates = ("v1-to-v2.json", marker, "v1-to-v3.json")
+
+    def plan_local(self, patches=(), candidates=(), *, code=0, options=()):
+        inputs = []
+        for patch in patches:
+            inputs.extend(("--local-patch", patch))
+        before = {p.name: p.read_bytes() for p in self.folder.iterdir()}
+        result = self.invoke(
+            "manifest", "plan-local", "--target-manifest", self.marker,
+            *options, *inputs, "--", "installed.bin", *candidates, code=code,
+        )
+        self.assertEqual({p.name: p.read_bytes() for p in self.folder.iterdir()}, before)
+        return result
+
+    def test_renamed_and_reversed_patches_verify_in_planned_order(self):
+        _, _, target = prepare_two_hop(self.write, self.invoke)
+        prepare_direct(self.write, self.invoke, target)
+        for source, renamed in [("v2-to-v3.patch", "second.bin"), ("v1-to-v2.patch", "first.bin")]:
+            (self.folder / source).rename(self.folder / renamed)
+        self.write("first-copy.bin", self.read("first.bin"))
+        patches = ("second.bin", "first.bin", "first.bin", "first-copy.bin")
+        raw = self.plan_local(patches, self.candidates).stdout
+        plan = json.loads(raw)
+        self.assertEqual(plan["schema_version"], 1)
+        self.assertEqual(plan["target"], identity(target))
+        self.assertEqual(plan["target"]["size_bytes"], "2048")
+        self.assertEqual(plan["total_patch_bytes"], "368")
+        self.assertEqual(plan["download_bytes"], "0")
+        expected = []
+        for patch, manifest_path in [("first.bin", self.candidates[0]), ("second.bin", self.marker)]:
+            manifest = json.loads(self.read(manifest_path))
+            expected.append({
+                "patch_path": patch,
+                "manifest_path": manifest_path,
+                "old": manifest["old"],
+                "new": manifest["new"],
+                "patch": identity(self.read(patch)),
+            })
+        self.assertEqual(plan["steps"], expected)
+        pairs = []
+        for step in plan["steps"]:
+            pairs.extend((step["patch_path"], step["manifest_path"]))
+        verified = self.invoke("verify-chain", "--target-manifest", self.marker, "--", "installed.bin", *pairs)
+        self.assertTrue(verified.stdout.startswith(b"Chain verification succeeded:"))
+        error = self.plan_local(patches, self.candidates, code=1, options=("--max-steps", "1"))
+        self.assertIn(b"effective --max-steps=1", error.stderr)
+        print(raw.decode().strip())
+        print(verified.stdout.decode().strip())
+
+    def test_same_name_and_size_with_wrong_hash_cannot_join_route(self):
+        _, _, target = prepare_two_hop(self.write, self.invoke)
+        prepare_direct(self.write, self.invoke, target)
+        original = self.read("v1-to-v2.patch")
+        wrong = original[:-1] + bytes([original[-1] ^ 1])
+        self.write("v1-to-v2.patch", wrong)
+        incorrect = ("v1-to-v2.patch", "v2-to-v3.patch")
+        direct = "v1-to-v3.patch"
+        raw = self.plan_local((*incorrect, direct), self.candidates).stdout
+        plan = json.loads(raw)
+        self.assertEqual(plan["target"], identity(target))
+        self.assertEqual((plan["total_patch_bytes"], plan["download_bytes"]), ("2532", "0"))
+        self.assertEqual([(s["patch_path"], s["manifest_path"]) for s in plan["steps"]],
+                         [(direct, "v1-to-v3.json")])
+        self.assertEqual(plan["steps"][0]["patch"], identity(self.read(direct)))
+        (self.folder / direct).unlink()
+        error = self.plan_local(incorrect, self.candidates, code=1)
+        self.assertIn(b"local patches cannot connect 'installed.bin' to the target in 'v2-to-v3.json'", error.stderr)
+        print(f"Wrong 204-byte patch excluded; selected {direct} before it was removed")
+        print(error.stderr.decode().strip())
+
+    def test_empty_plan_still_preflights_supplied_inputs(self):
+        _, target, manifest = fixed_full_target()
+        self.write(self.marker, json.dumps(manifest).encode())
+        self.write("installed.bin", target)
+        raw = self.plan_local().stdout
+        self.assertEqual(json.loads(raw), {
+            "schema_version": 1,
+            "start": identity(target),
+            "target": identity(target),
+            "total_patch_bytes": "0",
+            "download_bytes": "0",
+            "steps": [],
+        })
+        self.write("broken.json", b"{")
+        error = self.plan_local(candidates=("broken.json",), code=1)
+        self.assertIn(b"'broken.json': manifest JSON:", error.stderr)
+        error = self.plan_local(("missing.patch",), code=1)
+        self.assertIn(b"'missing.patch': open input", error.stderr)
+        self.write("oversized.patch", b"!" * 205)
+        error = self.plan_local(("oversized.patch",), code=1, options=("--max-patch-bytes", "204"))
+        self.assertIn(b"'oversized.patch': input size: byte limit 204 exceeded", error.stderr)
+        error = self.invoke("manifest", "plan", "--local-patch", "missing.patch", code=2)
+        self.assertIn(b"--local-patch", error.stderr)
+        print("Already current: accepted an empty offline plan and rejected bad explicit inputs")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--exe", type=Path, required=True)
@@ -547,6 +645,7 @@ if __name__ == "__main__":
         tests.addTests(loader.loadTestsFromTestCase(InstallFull))
         tests.addTests(loader.loadTestsFromTestCase(ManifestPlanFullLimits))
         tests.addTests(loader.loadTestsFromTestCase(ManifestPlanDownloadBudget))
+        tests.addTests(loader.loadTestsFromTestCase(ManifestPlanLocal))
     result = unittest.TextTestRunner(verbosity=2).run(tests)
-    if not result.wasSuccessful() or result.testsRun != (3 if args.steps_only else 16) or result.skipped:
+    if not result.wasSuccessful() or result.testsRun != (3 if args.steps_only else 19) or result.skipped:
         raise SystemExit(1)

@@ -127,6 +127,12 @@ fn print_help() -> Unit {
     "Use --allow-full to compare patch bytes with the complete target and print the download strategy.",
   )
   println(
+    "moonbsdiff manifest plan-local --target-manifest FILE [--local-patch FILE ...] [--max-steps COUNT] [LIMITS] OLD_FILE [MANIFEST_FILE...]",
+  )
+  println(
+    "Match local patches by size and SHA-256, then print the offline route in application order.",
+  )
+  println(
     "moonbsdiff install-full --target-manifest FILE [--max-new-bytes VALUE] [--max-output-bytes VALUE] DOWNLOADED_FILE OUTPUT_FILE",
   )
   println(
@@ -271,6 +277,7 @@ struct CliConfig {
   deep : Bool
   manifest : String?
   target_manifest : String?
+  local_patches : Array[String]
   max_steps : Int64?
   max_download_bytes : Int64?
   allow_full : Bool
@@ -297,26 +304,33 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
       args[1] != "manifest"
     ) {
     return Err(
-      "expected diff, diff-many, patch, patch-chain, inspect, verify, verify-chain, install-full, or manifest create/select/plan; use --help",
+      "expected diff, diff-many, patch, patch-chain, inspect, verify, verify-chain, install-full, or manifest create/select/plan/plan-local; use --help",
     )
   }
   let (operation, options_start) = if args[1] == "manifest" {
     if args.length() < 3 {
-      return Err("manifest requires create, select or plan; use --help")
+      return Err(
+        "manifest requires create, select, plan or plan-local; use --help",
+      )
     }
     match args[2] {
       "create" => ("manifest", 3)
       "select" => ("manifest select", 3)
       "plan" => ("manifest plan", 3)
-      _ => return Err("manifest requires create, select or plan; use --help")
+      "plan-local" => ("manifest plan-local", 3)
+      _ =>
+        return Err(
+          "manifest requires create, select, plan or plan-local; use --help",
+        )
     }
   } else {
     (args[1], 2)
   }
   let chain = is_chain(operation)
   let generation = operation == "diff" || operation == "diff-many"
-  let manifest_lookup = operation == "manifest select" ||
-    operation == "manifest plan"
+  let local_plan = operation == "manifest plan-local"
+  let plan = operation == "manifest plan" || local_plan
+  let manifest_lookup = operation == "manifest select" || plan
   let mut i = options_start
   let mut limits = if generation {
     @moonbsdiff.Limits::for_diff()
@@ -335,6 +349,7 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
   let mut deep = false
   let mut manifest : String? = None
   let mut target_manifest : String? = None
+  let local_patches : Array[String] = []
   let mut max_steps : Int64? = None
   let mut max_download_bytes : Int64? = None
   let mut allow_full = false
@@ -375,6 +390,12 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
         option == "--max-steps" ||
         option == "--max-download-bytes" ||
         option == "--allow-full"
+      )) &&
+      !(local_plan &&
+      (
+        option == "--target-manifest" ||
+        option == "--max-steps" ||
+        option == "--local-patch"
       )) {
       return Err(option + " is not applicable to " + operation)
     }
@@ -411,17 +432,31 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
         }
         false
       }
-      "--max-steps" | "--max-download-bytes" | "--allow-full" => {
+      "--max-steps" => {
+        if !plan {
+          return Err(
+            option + " is only applicable to manifest plan or plan-local",
+          )
+        }
+        false
+      }
+      "--local-patch" => {
+        if !local_plan {
+          return Err(option + " is only applicable to manifest plan-local")
+        }
+        false
+      }
+      "--max-download-bytes" | "--allow-full" => {
         if operation != "manifest plan" {
           return Err(option + " is only applicable to manifest plan")
         }
         option == "--max-download-bytes"
       }
       "--target-manifest" => {
-        if operation != "manifest plan" && operation != "install-full" && !chain {
+        if !plan && operation != "install-full" && !chain {
           return Err(
             option +
-            " is only applicable to manifest plan, install-full, patch-chain or verify-chain",
+            " is only applicable to manifest plan, plan-local, install-full, patch-chain or verify-chain",
           )
         }
         false
@@ -466,10 +501,12 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
       }
       _ => return Err("unknown option: " + option)
     }
-    if seen.contains(option) {
-      return Err("duplicate option: " + option)
+    if option != "--local-patch" {
+      if seen.contains(option) {
+        return Err("duplicate option: " + option)
+      }
+      seen.push(option)
     }
-    seen.push(option)
     if option == "--stream" {
       stream = true
       i += 1
@@ -507,7 +544,9 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
       i += 2
       continue
     }
-    if option == "--manifest" || option == "--target-manifest" {
+    if option == "--manifest" ||
+      option == "--target-manifest" ||
+      option == "--local-patch" {
       let path = args[i + 1]
       if path.length() == 0 || leading_dash(path) {
         return Err(
@@ -515,10 +554,10 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
           " requires a nonempty path value; use ./ for a leading '-' name",
         )
       }
-      if option == "--manifest" {
-        manifest = Some(path)
-      } else {
-        target_manifest = Some(path)
+      match option {
+        "--manifest" => manifest = Some(path)
+        "--local-patch" => local_patches.push(path)
+        _ => target_manifest = Some(path)
       }
       i = i + 2
       continue
@@ -616,10 +655,10 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
         "manifest select requires OLD_FILE and at least one MANIFEST_FILE; use --help",
       )
     }
-  } else if operation == "manifest plan" {
+  } else if plan {
     if files.length() == 0 || target_manifest is None {
       return Err(
-        "manifest plan requires --target-manifest FILE and OLD_FILE; use --help",
+        "\{operation} requires --target-manifest FILE and OLD_FILE; use --help",
       )
     }
   } else if operation == "install-full" {
@@ -660,6 +699,7 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
     deep,
     manifest,
     target_manifest,
+    local_patches,
     max_steps,
     max_download_bytes,
     allow_full,
@@ -743,6 +783,10 @@ fn main {
   }
   if config.operation == "install-full" {
     install_full_command(config)
+    return
+  }
+  if config.operation == "manifest plan-local" {
+    manifest_plan_local_command(config)
     return
   }
   if config.operation == "manifest plan" {

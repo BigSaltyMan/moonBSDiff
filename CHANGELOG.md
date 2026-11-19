@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- `manifest plan-local` matches existing patches by size and SHA-256 and
+  returns local patch and manifest paths in application order.
+
 - `manifest plan --max-download-bytes` caps the whole update and reports the
   minimum needed when the cheapest plan exceeds the budget.
 

@@ -383,6 +383,52 @@ The fixed sample delivered exactly 2048 bytes with SHA-256
 `66da6542f8276608790055ac88e6af6bf3af76b88bf3aedbcb517c2ce98ab1a6`.
 This command is available from this source change.
 
+## Plan from local patches (Unreleased)
+
+If you already have patch files, pass them to `manifest plan-local` with
+one `--local-patch` per path. Supply trusted candidate manifests after the
+installed file. The target manifest specifies the final content. Only a
+local file with the candidate patch's exact size and SHA-256 makes the edge
+available. A repeated patch path is read once. When separate supplied paths
+contain identical bytes, the first path wins.
+
+In the two-hop fixture, copy or rename `v1-to-v2.patch` to `first.bin` and
+`v2-to-v3.patch` to `second.bin`. The patches can be passed in either order.
+
+```sh
+moonbsdiff manifest plan-local --target-manifest v2-to-v3.json --local-patch second.bin --local-patch first.bin -- installed.bin v1-to-v2.json v2-to-v3.json v1-to-v3.json
+```
+
+The actual `steps` were returned in this order. Each step also contains
+the `old`, `new` and `patch` identities.
+
+| Step | `patch_path` | `manifest_path` | Patch bytes |
+| --- | --- | --- | ---: |
+| 1 | `first.bin` | `v1-to-v2.json` | 204 |
+| 2 | `second.bin` | `v2-to-v3.json` | 164 |
+
+The plan reports `"total_patch_bytes":"368"` and `"download_bytes":"0"`.
+Those 368 bytes are already on disk. Use the path pairs in order:
+
+```sh
+moonbsdiff verify-chain --target-manifest v2-to-v3.json -- installed.bin first.bin v1-to-v2.json second.bin v2-to-v3.json
+```
+
+The command verified the 2048-byte target. Use the same path pairs with
+`patch-chain` to publish the target. Both commands recheck content in case
+a file changes after planning.
+
+`--max-steps` limits the patch count. Eligible routes use the same patch
+byte, hop and candidate order rules as `manifest plan`. Valid candidates
+over the applicable declaration limits or without matching local patches
+are excluded. Malformed or unreadable manifests and explicitly requested
+patches that cannot be read within `--max-patch-bytes` fail the command.
+The entire target manifest must be valid and its new size must fit the
+target limits. Once all requested inputs pass, an already-current file
+yields no steps even when no local patch paths were given. No reachable
+local route exits `1` with a diagnostic and empty stdout. This command is
+available from this source change.
+
 ## Apply a local patch chain (Unreleased)
 
 First obtain the route for the installed file, then fetch the patches through
