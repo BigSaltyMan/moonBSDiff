@@ -4,6 +4,8 @@
 
 - The library application defaults now share the generator and CLI patch cap
   of 128 KiB.
+- Native CLI builds omit private I/O fault injection. On Windows, zero-progress
+  writes and premature EOF on required reads now have distinct diagnostics.
 
 ## 0.5.0 — 2026-11-19
 

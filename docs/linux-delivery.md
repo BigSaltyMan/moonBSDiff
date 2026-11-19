@@ -87,7 +87,7 @@ The pinned SDK is moon `0.1.20261102 (ea07287 2026-11-02)`, moonc
 The Linux-only private contracts run with:
 
 ```sh
-moon test cmd/main/linux_compat_wbtest.mbt --target native --deny-warn
+python scripts/native_test.py linux_compat
 ```
 
 Two nonempty grouped tests cover 18 scenarios: forced capability fallback,

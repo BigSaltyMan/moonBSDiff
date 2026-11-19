@@ -4,6 +4,7 @@ CLI/environment switch enabling fault injection or checkpoint waits.
 """
 import argparse,ctypes,hashlib,json,os,pathlib,platform,queue,shutil,signal,subprocess,sys,tempfile,threading,unittest
 from build_cli import ROOT
+from native_test import copy_cli_sources
 from test_cli_stream import integer,envelope
 import bz2
 
@@ -26,31 +27,18 @@ def windows_send(pid):
 
 
 def snapshot(folder, *, template='progress_probe.mbt.in', native_transform=None):
-    source=folder/'source';source.mkdir()
-    for p in ROOT.glob('*.mbt'):
-        if not p.name.endswith(('_test.mbt','_wbtest.mbt')):shutil.copy2(p,source/p.name)
-    for name in ['moon.mod','moon.pkg']:shutil.copy2(ROOT/name,source/name)
-    for name in ('internal', 'manifest'):
-        shutil.copytree(ROOT/name, source/name, ignore=shutil.ignore_patterns('*_test.mbt', '*_wbtest.mbt'))
-    shutil.copytree(ROOT/'.mooncakes',source/'.mooncakes')
-    cli=source/'cmd/main';cli.mkdir(parents=True)
-    identities={}
-    for p in (ROOT/'cmd/main').iterdir():
-        if p.suffix in ['.mbt','.c','.pkg'] and not p.name.endswith(('_test.mbt','_wbtest.mbt')):
-            shutil.copy2(p,cli/p.name);identities[p.name]=hashlib.sha256(p.read_bytes()).hexdigest()
+    source, identities = copy_cli_sources(folder, native_transform=native_transform)
+    cli = source/'cmd/main'
     main=cli/'main.mbt';text=main.read_text(encoding='utf8')
     require(text.count('fn main {')==1,'private snapshot main identity')
     main.write_text(text.replace('fn main {','fn production_main() -> Unit {',1)+'\n'+(ROOT/'scripts'/template).read_text(encoding='utf8'),encoding='utf8',newline='\n')
-    if native_transform is not None:
-        native = cli/'native_io.c'
-        native.write_text(native_transform(native.read_text(encoding='utf8')),encoding='utf8',newline='\n')
     result=subprocess.run(['moon','build','cmd/main','--target','native','--release','--deny-warn'],cwd=source,capture_output=True,timeout=180)
     (folder/'build.log').write_bytes(result.stdout+result.stderr)
     require(result.returncode==0,'private probe build failed: '+(result.stdout+result.stderr).decode('utf8',errors='replace'))
     exe=source/'_build/native/release/build/cmd/main/main.exe'
     require(exe.is_file(),'private native executable missing')
     REPORT['probe_sources']=identities
-    REPORT['probe_source_transform']='production main renamed; private wrapper appended; ' + (
+    REPORT['probe_source_transform']='production main renamed; private wrapper appended; MBSD_IO_TEST enabled in source snapshot; ' + (
         'native test instrumentation applied' if native_transform is not None else 'other CLI source bytes copied unchanged')
     return exe
 

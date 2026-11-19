@@ -13,3 +13,10 @@ test "stream delivery: callback faults, publication race, cleanup and reuse" {
 test "stream delivery: guarded compatibility callback" {
   assert_eq(stream_contract(11), 0)
 }
+
+///|
+#cfg(platform="windows")
+test "Windows zero progress and premature versus legal EOF" {
+  assert_eq(stream_contract(10), 0)
+  assert_eq(stream_contract(12), 0)
+}

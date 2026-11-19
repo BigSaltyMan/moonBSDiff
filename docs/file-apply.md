@@ -128,12 +128,12 @@ verified copies provide a stable byte source after the initial read.
 release CLI, fixed moon 0.1.20261102 (ea07287 2026-11-02),
 moonc v0.10.19+bee578715 (2026-11-02), moonrun 0.1.20261102. No SDK/dependency
 upgrade. New tests are `scripts/test_cli_stream.py`,
-`cmd/main/stream_wbtest.mbt`, `internal/bzip2/stream_wbtest.mbt` and the one pure
+`scripts/stream_wbtest.mbt.in`, `internal/bzip2/stream_wbtest.mbt` and the one pure
 header-prefix regression. Commands:
 
 ```sh
 python scripts/test_cli_stream.py --exe _build/bin/linux/moonbsdiff
-moon test cmd/main/stream_wbtest.mbt --target native --deny-warn
+python scripts/native_test.py stream
 moon test internal/bzip2 --filter 'stream pull*' --target native --deny-warn
 moon test format_prefix_test.mbt format_wbtest.mbt --target native --deny-warn
 ```

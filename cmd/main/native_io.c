@@ -13,7 +13,9 @@
 #include <string.h>
 #include <errno.h>
 #include <signal.h>
+#ifdef MBSD_IO_TEST
 #include <time.h>
+#endif
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -22,7 +24,9 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/stat.h>
+#ifdef MBSD_IO_TEST
 #include <dirent.h>
+#endif
 #include <sys/random.h>
 #include <sys/vfs.h>
 #include <linux/magic.h>
@@ -44,8 +48,13 @@ static void mark_delivery(moonbit_bytes_t data) {
   if(!data) stream_mark_published();
 }
 static char problem[256];
-/* Set only by the private white-box entrypoint below. No environment/CLI hook. */
+/* A private source snapshot enables these fault points at compile time. */
+#ifdef MBSD_IO_TEST
+#define IO_TEST(...) __VA_ARGS__
 static int fault;
+#else
+#define IO_TEST(...)
+#endif
 #ifdef _WIN32
 static unsigned sequence;
 #endif
@@ -70,6 +79,25 @@ MOONBIT_FFI_EXPORT void mbsd_stderr(moonbit_bytes_t data) {
   fflush(stderr);
 }
 #ifdef _WIN32
+static int windows_write(HANDLE file,const void *data,DWORD requested,DWORD *done,const char *op) {
+  BOOL written;
+  IO_TEST(if(fault==10) {
+    *done=0;
+    SetLastError(ERROR_ACCESS_DENIED); /* A successful call need not clear it. */
+    written=TRUE;
+  } else)
+  written=WriteFile(file,data,requested,done,NULL);
+  if(!written) {
+    DWORD error=GetLastError();
+    fail(op,error);
+    return 0;
+  }
+  if(!*done) {
+    fail("write made no progress",ERROR_WRITE_FAULT);
+    return 0;
+  }
+  return 1;
+}
 static wchar_t *wide(const char *s) {
   int n=MultiByteToWideChar(CP_UTF8,MB_ERR_INVALID_CHARS,s,-1,NULL,0);
   if(n<=0 || n>32768) { fail("UTF-8 path conversion",GetLastError()); return NULL; }
@@ -111,7 +139,7 @@ MOONBIT_FFI_EXPORT moonbit_string_t mbsd_arg(int32_t i) {
 #endif
 }
 
-static int test_put(const char *name,const char *data,int n,int append);
+IO_TEST(static int test_put(const char *name,const char *data,int n,int append);)
 
 MOONBIT_FFI_EXPORT moonbit_bytes_t mbsd_read(moonbit_bytes_t name,int32_t cap) {
   problem[0]=0;
@@ -124,16 +152,16 @@ MOONBIT_FFI_EXPORT moonbit_bytes_t mbsd_read(moonbit_bytes_t name,int32_t cap) {
   if(f==INVALID_HANDLE_VALUE) { fail("open input",GetLastError()); return bytes(NULL,0); }
   LARGE_INTEGER size;
   if(GetFileType(f)!=FILE_TYPE_DISK || !GetFileSizeEx(f,&size)) fail("stat regular input",GetLastError());
-  else if(fault!=8 && size.QuadPart>cap) limit_fail("input size",cap);
+  else if(IO_TEST(fault!=8 &&) size.QuadPart>cap) limit_fail("input size",cap);
 #else
   int f=open((char*)name,O_RDONLY|O_CLOEXEC|O_NONBLOCK);
   if(f<0) { fail("open input",errno); return bytes(NULL,0); }
   struct stat st;
   if(fstat(f,&st)<0) fail("stat input",errno);
   else if(!S_ISREG(st.st_mode)) fail("input must be a regular file",EINVAL);
-  else if(fault!=8 && st.st_size>cap) limit_fail("input size",cap);
+  else if(IO_TEST(fault!=8 &&) st.st_size>cap) limit_fail("input size",cap);
 #endif
-  if(!problem[0] && fault==3 && !test_put((char*)name,"BC",2,1)) fail("test growth",EIO);
+  IO_TEST(if(!problem[0] && fault==3 && !test_put((char*)name,"BC",2,1)) fail("test growth",EIO);)
   while(!problem[0]) {
     unsigned char chunk[4096];
     size_t room=(size_t)cap-used;
@@ -141,7 +169,10 @@ MOONBIT_FFI_EXPORT moonbit_bytes_t mbsd_read(moonbit_bytes_t name,int32_t cap) {
     size_t count;
 #ifdef _WIN32
     DWORD got=0;
-    if(!ReadFile(f,chunk,(DWORD)request,&got,NULL)) { fail("read input",GetLastError()); break; }
+    if(!ReadFile(f,chunk,(DWORD)request,&got,NULL)) {
+      DWORD error=GetLastError();
+      fail("read input",error);break;
+    }
     count=got;
 #else
     ssize_t got=read(f,chunk,request);
@@ -166,7 +197,7 @@ MOONBIT_FFI_EXPORT moonbit_bytes_t mbsd_read(moonbit_bytes_t name,int32_t cap) {
   /* Do not retry close after EINTR: Linux has already released the descriptor. */
   if(close(f)<0) fail("close input",errno);
 #endif
-  if(fault==7) fail("injected close input",EIO);
+  IO_TEST(if(fault==7) fail("injected close input",EIO);)
   moonbit_bytes_t result=problem[0]?bytes(NULL,0):bytes(buffer,used);
   free(buffer); return result;
 }
@@ -279,8 +310,8 @@ MOONBIT_FFI_EXPORT int32_t mbsd_pair_check(moonbit_bytes_t a,moonbit_bytes_t b) 
 
 #ifndef _WIN32
 /* Set only by the private compatibility contract entrypoint. No product knobs. */
-static int compat_force,compat_mutate,compat_selected,compat_retained;
-static char compat_last[80];
+IO_TEST(static int compat_force,compat_mutate,compat_selected,compat_retained;)
+IO_TEST(static char compat_last[80];)
 static int same_inode(const struct stat *a,const struct stat *b) {
   return a->st_dev==b->st_dev && a->st_ino==b->st_ino;
 }
@@ -296,7 +327,7 @@ static int payload_entry(int dir,const struct stat *created) {
     named.st_uid==geteuid() && (named.st_mode&07777)==0600 && same_inode(&named,created);
 }
 static void retained(const char *name) {
-  compat_retained=1;
+  IO_TEST(compat_retained=1;)
   size_t used=strlen(problem);
   snprintf(problem+used,sizeof(problem)-used,"; private temporary retained or renamed: %s (do not blindly delete)",name);
 }
@@ -314,7 +345,7 @@ static int random_name(char name[80]) {
   name[prefix+sizeof(token)*2]=0;return 1;
 }
 static int compat_deliver(int dir,const char *leaf,moonbit_bytes_t data) {
-  compat_selected++;
+  IO_TEST(compat_selected++;)
   struct stat parent,ds,ps;struct statfs fs;
   if(fstat(dir,&parent)<0 || fstatfs(dir,&fs)<0) { fail("compatibility parent metadata",errno);return 0; }
   /* Restrict permission assumptions to the locally validated ext filesystem.
@@ -327,13 +358,13 @@ static int compat_deliver(int dir,const char *leaf,moonbit_bytes_t data) {
   int made=0,known_dir=0,payload=0,private_fd=-1,writer=-1,keeper=-1;
   char name[80]={0};
   for(unsigned attempt=0;attempt<128;attempt++) {
-    if(compat_mutate==1 && !attempt) strcpy(name,".moonbsdiff-compat-collision");
-    else if(!random_name(name)) return 0;
+    IO_TEST(if(compat_mutate==1 && !attempt) strcpy(name,".moonbsdiff-compat-collision"); else)
+    if(!random_name(name)) return 0;
     if(mkdirat(dir,name,0700)==0) { made=1;break; }
     if(errno!=EEXIST) { fail("exclusive private directory creation",errno);return 0; }
   }
   if(!made) { fail("private directory name collisions exhausted",EEXIST);return 0; }
-  strcpy(compat_last,name);
+  IO_TEST(strcpy(compat_last,name);)
   if(fstatat(dir,name,&ds,AT_SYMLINK_NOFOLLOW)<0) fail("created private directory identity",errno);
   else {
     known_dir=1;
@@ -363,16 +394,17 @@ static int compat_deliver(int dir,const char *leaf,moonbit_bytes_t data) {
   if(!data && !problem[0]) stream_populate(writer);
   while(!problem[0] && at<n) {
     size_t amount=n-at>32768?32768:n-at;
-    if(fault==9 && amount>2) amount=2;
-    if(fault==4 && at) { fail("injected write",EIO);break; }
-    if(fault==4) amount=1;
-    ssize_t done=fault==10?0:write(writer,data+at,amount);
+    IO_TEST(if(fault==9 && amount>2) amount=2;)
+    IO_TEST(if(fault==4 && at) { fail("injected write",EIO);break; })
+    IO_TEST(if(fault==4) amount=1;)
+    ssize_t done=IO_TEST(fault==10?0:)write(writer,data+at,amount);
     if(done<0 && errno==EINTR) continue;
     if(done<=0) { fail("write private payload",done<0?errno:EIO);break; }
     at+=(size_t)done;
   }
   if(writer>=0) { if(close(writer)<0) fail("close written private payload",errno);writer=-1; }
-  if(fault==5) fail("injected close written private payload",EIO);
+  IO_TEST(if(fault==5) fail("injected close written private payload",EIO);)
+#ifdef MBSD_IO_TEST
   if(!problem[0] && compat_mutate==2) {
     int other=openat(dir,leaf,O_WRONLY|O_CREAT|O_EXCL|O_CLOEXEC,0600);
     if(other<0 || write(other,"other",5)!=5) fail("test competing target",EIO);
@@ -384,8 +416,10 @@ static int compat_deliver(int dir,const char *leaf,moonbit_bytes_t data) {
   if(!problem[0] && compat_mutate==4) {
     if(renameat(dir,name,dir,"retained-original")<0 || mkdirat(dir,name,0700)<0) fail("test directory replacement",errno);
   }
+#endif
+
   if(!problem[0] && (!private_entry(dir,name,private_fd,&ds) || !payload_entry(private_fd,&ps))) fail("private temporary identity changed before delivery",ESTALE);
-  if(!problem[0] && fault==6) fail("injected compatibility delivery",EACCES);
+  IO_TEST(if(!problem[0] && fault==6) fail("injected compatibility delivery",EACCES);)
   if(!data && !problem[0]) stream_prepare_commit();
   int committed=0;
   if(!problem[0]) {
@@ -396,7 +430,7 @@ static int compat_deliver(int dir,const char *leaf,moonbit_bytes_t data) {
    * on an atomic check/unlink illusion. Malicious same-uid/root control is out
    * of scope. Unexpected identity => retain, never follow/delete replacement. */
   int clean=1;
-  if(compat_mutate==5 && committed) { fail("injected compatibility cleanup",EIO);clean=0; }
+  IO_TEST(if(compat_mutate==5 && committed) { fail("injected compatibility cleanup",EIO);clean=0; })
   if(private_fd>=0) {
     if(!private_entry(dir,name,private_fd,&ds)) clean=0;
     if(clean && payload) {
@@ -438,8 +472,8 @@ MOONBIT_FFI_EXPORT int32_t mbsd_deliver(moonbit_bytes_t name,moonbit_bytes_t dat
   HANDLE writer=INVALID_HANDLE_VALUE,keeper=INVALID_HANDLE_VALUE;
   for(unsigned attempt=0;attempt<128;attempt++) {
     memcpy(temp,full,parent*sizeof(wchar_t));
-    if(fault==1 && attempt==0) wcscpy(temp+parent,L".moonbsdiff-collision.tmp");
-    else swprintf(temp+parent,32768-parent,L".moonbsdiff-%lu-%u.tmp",(unsigned long)GetCurrentProcessId(),++sequence);
+    IO_TEST(if(fault==1 && attempt==0) wcscpy(temp+parent,L".moonbsdiff-collision.tmp"); else)
+    swprintf(temp+parent,32768-parent,L".moonbsdiff-%lu-%u.tmp",(unsigned long)GetCurrentProcessId(),++sequence);
     writer=CreateFileW(temp,GENERIC_WRITE|DELETE|FILE_READ_ATTRIBUTES,FILE_SHARE_READ,NULL,CREATE_NEW,FILE_ATTRIBUTE_NORMAL,NULL);
     if(writer!=INVALID_HANDLE_VALUE) break;
     DWORD e=GetLastError(); if(e!=ERROR_FILE_EXISTS && e!=ERROR_ALREADY_EXISTS) { fail("exclusive temporary creation",e); return 0; }
@@ -449,17 +483,17 @@ MOONBIT_FFI_EXPORT int32_t mbsd_deliver(moonbit_bytes_t name,moonbit_bytes_t dat
   if(!data && !problem[0]) stream_populate(writer);
   while(!problem[0] && at<n) {
     DWORD amount=(DWORD)(n-at>32768?32768:n-at),done=0;
-    if(fault==9 && amount>2) amount=2;
-    if(fault==4 && at) { fail("injected write",ERROR_WRITE_FAULT); break; }
-    if(fault==4) amount=1;
-    if(!WriteFile(writer,data+at,amount,&done,NULL) || !done) { fail("write temporary",GetLastError()); break; }
+    IO_TEST(if(fault==9 && amount>2) amount=2;)
+    IO_TEST(if(fault==4 && at) { fail("injected write",ERROR_WRITE_FAULT); break; })
+    IO_TEST(if(fault==4) amount=1;)
+    if(!windows_write(writer,data+at,amount,&done,"write temporary")) break;
     at+=done;
   }
   if(keeper==INVALID_HANDLE_VALUE) { FILE_DISPOSITION_INFO del={TRUE}; if(!SetFileInformationByHandle(writer,FileDispositionInfo,&del,sizeof(del))) fail("cleanup temporary",GetLastError()); }
   if(!CloseHandle(writer)) fail("close written temporary",GetLastError());
-  if(fault==5) fail("injected close written temporary",ERROR_WRITE_FAULT);
-  if(!problem[0] && fault==2 && !test_put((char*)name,"other",5,0)) fail("test target creation",EIO);
-  if(!problem[0] && fault==6) fail("injected delivery",ERROR_ACCESS_DENIED);
+  IO_TEST(if(fault==5) fail("injected close written temporary",ERROR_WRITE_FAULT);)
+  IO_TEST(if(!problem[0] && fault==2 && !test_put((char*)name,"other",5,0)) fail("test target creation",EIO);)
+  IO_TEST(if(!problem[0] && fault==6) fail("injected delivery",ERROR_ACCESS_DENIED);)
   if(!data && !problem[0]) stream_prepare_commit();
   if(!problem[0]) {
     size_t size=sizeof(FILE_RENAME_INFO)+((size_t)length+1)*sizeof(wchar_t);
@@ -489,8 +523,8 @@ MOONBIT_FFI_EXPORT int32_t mbsd_deliver(moonbit_bytes_t name,moonbit_bytes_t dat
   /* O_TMPFILE creates a fresh unnamed inode. O_EXCL must not be used here:
    * Linux defines O_TMPFILE|O_EXCL to forbid its later linking. */
   int writer,keeper=-1;
-  if(compat_force==1 || compat_force==2) { writer=-1;errno=compat_force==1?EOPNOTSUPP:EACCES; }
-  else writer=openat(dir,".",O_TMPFILE|O_RDWR|O_CLOEXEC,0600);
+  IO_TEST(if(compat_force==1 || compat_force==2) { writer=-1;errno=compat_force==1?EOPNOTSUPP:EACCES; } else)
+  writer=openat(dir,".",O_TMPFILE|O_RDWR|O_CLOEXEC,0600);
   if(writer<0) {
     int error=errno;
     if(anonymous_unavailable(error)) compat_deliver(dir,leaf,data);
@@ -499,12 +533,12 @@ MOONBIT_FFI_EXPORT int32_t mbsd_deliver(moonbit_bytes_t name,moonbit_bytes_t dat
     return !problem[0];
   }
   char reference[80]; snprintf(reference,sizeof(reference),"/proc/self/fd/%d",writer);
-  if(compat_force==3 || compat_force==4) { keeper=-1;errno=ENOENT; }
-  else keeper=open(reference,O_PATH|O_CLOEXEC);
+  IO_TEST(if(compat_force==3 || compat_force==4) { keeper=-1;errno=ENOENT; } else)
+  keeper=open(reference,O_PATH|O_CLOEXEC);
   if(keeper<0) {
     int error=errno;
     int closed=close(writer)==0,close_error=closed?0:errno;
-    if(compat_force==4) { closed=0;close_error=EIO; }
+    IO_TEST(if(compat_force==4) { closed=0;close_error=EIO; })
     if(!closed) fail("close anonymous temporary before compatibility",close_error);
     else if(error==ENOENT || error==ENOTDIR) compat_deliver(dir,leaf,data);
     else fail("retain temporary identity",error);
@@ -514,17 +548,17 @@ MOONBIT_FFI_EXPORT int32_t mbsd_deliver(moonbit_bytes_t name,moonbit_bytes_t dat
   if(!data && !problem[0]) stream_populate(writer);
   while(!problem[0] && at<n) {
     size_t amount=n-at>32768?32768:n-at;
-    if(fault==9 && amount>2) amount=2;
-    if(fault==4 && at) { fail("injected write",EIO); break; }
-    if(fault==4) amount=1;
+    IO_TEST(if(fault==9 && amount>2) amount=2;)
+    IO_TEST(if(fault==4 && at) { fail("injected write",EIO); break; })
+    IO_TEST(if(fault==4) amount=1;)
     ssize_t done=write(writer,data+at,amount);
     if(done<0) { if(errno==EINTR) continue; fail("write temporary",errno); break; }
     if(!done) { fail("write made no progress",EIO); break; } at+=(size_t)done;
   }
   if(close(writer)<0) fail("close written temporary",errno);
-  if(fault==5) fail("injected close written temporary",EIO);
-  if(!problem[0] && fault==2 && !test_put(path,"other",5,0)) fail("test target creation",EIO);
-  if(!problem[0] && fault==6) fail("injected delivery",EACCES);
+  IO_TEST(if(fault==5) fail("injected close written temporary",EIO);)
+  IO_TEST(if(!problem[0] && fault==2 && !test_put(path,"other",5,0)) fail("test target creation",EIO);)
+  IO_TEST(if(!problem[0] && fault==6) fail("injected delivery",EACCES);)
   if(!data && !problem[0]) stream_prepare_commit();
   if(!problem[0]) {
     snprintf(reference,sizeof(reference),"/proc/self/fd/%d",keeper);
@@ -537,6 +571,7 @@ MOONBIT_FFI_EXPORT int32_t mbsd_deliver(moonbit_bytes_t name,moonbit_bytes_t dat
   return !problem[0];
 }
 
+#ifdef MBSD_IO_TEST
 /* Private native white-box support. Uses real files; only fault points are
  * injected. There is no production command or environment switch to set fault. */
 static int test_put(const char *name,const char *data,int n,int append) {
@@ -718,6 +753,7 @@ MOONBIT_FFI_EXPORT int32_t mbsd_compat_contract(int32_t mode) {
   return result;
 }
 #endif
+#endif
 
 /* Private synchronous streaming adapter. No product fault/configuration hook.
  * Only this compilation unit owns these handles; callbacks never publish paths. */
@@ -739,8 +775,8 @@ static int32_t (*stream_call)(void *);
 static void *stream_context;
 static void *stream_gate;
 static int stream_committed;
-static void interrupt_test_checkpoint(int point);
-static size_t stream_written;
+IO_TEST(static void interrupt_test_checkpoint(int point);)
+IO_TEST(static size_t stream_written;)
 static void stream_close_file(StreamFile *file,const char *label) {
   if(*file==STREAM_INVALID) return;
 #ifdef _WIN32
@@ -800,9 +836,21 @@ MOONBIT_FFI_EXPORT moonbit_bytes_t mbsd_stream_read(int32_t which,int64_t offset
   while(at<(size_t)count) {
 #ifdef _WIN32
     LARGE_INTEGER pos;pos.QuadPart=offset+(int64_t)at;DWORD done=0;
-    if(!SetFilePointerEx(stream_inputs[which],pos,NULL,FILE_BEGIN) || !ReadFile(stream_inputs[which],buffer+at,count-(DWORD)at,&done,NULL) || !done) {
-      fail("stream read/truncated input",GetLastError());break;
+    if(!SetFilePointerEx(stream_inputs[which],pos,NULL,FILE_BEGIN)) {
+      DWORD error=GetLastError();
+      fail("seek stream input",error);break;
     }
+    BOOL read_ok;
+    IO_TEST(if(fault==12) {
+      SetLastError(ERROR_ACCESS_DENIED);
+      read_ok=TRUE; /* Simulate a successful read of zero bytes. */
+    } else)
+    read_ok=ReadFile(stream_inputs[which],buffer+at,(DWORD)count-(DWORD)at,&done,NULL);
+    if(!read_ok) {
+      DWORD error=GetLastError();
+      fail("read stream input",error);break;
+    }
+    if(!done) { fail("premature EOF reading stream input",ERROR_HANDLE_EOF);break; }
 #else
     ssize_t done=pread(stream_inputs[which],buffer+at,(size_t)count-at,(off_t)(offset+(int64_t)at));
     if(done<0 && errno==EINTR) continue;
@@ -864,9 +912,7 @@ MOONBIT_FFI_EXPORT int32_t mbsd_stream_copy_write(moonbit_bytes_t data) {
   while(at<n && !problem[0]) {
 #ifdef _WIN32
     DWORD done;
-    if(!WriteFile(stream_copy,data+at,(DWORD)(n-at),&done,NULL) || !done) {
-      fail("write private input copy",GetLastError());break;
-    }
+    if(!windows_write(stream_copy,data+at,(DWORD)(n-at),&done,"write private input copy")) break;
 #else
     ssize_t done=write(stream_copy,data+at,n-at);
     if(done<0 && errno==EINTR) continue;
@@ -887,8 +933,10 @@ MOONBIT_FFI_EXPORT int32_t mbsd_stream_expect_eof(int32_t which) {
   LARGE_INTEGER end;end.QuadPart=stream_sizes[which];
   DWORD done=0;
   if(!SetFilePointerEx(stream_inputs[which],end,NULL,FILE_BEGIN) ||
-     !ReadFile(stream_inputs[which],&extra,1,&done,NULL))
-    fail("check stream input EOF",GetLastError());
+     !ReadFile(stream_inputs[which],&extra,1,&done,NULL)) {
+    DWORD error=GetLastError();
+    fail("check stream input EOF",error);
+  }
   else if(done) fail("input grew beyond verified length",EFBIG);
 #else
   ssize_t done;
@@ -942,18 +990,18 @@ MOONBIT_FFI_EXPORT int32_t mbsd_stream_write(moonbit_bytes_t data) {
   if(n>4096) { fail("stream output chunk",EINVAL);return 0; }
   while(!problem[0] && at<n) {
     size_t amount=n-at;
-    if(fault==9 && amount>2) amount=2;
-    if(fault==4 && stream_written) { fail("injected stream write",EIO);break; }
-    if(fault==4) amount=1;
+    IO_TEST(if(fault==9 && amount>2) amount=2;)
+    IO_TEST(if(fault==4 && stream_written) { fail("injected stream write",EIO);break; })
+    IO_TEST(if(fault==4) amount=1;)
 #ifdef _WIN32
     DWORD done=0;
-    if(fault==10 || !WriteFile(stream_writer,data+at,(DWORD)amount,&done,NULL) || !done) { fail("stream write/no progress",GetLastError());break; }
+    if(!windows_write(stream_writer,data+at,(DWORD)amount,&done,"stream write")) break;
 #else
-    ssize_t done=fault==10?0:write(stream_writer,data+at,amount);
+    ssize_t done=IO_TEST(fault==10?0:)write(stream_writer,data+at,amount);
     if(done<0 && errno==EINTR) continue;
     if(done<=0) { fail("stream write/no progress",done<0?errno:EIO);break; }
 #endif
-    at+=(size_t)done;stream_written+=(size_t)done;
+    at+=(size_t)done; IO_TEST(stream_written+=(size_t)done;)
   }
   return !problem[0];
 }
@@ -979,19 +1027,20 @@ static int stream_prepare_commit(void) {
     stream_stopped=1;
     if(!problem[0]) snprintf(problem,sizeof(problem),"stream cancelled/failed before commit");
   }
-  if(ok) interrupt_test_checkpoint(60); /* private late-request boundary */
+  IO_TEST(if(ok) interrupt_test_checkpoint(60);) /* private late-request boundary */
   return ok;
 }
 static void stream_mark_published(void) { stream_committed=1; }
 MOONBIT_FFI_EXPORT int32_t mbsd_stream_published(void) { return stream_committed; }
 MOONBIT_FFI_EXPORT int32_t mbsd_stream_deliver(moonbit_bytes_t path,int32_t (*call)(void*),void *context,void *gate) {
-  stream_call=call;stream_context=context;stream_gate=gate;stream_written=0;stream_committed=0;stream_stopped=0;
+  stream_call=call;stream_context=context;stream_gate=gate;IO_TEST(stream_written=0;)stream_committed=0;stream_stopped=0;
   int ok=mbsd_deliver(path,NULL);
   stream_close_inputs(); /* creation failure can occur before populate */
   stream_call=NULL;stream_context=NULL;stream_gate=NULL;stream_stopped=0;
   return ok && !problem[0];
 }
 MOONBIT_FFI_EXPORT void mbsd_stream_abort(void) { stream_close_inputs(); }
+#ifdef MBSD_IO_TEST
 /* New delivery lifecycle only: callback writes, close gate, race, cleanup and reuse. */
 static int32_t stream_contract_body(void *ignored) {
   (void)ignored;
@@ -1025,12 +1074,26 @@ MOONBIT_FFI_EXPORT int32_t mbsd_stream_contract(int32_t mode) {
     if(mode==4 && !strstr(problem,"write")) result=306;
     if(mode==5 && !strstr(problem,"close written")) result=307;
     if(mode==6 && !strstr(problem,"delivery")) result=308;
+#ifdef _WIN32
+    if(mode==10 && !strstr(problem,"write made no progress (OS error 29)")) result=309;
+    if(mode==12 && !strstr(problem,"premature EOF reading stream input (OS error 38)")) result=315;
+#else
     if(mode==10 && !strstr(problem,"progress")) result=309;
+#endif
     if(mode==2) { if(!test_matches(output,"other")) result=310; }
     else if(mode==9 || mode==11) { if(!test_matches(output,"abcdef")) result=311; }
     else if(!test_missing(output)) result=312;
   }
   test_remove(output,0);fault=0;
+#ifdef _WIN32
+  if(!result && mode==12) {
+    moonbit_bytes_t whole=mbsd_read(a,1);
+    if(problem[0] || Moonbit_array_length(whole)!=1 || whole[0]!='A') result=316;
+    moonbit_decref(whole);
+    if(!result && (!mbsd_stream_open(a,a,1,1) || !mbsd_stream_expect_eof(0))) result=317;
+    mbsd_stream_abort();
+  }
+#endif
   if(!result && (!mbsd_stream_open(a,a,1,1) || !mbsd_stream_deliver(b,stream_contract_body,NULL,NULL) || !test_matches(output,"abcdef"))) result=313;
   test_remove(output,0);test_remove(input,0);
 #ifdef _WIN32
@@ -1040,11 +1103,12 @@ MOONBIT_FFI_EXPORT int32_t mbsd_stream_contract(int32_t mode) {
 #endif
   moonbit_decref(a);moonbit_decref(b);problem[0]=0;return result;
 }
+#endif
 
 /* Per-operation signal routing, never runtime/IO/cleanup from a handler.
  * Generation tags keep a stale Windows handler from marking a later operation. */
 static int interrupt_generation;
-static int interrupt_test_point,interrupt_test_wait;
+IO_TEST(static int interrupt_test_point,interrupt_test_wait;)
 #ifdef _WIN32
 static volatile LONG interrupt_route;
 static BOOL WINAPI stream_console_interrupt(DWORD kind) {
@@ -1099,7 +1163,7 @@ MOONBIT_FFI_EXPORT int32_t mbsd_interrupt_commit(int32_t token) {
 #else
   sigset_t mask,previous;sigemptyset(&mask);sigaddset(&mask,SIGINT);
   if(sigprocmask(SIG_BLOCK,&mask,&previous)<0) { fail("block SIGINT for commit",errno);return -1; }
-  interrupt_test_checkpoint(52); /* private blocked/pending signal regression */
+  IO_TEST(interrupt_test_checkpoint(52);) /* private blocked/pending signal regression */
   sigset_t pending;
   if(sigpending(&pending)<0) { int e=errno;sigprocmask(SIG_SETMASK,&previous,NULL);fail("query pending SIGINT",e);return -1; }
   int ready=interrupt_live==token && !interrupt_sealed && interrupt_notified!=token && !sigismember(&pending,SIGINT);
@@ -1124,6 +1188,7 @@ MOONBIT_FFI_EXPORT int32_t mbsd_interrupt_end(int32_t token) {
 #endif
   return 1;
 }
+#ifdef MBSD_IO_TEST
 /* Only the private test snapshot calls setup. No CLI or environment enables it. */
 MOONBIT_FFI_EXPORT void mbsd_interrupt_test_setup(int32_t point,int32_t wait,int32_t injected_fault) {
   interrupt_test_point=point;interrupt_test_wait=wait;fault=injected_fault;
@@ -1167,7 +1232,10 @@ static void interrupt_test_checkpoint(int point) {
 #endif
   }
 }
+#endif
+
 MOONBIT_FFI_EXPORT int32_t mbsd_interrupt_poll(int32_t token,int32_t point) {
-  interrupt_test_checkpoint(point);
+  IO_TEST(interrupt_test_checkpoint(point);)
+  (void)point;
   return interrupt_requested(token);
 }

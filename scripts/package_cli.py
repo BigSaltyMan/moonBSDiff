@@ -37,6 +37,34 @@ def run(args, **kwargs):
     return result.stdout.decode('utf8', errors='replace')
 
 
+def check_test_exports(exe, system):
+    """Check the actual release image and its native adapter if ELF is stripped."""
+    private = {'mbsd_test_fault', 'mbsd_io_contract', 'mbsd_stream_contract',
+               'mbsd_interrupt_test_setup', 'mbsd_compat_contract'}
+
+    def check(path, table, symbols):
+        found = private.intersection(re.findall(r'\bmbsd_\w+\b', symbols))
+        require(not found, f'{path} {table} contains private I/O symbols: {sorted(found)}')
+        print(f'{path}: {table} contains none of the {len(private)} private I/O symbols')
+
+    if system == 'windows':
+        exports = run(['dumpbin', '/exports', str(exe)])
+        require(re.search(r'\bmbsd_deliver\b', exports), 'expected native PE export missing')
+        check(exe, 'PE export table', exports)
+    else:
+        check(exe, 'ELF dynamic symbols', run(['nm', '-D', '--defined-only', str(exe)]))
+        regular = run(['nm', '--defined-only', str(exe)])
+        if regular.strip():
+            require(re.search(r'\bmbsd_deliver\b', regular), 'expected native ELF symbol missing')
+            check(exe, 'ELF ordinary symbols', regular)
+        else:
+            # The same release build retains the unstripped native adapter object.
+            obj = ROOT / '_build/cli-linux/native/release/build/cmd/main/native_io.o'
+            symbols = run(['nm', '--defined-only', str(obj)])
+            require(re.search(r'\bmbsd_deliver\b', symbols), 'expected native object symbol missing')
+            check(obj, 'ELF ordinary symbols (release adapter object)', symbols)
+
+
 def metadata(exe, system):
     if system == 'windows':
         headers = run(['dumpbin', '/headers', str(exe)])
@@ -180,6 +208,7 @@ def main():
     require(not run(git + ['status', '--porcelain', '--untracked-files=no'], cwd=ROOT), 'release build changed tracked source')
     exe_name = 'moonbsdiff.exe' if system == 'windows' else 'moonbsdiff'
     exe = ROOT / '_build/bin' / system / exe_name
+    check_test_exports(exe, system)
     dependencies = metadata(exe, system)
     licenses = {'LICENSE': (ROOT / 'LICENSE').read_bytes(),
                 'BSDIFF-LICENSE.txt': (ROOT / 'tools/oracle/BSDIFF-LICENSE.txt').read_bytes(),
