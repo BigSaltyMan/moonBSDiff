@@ -86,11 +86,22 @@
         "size": 3962,
         "sha256": "303ea7184ca7856f0a70da676bec2007a1747030a59f065933850cc89509047b"
       }
+    },
+    "0.5.3": {
+      "v1": {
+        "size": 3962,
+        "sha256": "37cbe6964f3904fcc7cee52994e71c7aaa00833e4d7ffba8d5b7261ffa46150d"
+      },
+      "v2": {
+        "size": 3962,
+        "sha256": "cab9ef92a0a225aabca383f6750048d5228ddb95b1671dac02585cbda2e8632e"
+      }
     }
   },
   "version_0_2_0_origin": "Independent direct Linux/WSL compilation, same pinned compiler/flags; each output differs from verified 0.1.0 bytes only at offset 3888 in custom name section (module @0.1.0 -> @0.2.0). No code/data section change and no diff/apply used to derive expectations. Original expected field retains Commit 14/15 history.",
   "version_0_4_0_origin": "Independent direct WSL native-host compilation with the pinned compiler/wasm-gc --release --strip flags; replacing the single @0.4.0 custom-name string with @0.2.0 reproduces the fixed 0.2.0 whole-file hash for each module. No diff/apply or changed module source used to derive expectations.",
   "version_0_5_0_origin": "Independent direct Ubuntu 24.04 WSL compilation with the pinned compiler/wasm-gc --release --strip flags. Normalizing the single @0.5.0 custom-name string to @0.4.0 reproduces each fixed 0.4.0 whole-file hash. No diff/apply output was used.",
   "version_0_5_1_origin": "Independent direct Ubuntu 24.04 WSL compilation with the pinned compiler and wasm-gc --release --strip. Normalizing the single @0.5.1 custom-name string to @0.5.0 reproduces both fixed 0.5.0 whole-file hashes. No diff/apply output was used.",
-  "version_0_5_2_origin": "Independent direct Ubuntu 24.04 WSL compilation with the pinned compiler and wasm-gc --release --strip. Normalizing the single @0.5.2 custom-name string to @0.5.1 reproduces both fixed 0.5.1 whole-file hashes. No diff/apply output was used."
+  "version_0_5_2_origin": "Independent direct Ubuntu 24.04 WSL compilation with the pinned compiler and wasm-gc --release --strip. Normalizing the single @0.5.2 custom-name string to @0.5.1 reproduces both fixed 0.5.1 whole-file hashes. No diff/apply output was used.",
+  "version_0_5_3_origin": "Independent direct Ubuntu 24.04 WSL compilation with the pinned compiler and wasm-gc --release --strip. Normalizing the single @0.5.3 custom-name string to @0.5.2 reproduces both fixed 0.5.2 whole-file hashes. No diff/apply output was used."
 }

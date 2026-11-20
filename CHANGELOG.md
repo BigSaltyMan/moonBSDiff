@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.5.3
+
 - Use the final file identity from `manifest plan --target-manifest` even
   when the manifest describes a patch that exceeds the per-patch limit.
   Positional candidates still follow the patch declaration limits.

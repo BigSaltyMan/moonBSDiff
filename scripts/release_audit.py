@@ -41,7 +41,7 @@ def main():
     module_version=re.search(r'^version\s*=\s*"([^"]+)"', (source/'moon.mod').read_text(encoding='utf8'),re.M)[1]
     package=source/('_build/publish/BigSaltyMan-moonbsdiff-'+module_version+'.zip')
     count=audit_zip(package,expected)
-    if module_version in ("0.5.0", "0.5.1", "0.5.2"):
+    if module_version in ("0.5.0", "0.5.1", "0.5.2", "0.5.3"):
         for name in (
             "manifest/moon.pkg", "manifest/pkg.generated.mbti", "manifest/bundle.mbt",
             "manifest/parse.mbt", "manifest/plan.mbt", "manifest/restore.mbt",
@@ -53,10 +53,10 @@ def main():
             "testdata/upstream/seeded-random/patch.bin",
         ):
             require(name in expected, f"missing {module_version} release member: {name}")
-    if module_version in ("0.5.1", "0.5.2"):
+    if module_version in ("0.5.1", "0.5.2", "0.5.3"):
         for name in ("cmd/main/help.mbt", "scripts/native_test.py"):
             require(name in expected, f"missing {module_version} release member: {name}")
-    if module_version == "0.5.2":
+    if module_version in ("0.5.2", "0.5.3"):
         for name in (
             "internal/bzip2/writer.mbt", "internal/bzip2/encode.mbt",
             "internal/bzip2/bwt.mbt", "internal/bzip2/sink.mbt",
