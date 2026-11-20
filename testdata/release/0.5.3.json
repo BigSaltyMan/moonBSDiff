@@ -1,0 +1,614 @@
+{
+  "schema": 1,
+  "module": "BigSaltyMan/moonbsdiff",
+  "version": "0.5.3",
+  "source_sha": "ff98b94e8c0084bab4d5faaf4fc98f2031c5a56a",
+  "tag": "v0.5.3",
+  "tag_target_sha": "ff98b94e8c0084bab4d5faaf4fc98f2031c5a56a",
+  "tag_object_sha": "4b8c769f37e39507ba172bfc800b5add9b0e5ee3",
+  "ci": {
+    "url": "https://github.com/BigSaltyMan/moonBSDiff/actions/runs/44668535474",
+    "run_id": 44668535474,
+    "event": "workflow_dispatch",
+    "run_generation_scales": true,
+    "jobs": {
+      "Native larger-input policies (256 KiB then 1 MiB)": {
+        "url": "https://github.com/BigSaltyMan/moonBSDiff/actions/runs/44668535474/job/136063667230",
+        "conclusion": "success"
+      },
+      "Real BSDiff reference interoperability": {
+        "url": "https://github.com/BigSaltyMan/moonBSDiff/actions/runs/44668535474/job/136063667536",
+        "conclusion": "success"
+      },
+      "CLI (windows-latest)": {
+        "url": "https://github.com/BigSaltyMan/moonBSDiff/actions/runs/44668535474/job/136063667539",
+        "conclusion": "success"
+      },
+      "CLI (ubuntu-latest)": {
+        "url": "https://github.com/BigSaltyMan/moonBSDiff/actions/runs/44668535474/job/136063667554",
+        "conclusion": "success"
+      },
+      "native": {
+        "url": "https://github.com/BigSaltyMan/moonBSDiff/actions/runs/44668535474/job/136063667804",
+        "conclusion": "success"
+      },
+      "Collect source-bound CLI release assets": {
+        "url": "https://github.com/BigSaltyMan/moonBSDiff/actions/runs/44668535474/job/136064531988",
+        "conclusion": "success"
+      }
+    },
+    "artifacts": [
+      {
+        "id": 14599276735,
+        "name": "generation-scales-ff98b94e8c0084bab4d5faaf4fc98f2031c5a56a",
+        "sha256": "5ce5f4be8f797a82c511c4285ddb8f925d738dc514089ee93bf4d10bd80613a0",
+        "files": [
+          "cli-44a3dc49b67c4284b9b1e786397688b4.json",
+          "cli-766f89a8754845f08a34afa9f89ec76a.json",
+          "scale-all.json"
+        ]
+      },
+      {
+        "id": 14598837340,
+        "name": "mooncakes-candidate-ff98b94e8c0084bab4d5faaf4fc98f2031c5a56a",
+        "sha256": "bd1064c33cd5f9b70ebad02955cae56ac2c9f47e6143efc15d64d9b6f3b895f4",
+        "files": [
+          "BigSaltyMan-moonbsdiff-0.5.3.zip",
+          "audit.json",
+          "consumer.json"
+        ]
+      },
+      {
+        "id": 14598593262,
+        "name": "cli-release-ff98b94e8c0084bab4d5faaf4fc98f2031c5a56a",
+        "sha256": "ffd8f0f67a5e8512a0540b4c51608090cc9ff07a932457194db5eb1aba9e7940",
+        "files": [
+          "SHA256SUMS",
+          "build-info.json",
+          "moonbsdiff-0.5.3-linux-x86_64.tar.gz",
+          "moonbsdiff-0.5.3-windows-x86_64.zip"
+        ]
+      }
+    ]
+  },
+  "regression": {
+    "sha": "ff98b94e8c0084bab4d5faaf4fc98f2031c5a56a",
+    "run_id": 44668535474,
+    "cli": {
+      "windows": {
+        "python_cases": 117,
+        "boundary_cases": [
+          {
+            "level": 1,
+            "tail": "CDE",
+            "restored_bytes": 100002
+          },
+          {
+            "level": 1,
+            "tail": "CCD",
+            "restored_bytes": 100002
+          },
+          {
+            "level": 1,
+            "tail": "CC",
+            "restored_bytes": 100001
+          },
+          {
+            "level": 9,
+            "tail": "CDE",
+            "restored_bytes": 900002
+          },
+          {
+            "level": 9,
+            "tail": "CCD",
+            "restored_bytes": 900002
+          },
+          {
+            "level": 9,
+            "tail": "CC",
+            "restored_bytes": 900001
+          }
+        ],
+        "skip_steps": [
+          "Linux native CLI file and private IO contracts",
+          "Real unprivileged ext4 delivery without proc (private mount namespace)",
+          "Memory library and fixed Wasm update examples (once, Linux only)",
+          "Compare CLI and library manifest bytes",
+          "Package and validate Linux release archive once"
+        ],
+        "private_file_contracts": 9,
+        "private_stream_compat_tests": 2,
+        "public_archive": {
+          "source_sha": "ff98b94e8c0084bab4d5faaf4fc98f2031c5a56a",
+          "platform": "Windows-11-10.0.26300-SP0",
+          "archive": "moonbsdiff-0.5.3-windows-x86_64.zip",
+          "archive_sha256": "8260a6241fb63bf108bdd0c8097755695bf4de58818a9338ef8b70351d2410b9",
+          "executable_sha256": "ae442693eee55d8870f33f2da0372aad86434db607f62bf3eed5ffdd93c3febe",
+          "version": "moonbsdiff 0.5.3",
+          "manifest_plan_help_exit": 0,
+          "help_has_max_download_bytes": true,
+          "usage": "moonbsdiff manifest plan --target-manifest FILE [--max-steps COUNT] [--max-download-bytes VALUE] [--allow-full] [LIMITS] OLD_FILE [MANIFEST_FILE...]",
+          "ordinary_plan": {
+            "args": [
+              "manifest",
+              "plan",
+              "--max-patch-bytes",
+              "204",
+              "--target-manifest",
+              "v1-to-v3.json",
+              "--",
+              "installed.bin",
+              "v1-to-v2.json",
+              "v2-to-v3.json"
+            ],
+            "exit": 0,
+            "route": [
+              "v1-to-v2.json",
+              "v2-to-v3.json"
+            ],
+            "total_patch_bytes": "368",
+            "rejection": {
+              "exit": 1,
+              "stdout_empty": true,
+              "diagnostic": "moonbsdiff: manifest plan 'v1-to-v3.json': manifest limits: patch/max_patch_bytes declared size 2532 exceeds limit 204"
+            }
+          }
+        }
+      },
+      "linux": {
+        "python_cases": 117,
+        "boundary_cases": [
+          {
+            "level": 1,
+            "tail": "CDE",
+            "restored_bytes": 100002
+          },
+          {
+            "level": 1,
+            "tail": "CCD",
+            "restored_bytes": 100002
+          },
+          {
+            "level": 1,
+            "tail": "CC",
+            "restored_bytes": 100001
+          },
+          {
+            "level": 9,
+            "tail": "CDE",
+            "restored_bytes": 900002
+          },
+          {
+            "level": 9,
+            "tail": "CCD",
+            "restored_bytes": 900002
+          },
+          {
+            "level": 9,
+            "tail": "CC",
+            "restored_bytes": 900001
+          }
+        ],
+        "skip_steps": [
+          "Windows native type check",
+          "Windows native CLI file and private IO contracts",
+          "Package and validate Windows release archive once"
+        ],
+        "private_file_contracts": 9,
+        "private_stream_compat_tests": 4,
+        "public_archive": {
+          "source_sha": "ff98b94e8c0084bab4d5faaf4fc98f2031c5a56a",
+          "platform": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+          "archive": "moonbsdiff-0.5.3-linux-x86_64.tar.gz",
+          "archive_sha256": "40f247b7d785bc09ef9850a2ac01a7276fdf04de977e659c2be5515c8091a87a",
+          "executable_sha256": "3968e1c6bb6ae4e400b77af83fa36646c72186eeb66d0acd343503c2bf18e6d0",
+          "version": "moonbsdiff 0.5.3",
+          "manifest_plan_help_exit": 0,
+          "help_has_max_download_bytes": true,
+          "usage": "moonbsdiff manifest plan --target-manifest FILE [--max-steps COUNT] [--max-download-bytes VALUE] [--allow-full] [LIMITS] OLD_FILE [MANIFEST_FILE...]",
+          "ordinary_plan": null
+        }
+      }
+    },
+    "native_tests": 162,
+    "reference": {
+      "js": {
+        "moon-to-oracle": {
+          "expected": 19,
+          "failed": 0,
+          "skipped": 0,
+          "success": 19
+        },
+        "oracle-to-moon": {
+          "expected": 19,
+          "failed": 0,
+          "skipped": 0,
+          "success": 19
+        }
+      },
+      "native": {
+        "moon-to-oracle": {
+          "expected": 31,
+          "failed": 0,
+          "skipped": 0,
+          "success": 31
+        },
+        "oracle-to-moon": {
+          "expected": 31,
+          "failed": 0,
+          "skipped": 0,
+          "success": 31
+        }
+      },
+      "wasm-gc": {
+        "moon-to-oracle": {
+          "expected": 19,
+          "failed": 0,
+          "skipped": 0,
+          "success": 19
+        },
+        "oracle-to-moon": {
+          "expected": 19,
+          "failed": 0,
+          "skipped": 0,
+          "success": 19
+        }
+      }
+    },
+    "patch_sizes": {
+      "256k-sparse": 188,
+      "256k-periodic": 165,
+      "256k-random": 263849,
+      "1m-sparse": 197,
+      "1m-periodic": 168,
+      "1m-random": 1053978
+    },
+    "chain": {
+      "direct_bytes": 2532,
+      "patches": [
+        204,
+        164
+      ],
+      "total": 368,
+      "restored_bytes": 2048,
+      "cap_203_rejected": true,
+      "wrong_sha_rejected": true,
+      "failures_no_output": true
+    }
+  },
+  "supplements": {
+    "js": {
+      "source_sha": "ff98b94e8c0084bab4d5faaf4fc98f2031c5a56a",
+      "target": "js",
+      "ci_tests": 135,
+      "local_passing": 25,
+      "total": 160,
+      "local_whole_files": {
+        "limits_test.mbt": [
+          "valid limits and boundaries",
+          "invalid values identify field and allow recovery",
+          "error details retain context",
+          "every limit rejects zero and negative values",
+          "each buffer ceiling rejects one beyond Int range"
+        ],
+        "inspect_test.mbt": [
+          "inspect public metadata is structural and Int64 exact"
+        ],
+        "format_prefix_test.mbt": [
+          "header prefix: shared bounds without buffering patch"
+        ],
+        "format_wbtest.mbt": [
+          "fixed integer vectors",
+          "integer errors and offsets",
+          "short headers and unsupported magic",
+          "valid block boundaries and negative zero",
+          "invalid fields and ranges",
+          "limits precede parsing and output allocation",
+          "nonempty blocks end exactly at patch end"
+        ]
+      },
+      "local_filtered_tests": [
+        [
+          "suffix_array_wbtest.mbt",
+          "suffix-native-exhaustive"
+        ],
+        [
+          "suffix_array_wbtest.mbt",
+          "suffix-native-scale-and-growth"
+        ],
+        [
+          "matching_wbtest.mbt",
+          "matching-native-exhaustive"
+        ],
+        [
+          "matching_wbtest.mbt",
+          "matching-native-random-and-repetition"
+        ],
+        [
+          "diff_resources_wbtest.mbt",
+          "diff-resource-native-writer-block-boundary"
+        ],
+        [
+          "diff_resources_wbtest.mbt",
+          "default generation patch above 64 KiB applies with default limits"
+        ],
+        [
+          "compression_wbtest.mbt",
+          "compression-large-boundaries-native"
+        ],
+        [
+          "compression_wbtest.mbt",
+          "compression-dependency-gaps-native"
+        ],
+        [
+          "manifest/plan_test.mbt",
+          "manifest plan restores documented 2048-byte route"
+        ],
+        [
+          "manifest/bundle_test.mbt",
+          "manifest bundle index budgets and options"
+        ],
+        [
+          "manifest/bundle_test.mbt",
+          "manifest bundle matches root options"
+        ]
+      ]
+    },
+    "wasm-gc": {
+      "source_sha": "ff98b94e8c0084bab4d5faaf4fc98f2031c5a56a",
+      "target": "wasm-gc",
+      "ci_tests": 135,
+      "local_passing": 25,
+      "total": 160,
+      "local_whole_files": {
+        "limits_test.mbt": [
+          "valid limits and boundaries",
+          "invalid values identify field and allow recovery",
+          "error details retain context",
+          "every limit rejects zero and negative values",
+          "each buffer ceiling rejects one beyond Int range"
+        ],
+        "inspect_test.mbt": [
+          "inspect public metadata is structural and Int64 exact"
+        ],
+        "format_prefix_test.mbt": [
+          "header prefix: shared bounds without buffering patch"
+        ],
+        "format_wbtest.mbt": [
+          "fixed integer vectors",
+          "integer errors and offsets",
+          "short headers and unsupported magic",
+          "valid block boundaries and negative zero",
+          "invalid fields and ranges",
+          "limits precede parsing and output allocation",
+          "nonempty blocks end exactly at patch end"
+        ]
+      },
+      "local_filtered_tests": [
+        [
+          "suffix_array_wbtest.mbt",
+          "suffix-native-exhaustive"
+        ],
+        [
+          "suffix_array_wbtest.mbt",
+          "suffix-native-scale-and-growth"
+        ],
+        [
+          "matching_wbtest.mbt",
+          "matching-native-exhaustive"
+        ],
+        [
+          "matching_wbtest.mbt",
+          "matching-native-random-and-repetition"
+        ],
+        [
+          "diff_resources_wbtest.mbt",
+          "diff-resource-native-writer-block-boundary"
+        ],
+        [
+          "diff_resources_wbtest.mbt",
+          "default generation patch above 64 KiB applies with default limits"
+        ],
+        [
+          "compression_wbtest.mbt",
+          "compression-large-boundaries-native"
+        ],
+        [
+          "compression_wbtest.mbt",
+          "compression-dependency-gaps-native"
+        ],
+        [
+          "manifest/plan_test.mbt",
+          "manifest plan restores documented 2048-byte route"
+        ],
+        [
+          "manifest/bundle_test.mbt",
+          "manifest bundle index budgets and options"
+        ],
+        [
+          "manifest/bundle_test.mbt",
+          "manifest bundle matches root options"
+        ]
+      ]
+    }
+  },
+  "readme": {
+    "source_sha": "ff98b94e8c0084bab4d5faaf4fc98f2031c5a56a",
+    "version": "0.5.3",
+    "candidate_sha256": "cca450a2b5f2013cfa7414b4e3251eb3deffd2fde43d2f9eb56a2f123f54c227",
+    "readme_sha256": "eaf48da1d7f4d2ebf44d77a746f554890cb2aeead023a6b93422810b4bdd4ac7",
+    "compiled_and_ran": true,
+    "mode": "external candidate workspace"
+  },
+  "toolchain": "moon 0.1.20261102 (ea07287 2026-11-02) ~/.moon/bin/moon\nmoonc v0.10.19+bee578715 (2026-11-02) ~/.moon/bin/moonc\nmoonrun 0.1.20261102 (ea07287 2026-11-02) ~/.moon/bin/moonrun",
+  "scale": {
+    "measurements": [
+      {
+        "id": "256k-sparse",
+        "old_size": 262144,
+        "new_size": 262144,
+        "patch_bytes": 188,
+        "new_sha256": "9a7ae270ed20bf6a19731308bfa463059b6bc79cd5840a316aa3849593b9ea5a",
+        "restored_sha256": "9a7ae270ed20bf6a19731308bfa463059b6bc79cd5840a316aa3849593b9ea5a",
+        "byte_equal": true
+      },
+      {
+        "id": "256k-periodic",
+        "old_size": 262144,
+        "new_size": 262144,
+        "patch_bytes": 165,
+        "new_sha256": "3e15d65653b8224c6246d392e32c59be47932f1903a9504a24ba442fb7fc9f52",
+        "restored_sha256": "3e15d65653b8224c6246d392e32c59be47932f1903a9504a24ba442fb7fc9f52",
+        "byte_equal": true
+      },
+      {
+        "id": "256k-random",
+        "old_size": 262144,
+        "new_size": 262144,
+        "patch_bytes": 263849,
+        "new_sha256": "2425ad53b10c0eedc10a34b8cb5d73773d7ad067a2572486a7ddb94b299bf342",
+        "restored_sha256": "2425ad53b10c0eedc10a34b8cb5d73773d7ad067a2572486a7ddb94b299bf342",
+        "byte_equal": true
+      },
+      {
+        "id": "1m-sparse",
+        "old_size": 1048576,
+        "new_size": 1048576,
+        "patch_bytes": 197,
+        "new_sha256": "7ce70bb102b5106e41f7315cb274ea1f674d42ef6302a9013616976f918640b8",
+        "restored_sha256": "7ce70bb102b5106e41f7315cb274ea1f674d42ef6302a9013616976f918640b8",
+        "byte_equal": true
+      },
+      {
+        "id": "1m-periodic",
+        "old_size": 1048576,
+        "new_size": 1048576,
+        "patch_bytes": 168,
+        "new_sha256": "3401436606eb9782f7fef20b02c8c9a7a22e334bea7f55a99e0edf4d51defd17",
+        "restored_sha256": "3401436606eb9782f7fef20b02c8c9a7a22e334bea7f55a99e0edf4d51defd17",
+        "byte_equal": true
+      },
+      {
+        "id": "1m-random",
+        "old_size": 1048576,
+        "new_size": 1048576,
+        "patch_bytes": 1053978,
+        "new_sha256": "a11961166dede3a00708b6fbfba1268416d17b0362bc6d134d386576eac68cad",
+        "restored_sha256": "a11961166dede3a00708b6fbfba1268416d17b0362bc6d134d386576eac68cad",
+        "byte_equal": true
+      }
+    ],
+    "cli_replays": [
+      {
+        "stage": "256k",
+        "case": "random",
+        "patch_bytes": 263849,
+        "patch_sha256": "4d6aa7c68fbf52ddfc99d34474885aced4703fdf1cf422e1b2a4062066f34101",
+        "restored_sha256": "2425ad53b10c0eedc10a34b8cb5d73773d7ad067a2572486a7ddb94b299bf342",
+        "byte_equal": true
+      },
+      {
+        "stage": "1m",
+        "case": "random",
+        "patch_bytes": 1053978,
+        "patch_sha256": "81f4ea9d5f75cdfc78dce221af7d83adbb0fbd0e3d6d0aa0ea70bf72db36a473",
+        "restored_sha256": "a11961166dede3a00708b6fbfba1268416d17b0362bc6d134d386576eac68cad",
+        "byte_equal": true
+      }
+    ]
+  },
+  "mooncakes": {
+    "source_sha": "ff98b94e8c0084bab4d5faaf4fc98f2031c5a56a",
+    "version": "0.5.3",
+    "package_url": "https://download.mooncakes.io/user/BigSaltyMan/moonbsdiff/0.5.3.zip",
+    "metadata_url": "https://mooncakes.io/api/v0/manifest/BigSaltyMan/moonbsdiff/0.5.3",
+    "package_sha256": "cca450a2b5f2013cfa7414b4e3251eb3deffd2fde43d2f9eb56a2f123f54c227",
+    "registry_sha256": "cca450a2b5f2013cfa7414b4e3251eb3deffd2fde43d2f9eb56a2f123f54c227",
+    "size_bytes": 676237,
+    "members": 292,
+    "canonical_member_sha256": "07aa012beb39c67ae233ea17ae0009625861a88ce7cb0e456ee69b9f51c6845f",
+    "ci_sha256": "939997bceebd65d0bb0dfba6b85b7b8d4bc465401b1e7460ad9e56270abce83e",
+    "windows_candidate_sha256": "cca450a2b5f2013cfa7414b4e3251eb3deffd2fde43d2f9eb56a2f123f54c227",
+    "byte_equal_windows": true,
+    "byte_equal_ci": false,
+    "member_bytes_equal": true,
+    "container_differences": {
+      "same_entry_order": false,
+      "same_zip_comment": true,
+      "header_metadata_fields": []
+    }
+  },
+  "candidate_consumer": {
+    "observations": {
+      "native": [
+        "manifest 0.5.3 probe: candidate=1 patch_bytes=168 target_bytes=1045 apply_patch_cap=131072"
+      ],
+      "js": [
+        "manifest 0.5.3 probe: candidate=1 patch_bytes=168 target_bytes=1045 apply_patch_cap=131072"
+      ],
+      "wasm-gc": [
+        "manifest 0.5.3 probe: candidate=1 patch_bytes=168 target_bytes=1045 apply_patch_cap=131072"
+      ]
+    },
+    "targets": [
+      "native",
+      "js",
+      "wasm-gc"
+    ]
+  },
+  "public_consumer": {
+    "mode": "registry",
+    "platform": "Windows-11-10.0.26300-SP0",
+    "targets": [
+      "native"
+    ],
+    "version": "0.5.3",
+    "dependency_tree": "releasecheck/consumer@0.1.0 (local C:\\Users\\85953\\AppData\\Local\\Temp\\moonbsdiff-consumer-thyazzkg\\consumer):\n\u2514\u2500 BigSaltyMan/moonbsdiff -> BigSaltyMan/moonbsdiff@0.5.3\n   \u251c\u2500 moonbitstack/mooncrypt -> moonbitstack/mooncrypt@0.4.7\n   \u2502  \u251c\u2500 moonbitstack/moonbase -> moonbitstack/moonbase@0.4.2\n   \u2502  \u251c\u2500 moonbitstack/moondate -> moonbitstack/moondate@0.1.0\n   \u2502  \u2514\u2500 moonbitstack/moonseed -> moonbitstack/moonseed@0.1.0\n   \u2514\u2500 moonbitstack/moonzip -> moonbitstack/moonzip@0.3.5\n      \u251c\u2500 moonbitstack/moonbase -> moonbitstack/moonbase@0.4.2\n      \u2514\u2500 moonbitstack/mooncrypt -> moonbitstack/mooncrypt@0.4.7 (*)\n",
+    "observations": {
+      "native": [
+        "manifest 0.5.3 probe: candidate=1 patch_bytes=168 target_bytes=1045 apply_patch_cap=131072"
+      ]
+    },
+    "package_sha256": "cca450a2b5f2013cfa7414b4e3251eb3deffd2fde43d2f9eb56a2f123f54c227"
+  },
+  "github_release": {
+    "source_sha": "ff98b94e8c0084bab4d5faaf4fc98f2031c5a56a",
+    "run_id": 44668535474,
+    "tag": "v0.5.3",
+    "tag_object_sha": "4b8c769f37e39507ba172bfc800b5add9b0e5ee3",
+    "release_id": 452238993,
+    "release_url": "https://github.com/BigSaltyMan/moonBSDiff/releases/tag/v0.5.3",
+    "draft": false,
+    "prerelease": false,
+    "assets": [
+      {
+        "name": "build-info.json",
+        "url": "https://github.com/BigSaltyMan/moonBSDiff/releases/download/v0.5.3/build-info.json",
+        "sha256": "6bfa5d20119f9f8057656da665b65b5709a2cd2a9dc26f6f06fd358f6493fb32",
+        "size_bytes": 7090,
+        "byte_equal_ci": true
+      },
+      {
+        "name": "moonbsdiff-0.5.3-linux-x86_64.tar.gz",
+        "url": "https://github.com/BigSaltyMan/moonBSDiff/releases/download/v0.5.3/moonbsdiff-0.5.3-linux-x86_64.tar.gz",
+        "sha256": "40f247b7d785bc09ef9850a2ac01a7276fdf04de977e659c2be5515c8091a87a",
+        "size_bytes": 438955,
+        "byte_equal_ci": true
+      },
+      {
+        "name": "moonbsdiff-0.5.3-windows-x86_64.zip",
+        "url": "https://github.com/BigSaltyMan/moonBSDiff/releases/download/v0.5.3/moonbsdiff-0.5.3-windows-x86_64.zip",
+        "sha256": "8260a6241fb63bf108bdd0c8097755695bf4de58818a9338ef8b70351d2410b9",
+        "size_bytes": 309172,
+        "byte_equal_ci": true
+      },
+      {
+        "name": "SHA256SUMS",
+        "url": "https://github.com/BigSaltyMan/moonBSDiff/releases/download/v0.5.3/SHA256SUMS",
+        "sha256": "3d53afd42c005dc83f46039bbab1f7c64c24484363415fa278cbf82e934f94d2",
+        "size_bytes": 287,
+        "byte_equal_ci": true
+      }
+    ]
+  }
+}
