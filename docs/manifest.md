@@ -96,12 +96,18 @@ candidate manifests after the installed file, in the desired traversal order.
 moonbsdiff manifest plan --target-manifest v2-to-v3.json installed.bin v1-to-v2.json v2-to-v3.json v1-to-v3.json
 ```
 
-The planner reads the installed file once and computes its SHA-256 once. It
-applies the same 16 KiB cap, strict schema, and declaration limits as
-`manifest select` to the target and every candidate manifest. The same four
-byte-limit options apply. Only positional manifests supply directed edges.
-The target manifest identifies the destination by `new.size_bytes` and
-`new.sha256`, and it can also be supplied as a positional candidate.
+The planner reads the installed file once and computes its SHA-256 once.
+The target and every candidate manifest must fit the 16 KiB read cap and
+pass the strict schema checks used by `manifest select`. The target manifest
+identifies the destination by `new.size_bytes` and `new.sha256`. Its declared
+new size must fit both `--max-new-bytes` and `--max-output-bytes`.
+
+Only positional manifests supply directed edges. Each positional candidate
+is checked against all four declared-size limits, including
+`--max-old-bytes` and `--max-patch-bytes`. The target manifest can also
+be supplied as a positional candidate, in which case it gets those candidate
+checks too. Patch-only planning rejects an over-budget candidate.
+With `--allow-full`, the planner excludes that candidate.
 
 A route minimizes the sum of declared patch bytes, then the step count.
 The planner visits outgoing edges in positional order. At equal cost and step
@@ -274,8 +280,8 @@ A valid candidate is excluded when its declared old, patch, or new size exceeds
 the corresponding apply limit. Remaining candidates retain their argument
 order. A read error, a manifest larger than 16 KiB, or a schema error fails
 planning even when a full download is available. The actual installed file
-must fit its read limit. Without `--allow-full`, an over-budget declaration
-still fails patch-only planning.
+must fit its read limit. Patch-only planning fails when a positional
+candidate exceeds a declaration limit.
 
 ```sh
 moonbsdiff manifest plan --allow-full --max-patch-bytes 200 --target-manifest v2-to-v3.json -- installed.bin v1-to-v2.json v2-to-v3.json v1-to-v3.json

@@ -126,11 +126,11 @@ fn manifest_plan_command(config : CliConfig) -> Unit {
   let marker = @manifest.prepare(data, limits)
   // Successful patch preflight already includes the target checks. If only
   // old or patch limits prevent that preflight, use the same bytes to check
-  // the full-file role. Keep the patch result for any matching candidate.
+  // the target identity. Keep the patch result for any matching candidate.
   let target = match marker {
     Ok(prepared) => prepared.new
-    Err(LimitExceeded(field~, ..)) if config.allow_full &&
-      (field == "max_old_bytes" || field == "max_patch_bytes") =>
+    Err(LimitExceeded(field~, ..)) if field == "max_old_bytes" ||
+      field == "max_patch_bytes" =>
       match @manifest.prepare_target(data, limits) {
         Ok(identity) => identity
         Err(error) => plan_manifest_failure(operation, target_path, error)

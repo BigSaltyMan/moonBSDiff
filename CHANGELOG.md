@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Use the final file identity from `manifest plan --target-manifest` even
+  when the manifest describes a patch that exceeds the per-patch limit.
+  Positional candidates still follow the patch declaration limits.
+
 ## 0.5.2
 
 - Fix bzip2 encoding when a repeated-byte run crosses a block boundary,

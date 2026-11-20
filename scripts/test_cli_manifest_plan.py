@@ -94,6 +94,37 @@ class ManifestPlan(ManifestPlanFixture):
               f"Restored: {len(target)} bytes, SHA-256 {identity(target)['sha256']}")
         print(result.stdout.decode("utf-8").strip())
 
+    def test_oversized_direct_manifest_is_valid_for_target_only(self):
+        _, _, target = prepare_two_hop(self.write, self.invoke)
+        prepare_direct(self.write, self.invoke, target)
+        marker = "v1-to-v3.json"
+        paths = ("v1-to-v2.json", "v2-to-v3.json")
+        budget = ("--max-patch-bytes", "204")
+
+        result = self.plan(marker, *paths, options=(*budget, "--"))
+        plan = json.loads(result.stdout)
+        self.assertEqual(plan["target"], identity(target))
+        self.assertEqual(plan["total_patch_bytes"], "368")
+        self.assertEqual([step["manifest_path"] for step in plan["steps"]], list(paths))
+        self.assertEqual([step["patch"]["size_bytes"] for step in plan["steps"]], ["204", "164"])
+        print("Target-only manifest: " + " -> ".join(paths) + ", 368 patch bytes at cap 204")
+
+        direct = self.plan(marker, *paths, marker, code=1, options=(*budget, "--"))
+        self.assertIn(b"'v1-to-v3.json':", direct.stderr)
+        self.assertIn(b"patch/max_patch_bytes declared size 2532 exceeds limit 204", direct.stderr)
+        print(direct.stderr.decode().strip())
+
+        tight = self.plan(marker, *paths, code=1, options=("--max-patch-bytes", "203", "--"))
+        self.assertIn(b"'v1-to-v2.json':", tight.stderr)
+        self.assertIn(b"patch/max_patch_bytes declared size 204 exceeds limit 203", tight.stderr)
+        print(tight.stderr.decode().strip())
+
+        for option, field in [("--max-new-bytes", "max_new_bytes"), ("--max-output-bytes", "max_output_bytes")]:
+            with self.subTest(option=option):
+                limited = self.plan(marker, *paths, code=1, options=(*budget, option, "2047", "--"))
+                self.assertIn(b"'v1-to-v3.json':", limited.stderr)
+                self.assertIn(f"new/{field} declared size 2048 exceeds limit 2047".encode(), limited.stderr)
+
     def test_ties_parallel_edges_and_cycles(self):
         source, target = b"src", b"destination"
         self.write("installed.bin", source)
@@ -125,7 +156,7 @@ class ManifestPlan(ManifestPlanFixture):
         wrong = self.edge("wrong.json", b"TWO", target, 50)
         marker = self.edge("target-label.json", old, target, 100)
         self.assertIn(b"no reachable path", self.plan(marker, first, wrong, code=1).stderr)
-        self.assertIn(b"patch/max_patch_bytes", self.plan(marker, first, wrong, code=1,
+        self.assertIn(b"no reachable path", self.plan(marker, first, wrong, code=1,
                       options=("--max-patch-bytes", "99")).stderr)
         self.assertIn(b"requires --target-manifest", self.invoke(
             "manifest", "plan", "installed.bin", first, code=2).stderr)
@@ -624,5 +655,5 @@ if __name__ == "__main__":
         tests.addTests(loader.loadTestsFromTestCase(ManifestPlanDownloadBudget))
         tests.addTests(loader.loadTestsFromTestCase(ManifestPlanLocal))
     result = unittest.TextTestRunner(verbosity=2).run(tests)
-    if not result.wasSuccessful() or result.testsRun != (3 if args.steps_only else 19) or result.skipped:
+    if not result.wasSuccessful() or result.testsRun != (3 if args.steps_only else 20) or result.skipped:
         raise SystemExit(1)
