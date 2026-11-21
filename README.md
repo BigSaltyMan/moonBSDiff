@@ -15,7 +15,7 @@ the restored file.
 
 Download the archive for your platform and verify its SHA-256 before extracting.
 Run the executable by its path, or add it to your `PATH`. The
-[installation guide](docs/cli-install.md) includes checksum commands and runtime
+[installation guide](https://github.com/BigSaltyMan/moonBSDiff/blob/master/docs/cli-install.md) includes checksum commands and runtime
 requirements. [GitHub Releases](https://github.com/BigSaltyMan/moonBSDiff/releases)
 
 ```sh
@@ -32,8 +32,8 @@ moonbsdiff patch --stream --manifest update.json old.bin update.patch restored.b
 
 `patch` takes `OLD PATCH OUTPUT`. Choose an output path that does not already
 exist. From 0.5.1, use `moonbsdiff manifest plan --help` or `moonbsdiff diff -h`
-for command-specific flags and argument order. See the [CLI reference](docs/cli.md),
-[manifest format](docs/manifest.md), and [streaming file behavior](docs/file-apply.md).
+for command-specific flags and argument order. See the [CLI reference](https://github.com/BigSaltyMan/moonBSDiff/blob/master/docs/cli.md),
+[manifest format](https://github.com/BigSaltyMan/moonBSDiff/blob/master/docs/manifest.md), and [streaming file behavior](https://github.com/BigSaltyMan/moonBSDiff/blob/master/docs/file-apply.md).
 
 ## MoonBit library
 
@@ -65,8 +65,8 @@ fn main {
 ```
 
 `diff` and `apply` return a `Result` with a structured `BsdiffError`. See the
-[memory application guide](docs/apply.md) for error and limit details and the
-[manifest guide](docs/manifest.md) to check file identities, choose between a
+[memory application guide](https://github.com/BigSaltyMan/moonBSDiff/blob/master/docs/apply.md) for error and limit details and the
+[manifest guide](https://github.com/BigSaltyMan/moonBSDiff/blob/master/docs/manifest.md) to check file identities, choose between a
 full-file download and a patch route, or verify a route before delivery.
 
 ## 快速验收
@@ -87,7 +87,7 @@ python scripts/run_update_demo.py --cli _build/bin/linux/moonbsdiff
 ```
 
 用解包后的发行版时，将 `--cli` 换成实际路径。看到 `UPDATE DEMO PASS` 后，
-可以到打印的目录查看恢复文件。[演示步骤、预期 SHA-256 和样本来源](docs/update-demo.md)
+可以到打印的目录查看恢复文件。[演示步骤、预期 SHA-256 和样本来源](https://github.com/BigSaltyMan/moonBSDiff/blob/master/docs/update-demo.md)
 
 ## Build and test
 
@@ -103,7 +103,7 @@ moon test --target native --deny-warn
 ```
 
 The build script writes the CLI to `_build/bin/windows/moonbsdiff.exe` or
-`_build/bin/linux/moonbsdiff`. See [source checks and BSDiff interoperability](docs/compatibility.md)
+`_build/bin/linux/moonbsdiff`. See [source checks and BSDiff interoperability](https://github.com/BigSaltyMan/moonBSDiff/blob/master/docs/compatibility.md)
 and [CI results](https://github.com/BigSaltyMan/moonBSDiff/actions/workflows/ci.yml).
 
 ## Limits and trust
@@ -112,17 +112,17 @@ and [CI results](https://github.com/BigSaltyMan/moonBSDiff/actions/workflows/ci.
   patches at **128 KiB**. From 0.5.1, default library application accepts the
   same patch size. Application limits also cap output and total decompression.
   Other work limits can reject an input even when its file sizes fit.
-  [Generation policy and measured 256 KiB and 1 MiB examples](docs/generation-scales.md)
+  [Generation policy and measured 256 KiB and 1 MiB examples](https://github.com/BigSaltyMan/moonBSDiff/blob/master/docs/generation-scales.md)
 - BSDIFF40 has no built-in file identity check. Use a manifest from a trusted
   source when verifying input and output identities. File hashes establish
   content identity. Publisher authentication requires a separate trust mechanism.
 - The CLI does not overwrite existing files. Streaming verification and
   delivery can use private temporary files. Linux delivery depends on the
   output filesystem and directory permissions.
-  [Delivery and cancellation behavior](docs/file-apply.md)
+  [Delivery and cancellation behavior](https://github.com/BigSaltyMan/moonBSDiff/blob/master/docs/file-apply.md)
 
 ## Project references
 
-- [Changelog](CHANGELOG.md) and [0.5.0 release evidence](docs/release-0.5.0.md)
-- [BSDIFF40 format](docs/format.md) and [benchmarks](docs/benchmarks.md)
-- [BSD-2-Clause license](LICENSE) and [upstream and third-party notices](docs/upstream.md)
+- [Changelog](CHANGELOG.md) and [0.5.3 release evidence](https://github.com/BigSaltyMan/moonBSDiff/blob/master/docs/release-0.5.3.md)
+- [BSDIFF40 format](https://github.com/BigSaltyMan/moonBSDiff/blob/master/docs/format.md) and [benchmarks](https://github.com/BigSaltyMan/moonBSDiff/blob/master/docs/benchmarks.md)
+- [BSD-2-Clause license](LICENSE) and [upstream and third-party notices](https://github.com/BigSaltyMan/moonBSDiff/blob/master/docs/upstream.md)

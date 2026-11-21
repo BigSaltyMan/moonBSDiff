@@ -1,0 +1,11 @@
+# Exclude repository-only directories and test files from Mooncakes library packages.
+# Packaged members are limited to root/manifest/internal library sources, package
+# manifests, .mbti interfaces, root metadata/LICENSE, and internal/bzip2 provenance.
+/cmd/
+/docs/
+/examples/
+/scripts/
+/testdata/
+/tools/
+*_test.mbt
+*_wbtest.mbt

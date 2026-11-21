@@ -139,8 +139,11 @@ def main():
 
     observations = {}
     for target in args.targets:
-        run(["moon", "check", "--target", target, "--deny-warn"])
-        run(["moon", "build", "--target", target])
+        # Scope check/build to the consumer package (`.`), matching `moon run .`
+        # and real `.mooncakes` dependency behavior so candidate `moon.work`
+        # overrides do not typecheck stripped `for "test"` blocks in the library.
+        run(["moon", "check", ".", "--target", target, "--deny-warn"])
+        run(["moon", "build", ".", "--target", target])
         output = run(["moon", "run", ".", "--target", target])
         lines = output.splitlines()
         require(COMMON_MARKER in lines, "consumer success marker missing")

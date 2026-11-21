@@ -6,7 +6,3 @@ import {
   "moonbitlang/core/json",
   "moonbitlang/core/priority_queue",
 }
-
-import {
-  "moonbitlang/core/encoding/base64",
-} for "test"

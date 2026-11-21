@@ -43,6 +43,52 @@ fn plan_fixture_candidates() -> Array[@manifest.PreparedManifest] {
 }
 
 ///|
+fn plan_base64_value(code : Int32) -> Int32 {
+  if code >= 65 && code <= 90 {
+    code - 65
+  } else if code >= 97 && code <= 122 {
+    code - 97 + 26
+  } else if code >= 48 && code <= 57 {
+    code - 48 + 52
+  } else if code == 43 {
+    62
+  } else if code == 47 {
+    63
+  } else {
+    abort("invalid base64 fixture character")
+  }
+}
+
+///|
+fn plan_decode_base64(encoded : String) -> Bytes {
+  let n = encoded.length()
+  if n % 4 != 0 {
+    abort("invalid base64 fixture length")
+  }
+  let out : Array[Byte] = []
+  let mut i = 0
+  while i < n {
+    let c0 = encoded[i].to_int()
+    let c1 = encoded[i + 1].to_int()
+    let c2 = encoded[i + 2].to_int()
+    let c3 = encoded[i + 3].to_int()
+    let v0 = plan_base64_value(c0)
+    let v1 = plan_base64_value(c1)
+    out.push(((v0 << 2) | (v1 >> 4)).to_byte())
+    if c2 != 61 {
+      let v2 = plan_base64_value(c2)
+      out.push((((v1 & 0x0f) << 4) | (v2 >> 2)).to_byte())
+      if c3 != 61 {
+        let v3 = plan_base64_value(c3)
+        out.push((((v2 & 0x03) << 6) | v3).to_byte())
+      }
+    }
+    i = i + 4
+  }
+  Bytes::from_array(out)
+}
+
+///|
 fn plan_fixture_old() -> Bytes {
   let encoded = "kJIRpgVlXwx3iZ0Wu4EyIk83LjyCdfQB9KMWnnVghdn8yjdT3lLlZ+kVgf9JnU5H/fWt4ZFkgquRifgCOX8fpqR8YAati7vn" +
     "C1/5HBnfDjevj8tFZI+28ko1JSO9stgr7OIlTzKpH5SoBiUidBvHVlAz4ePkiQGucM6mAFrc/z1U+Me2w7YGxkT6r7Em+pSB" +
@@ -73,9 +119,7 @@ fn plan_fixture_old() -> Bytes {
     "ruP+XNMCTJ/MepRXImAENARHbfbTOgGFTXMado68VRu3ZBMlURzn1eccQ3yY+TvBPotb6b2DS5SELIoIlxvy6WsAuP8awiXl" +
     "JsxzaZGgybv1xDrDoqgT3KWMS0QnWesYwEvhaYZcDTHbveWYp1nWXzcoLp8Fqf9AoUYkbD0FLspFnXDlPuiI0V0PXz94cIxl" +
     "PHOI2viu1BSUcbgs3vhVKBqUWRbvYNh4cr+CBNmFm+w="
-  @base64.decode(encoded[:]) catch {
-    _ => abort("invalid old fixture encoding")
-  }
+  plan_decode_base64(encoded)
 }
 
 ///|
@@ -86,11 +130,7 @@ fn plan_fixture_patches() -> Array[Bytes] {
   let second = "QlNESUZGNDA0AAAAAAAAACsAAAAAAAAAAAgAAAAAAABCWmg5MUFZJlNZX5q9fwAACkBQ+oBAAABAAACgADEAwEaMjItJFUrD" +
     "ic8XckU4UJBfmr1/QlpoOTFBWSZTWe81TMwAAARAAMgAAAggADDMBVHpCjjC7kinChId5qmZgEJaaDkxQVkmU1lFk+DhAAAA" +
     "AAEAAiAAIRhGgu5IpwoSCLJ8HCA="
-  [first, second].map(encoded => {
-    @base64.decode(encoded[:]) catch {
-      _ => abort("invalid patch fixture encoding")
-    }
-  })
+  [first, second].map(plan_decode_base64)
 }
 
 ///|

@@ -27,3 +27,4 @@ testdata/release/*.json text eol=lf
 testdata/manifest/*.bin binary
 testdata/manifest/*.patch binary
 testdata/manifest/*.json text eol=lf
+.moonignore text eol=lf

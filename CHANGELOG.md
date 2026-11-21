@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- Fix bzip2 Huffman length-limit Kraft repair in `internal/bzip2` when an
+  uncapped tree reaches depth 23 or greater, preventing oversubscribed tables on
+  skewed symbol distributions.
+- Optimize core diff matching with LCP-skipping binary search and boundary LCP
+  reuse, and replace the redundant second-key counting sort in suffix-array
+  construction with an initial single-pass length-1 sort plus linear second-key
+  placement. Repeated-prefix inputs (2 KiB and larger) now stay within default
+  `Limits::for_diff()` budgets while producing byte-identical patches.
+- Add `.moonignore` to trim Mooncakes library packages to runtime sources,
+  interfaces, licenses, and `internal/bzip2` provenance (~89% smaller), upgrade
+  `scripts/release_audit.py` to two-layer source/package policy auditing, and
+  update `README.md` documentation links for registry pages.
+
 ## 0.5.3
 
 - Use the final file identity from `manifest plan --target-manifest` even
