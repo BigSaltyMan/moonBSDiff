@@ -22,9 +22,16 @@ original Apache-2.0 notices and LICENSE are retained. See docs/file-apply.md.
 The internal Writer uses the Apache-2.0 encoder from the same pinned 0.3.5
 release. The copied Writer and bit sink use separate files so they can share
 CRC and marker code without replacing the strict decoder. The encoder patch
-retains the existing BWT, MTF and Huffman code and removes the unused one-shot
-path. The Writer checks available RLE space before transferring the run or
-charging it to the current block CRC.
+retains the existing BWT and MTF and removes the unused one-shot path. The
+Writer checks available RLE space before transferring the run or charging it
+to the current block CRC.
+
+When the Huffman tree exceeds 20 bits, the encoder clamps its length histogram
+and measures the Kraft excess in units of one 20-bit code. Each repair splits
+a shorter code into two children and removes one 20-bit code, preserving the
+symbol count and removing one unit of excess. Counting only the clamped leaves
+could leave an oversubscribed table when the original tree was sufficiently
+deep. The strict decoder uses the same checks as before.
 
 Run `python scripts/check_compression.py --encoder-source` from a dependency
 checkout to verify the original SHA-256 values and replay

@@ -1,6 +1,6 @@
 // Copyright 2026 Leo Cheng
 // SPDX-License-Identifier: Apache-2.0
-// Modified 2026-11-19 for MoonBSDiff; see README.md and encoder-changes.patch.
+// Modified 2026-11-21 for MoonBSDiff; see README.md and encoder-changes.patch.
 
 ///|
 /// The Burrows-Wheeler transform: the sorted rotations' last column, and where the
@@ -204,11 +204,15 @@ fn Merger::pick(self : Merger) -> Int32 {
 ///
 /// Every symbol gets a length, including the ones that never occur, because the
 /// format sends one length per symbol and a zero is not a length. The two-queue
-/// merge gives the optimal tree; the repair afterwards is zlib's, and it handles
-/// the case where a skewed distribution wants a code longer than the format
-/// allows.
+/// merge gives the optimal tree. For a skewed distribution, repair the
+/// histogram after clamping to the format's maximum length.
 fn lengths_from(weights : Array[Int32], limit : Int32) -> Array[Int32] {
   let n = weights.length()
+  // bzip2 has at most 256 byte symbols plus two extra symbols. Even at
+  // limit 20 the scaled histogram sum fits Int32: 258 * (1 << 19).
+  if limit < 1 || limit > 20 || n > 258 || n > 1 << limit {
+    abort("invalid bzip2 Huffman alphabet or length limit")
+  }
   let lengths = Array::make(n, 1)
   if n <= 1 {
     return lengths
@@ -279,18 +283,18 @@ fn lengths_from(weights : Array[Int32], limit : Int32) -> Array[Int32] {
     count[depth[i]] += 1
   }
   if deepest > limit {
-    // Squeeze everything past the limit into it, then give the code back its
-    // one-ness: every clamp makes the length distribution too short by two, and
-    // moving one symbol down a level and two up is what repays it.
-    let mut overflow = 0
-    let mut d = limit + 1
-    while d <= deepest {
-      overflow += count[d]
+    for d in (limit + 1)..<=deepest {
       count[limit] += count[d]
       count[d] = 0
-      d += 1
     }
-    while overflow > 0 {
+    // Measure Kraft excess in units of one maximum-length code. Splitting a
+    // shorter code preserves its weight; removing one maximum-length code
+    // then repays one unit without changing the total symbol count.
+    let mut excess = -(1 << limit)
+    for d in 1..<=limit {
+      excess += count[d] << (limit - d)
+    }
+    while excess > 0 {
       let mut d = limit - 1
       while count[d] == 0 {
         d -= 1
@@ -298,7 +302,7 @@ fn lengths_from(weights : Array[Int32], limit : Int32) -> Array[Int32] {
       count[d] -= 1
       count[d + 1] += 2
       count[limit] -= 1
-      overflow -= 2
+      excess -= 1
     }
   }
   // The symbols that were deepest are the ones that were rarest, so they are the

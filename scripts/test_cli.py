@@ -3,6 +3,8 @@ import argparse,bz2,ctypes,getpass,hashlib,json,os,pathlib,platform,re,subproces
 from build_cli import ROOT,version
 from conformance_cases import lcg
 from check_compression import strict
+from check_diff import integer, parse
+from bzip2_huffman_fixture import check_huffman_tables, make_payload
 EXE=None
 INVOCATIONS=0
 LARGE_PATCH={}
@@ -145,6 +147,38 @@ class CliFiles(unittest.TestCase):
                     strict(extra, payload)
                     print(f'bzip2 level {level}, {tail.decode()}: {len(payload)} bytes restored; '
                           'deep inspect and independent single-stream bz2 passed')
+    def test_bzip2_huffman_kraft_at_level_nine(self):
+        payload = make_payload()
+        self.assertEqual(len(payload), 869442)
+        self.assertEqual(hashlib.sha256(payload).hexdigest(),
+                         "e839c04d90d9e9aae6649e9451b9831777f9041a240408938a16767f00a6d081")
+        self.old.write_bytes(b"")
+        self.new.write_bytes(payload)
+        decode_limits = ["--max-output-bytes", "1048576", "--max-patch-bytes", "2097152",
+                         "--max-expanded-bytes", "1441792", "--max-controls", "16384"]
+        file_limits = ["--max-old-bytes", "1048576", "--max-new-bytes", "1048576", *decode_limits]
+        self.run_cli(["diff", *file_limits, "--max-sort-work", "209715400",
+                      "--max-match-work", "268435456", self.old, self.new, self.patch])
+        raw = self.patch.read_bytes()
+        self.assertEqual(raw[:8], b"BSDIFF40")
+        control_end = 32 + integer(raw[8:16])
+        diff_end = control_end + integer(raw[16:24])
+        self.assertTrue(32 <= control_end <= diff_end <= len(raw))
+        streams = (raw[32:control_end], raw[control_end:diff_end], raw[diff_end:])
+        table_max_lengths = [check_huffman_tables(stream) for stream in streams]
+        self.assertTrue(table_max_lengths[2])
+        self.assertTrue(
+            any(max(block) == 20 for block in table_max_lengths[2]),
+            f"fixture did not hit max Huffman length 20: {table_max_lengths[2]}",
+        )
+        parse(raw, b"", payload)
+
+        self.run_cli(["inspect", "--deep", *decode_limits, self.patch])
+        for mode, output in (([], self.out), (["--stream"], self.p / "stream.bin")):
+            self.run_cli(["patch", *mode, *file_limits, self.old, self.patch, output])
+            self.assertEqual(output.read_bytes(), payload)
+        print(f"Huffman Kraft at level 9: max lengths by block {table_max_lengths}, {len(payload)} bytes restored")
+
     def test_missing_input(self):self.run_cli(['diff','missing',self.new,self.patch],1);self.assertFalse(self.patch.exists())
     def test_directory_input(self):self.run_cli(['diff',self.p,self.new,self.patch],1);self.assertFalse(self.patch.exists())
     def test_old_over_limit(self):self.old.write_bytes(b'X'*65537);r=self.run_cli(['diff',self.old,self.new,self.patch],1);self.assertIn(b'input size',r.stderr);self.assertFalse(self.patch.exists())

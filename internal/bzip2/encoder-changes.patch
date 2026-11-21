@@ -317,7 +317,44 @@ diff --git a/bwt.mbt b/bwt.mbt
 -  }
 -  (out, i, crc.finish())
 -}
-+// Modified 2026-11-19 for MoonBSDiff; see README.md and encoder-changes.patch.
++// Modified 2026-11-21 for MoonBSDiff; see README.md and encoder-changes.patch.
+@@ -252,3 +207,2 @@
+-/// merge gives the optimal tree; the repair afterwards is zlib's, and it handles
+-/// the case where a skewed distribution wants a code longer than the format
+-/// allows.
++/// merge gives the optimal tree. For a skewed distribution, repair the
++/// histogram after clamping to the format's maximum length.
+@@ -256,0 +211,5 @@
++  // bzip2 has at most 256 byte symbols plus two extra symbols. Even at
++  // limit 20 the scaled histogram sum fits Int32: 258 * (1 << 19).
++  if limit < 1 || limit > 20 || n > 258 || n > 1 << limit {
++    abort("invalid bzip2 Huffman alphabet or length limit")
++  }
+@@ -327,7 +286 @@
+-    // Squeeze everything past the limit into it, then give the code back its
+-    // one-ness: every clamp makes the length distribution too short by two, and
+-    // moving one symbol down a level and two up is what repays it.
+-    let mut overflow = 0
+-    let mut d = limit + 1
+-    while d <= deepest {
+-      overflow += count[d]
++    for d in (limit + 1)..<=deepest {
+@@ -336,3 +289,9 @@
+-      d += 1
+-    }
+-    while overflow > 0 {
++    }
++    // Measure Kraft excess in units of one maximum-length code. Splitting a
++    // shorter code preserves its weight; removing one maximum-length code
++    // then repays one unit without changing the total symbol count.
++    let mut excess = -(1 << limit)
++    for d in 1..<=limit {
++      excess += count[d] << (limit - d)
++    }
++    while excess > 0 {
+@@ -346 +305 @@
+-      overflow -= 2
++      excess -= 1
 diff --git a/sink.mbt b/sink.mbt
 --- a/sink.mbt
 +++ b/sink.mbt
