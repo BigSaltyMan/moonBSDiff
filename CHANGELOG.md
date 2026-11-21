@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.5.4
+
 - Fix bzip2 Huffman length-limit Kraft repair in `internal/bzip2` when an
   uncapped tree reaches depth 23 or greater, preventing oversubscribed tables on
   skewed symbol distributions.
