@@ -94,35 +94,18 @@ fn SortBudget::reserve(
 }
 
 ///|
-fn suffix_second(
-  rank : Array[Int32],
-  pos : Int32,
-  step : Int32,
-  n : Int32,
-) -> Int32 {
-  if step <= n - pos {
-    rank[pos + step]
-  } else {
-    0
-  }
-}
-
-///|
-fn suffix_radix_pass(
+fn suffix_first_pass(
   source : Array[Int32],
   dest : Array[Int32],
   rank : Array[Int32],
   counts : Array[Int32],
   keys : Int32,
-  step : Int32,
-  n : Int32,
-  second : Bool,
 ) -> Unit {
   for key in 0..<keys {
     counts[key] = 0
   }
   for pos in source {
-    let key = if second { suffix_second(rank, pos, step, n) } else { rank[pos] }
+    let key = rank[pos]
     counts[key] = counts[key] + 1
   }
   let mut total = 0
@@ -132,9 +115,10 @@ fn suffix_radix_pass(
     total = total + count
   }
   for pos in source {
-    let key = if second { suffix_second(rank, pos, step, n) } else { rank[pos] }
-    dest[counts[key]] = pos
-    counts[key] = counts[key] + 1
+    let key = rank[pos]
+    let slot = counts[key]
+    dest[slot] = pos
+    counts[key] = slot + 1
   }
 }
 
@@ -164,7 +148,7 @@ fn build_suffix_array(
   if n == 0 {
     return Ok([0])
   }
-  let sa = Array::makei(size, i => i)
+  let sa = Array::make(size, 0)
   let scratch = Array::make(size, 0)
   let mut rank = Array::makei(size, i => {
     if i == n {
@@ -175,26 +159,101 @@ fn build_suffix_array(
   })
   let mut next = Array::make(size, 0)
   let counts = Array::make(buckets, 0)
-  let mut keys = 257
+  // Initial length-1 counting sort + dense reranking:
+  // `counts` is already zeroed from allocation, so count (N) + prefix sum (257)
+  // + scatter (N) + dense reranking (N) costs 3N + 257 visits.
+  // Post-condition (base invariant for step = 1): `sa` is sorted by 1-byte
+  // prefixes and `rank` holds dense equivalence classes in 0..<keys with
+  // `rank[n] == 0` unique (`sa[0] == n`). If all suffixes are already distinct
+  // (`classes == size`), return immediately without doubling.
+  match budget.reserve(3L * size.to_int64() + 257L) {
+    Err(e) => return Err(e)
+    Ok(_) => ()
+  }
+  for pos in 0..<size {
+    let key = rank[pos]
+    counts[key] = counts[key] + 1
+  }
+  let mut total = 0
+  for key in 0..<257 {
+    let count = counts[key]
+    counts[key] = total
+    total = total + count
+  }
+  for pos in 0..<size {
+    let key = rank[pos]
+    let slot = counts[key]
+    sa[slot] = pos
+    counts[key] = slot + 1
+  }
+  let mut prev_init_rank = rank[sa[0]]
+  next[sa[0]] = 0
+  let mut init_classes = 1
+  for i in 1..<size {
+    let b = sa[i]
+    let rb = rank[b]
+    if prev_init_rank != rb {
+      init_classes = init_classes + 1
+      prev_init_rank = rb
+    }
+    next[b] = init_classes - 1
+  }
+  if init_classes == size {
+    return Ok(sa)
+  }
+  let old_rank = rank
+  rank = next
+  next = old_rank
+  let mut keys = init_classes
   let mut step = 1
+  // Doubling invariant: before each round, `sa` is sorted by `step`-byte
+  // prefixes and `rank` holds their dense classes in 0..<keys. Ordering the
+  // second key linearly (sentinels `pos > n - step` first, then `sa[i] - step`
+  // in ascending `sa` order) followed by one stable counting sort on `rank`
+  // produces the exact `2 * step`-byte prefix order.
   while step < size {
-    // Two stable passes cost 4N + 4K visits; dense reranking costs N.
-    match budget.reserve(5L * size.to_int64() + 4L * keys.to_int64()) {
+    // Linear second-key placement costs `step + N` loop visits, single stable
+    // first-key counting pass costs `2N + 2K`, and dense reranking costs `N`.
+    match
+      budget.reserve(
+        4L * size.to_int64() + step.to_int64() + 2L * keys.to_int64(),
+      ) {
       Err(e) => return Err(e)
       Ok(_) => ()
     }
-    suffix_radix_pass(sa, scratch, rank, counts, keys, step, n, true)
-    suffix_radix_pass(scratch, sa, rank, counts, keys, step, n, false)
-    next[sa[0]] = 0
+    let mut out = 0
+    for pos in (size - step)..<size {
+      scratch[out] = pos
+      out = out + 1
+    }
+    for i in 0..<size {
+      let pos = sa[i]
+      if pos >= step {
+        scratch[out] = pos - step
+        out = out + 1
+      }
+    }
+    suffix_first_pass(scratch, sa, rank, counts, keys)
+    let mut a = sa[0]
+    let mut ra = rank[a]
+    next[a] = 0
     let mut classes = 1
     for i in 1..<size {
-      let a = sa[i - 1]
       let b = sa[i]
-      if rank[a] != rank[b] ||
-        suffix_second(rank, a, step, n) != suffix_second(rank, b, step, n) {
+      let rb = rank[b]
+      let diff = if ra != rb {
+        true
+      } else {
+        let sa2 = if step <= n - a { rank[a + step] } else { 0 }
+        let sb2 = if step <= n - b { rank[b + step] } else { 0 }
+        sa2 != sb2
+      }
+      if diff {
         classes = classes + 1
       }
       next[b] = classes - 1
+      a = b
+      ra = rb
     }
     if classes == size {
       return Ok(sa)

@@ -30,21 +30,22 @@ test "diff-resource-compact-exact-cumulative-work" {
     Ok(v) => v
     Err(_) => abort("counted call failed")
   }
-  // N=2: initialization 4N+257, then 5N+4*257 = 1303.
-  assert_eq(limits.max_sort_work - sort.remaining, 1303L)
-  // Scan 10 + plan validation 1 + encode (4*25+1), five writer
-  // feed/finish visits, two copies per compressed byte, final three passes.
-  let exact_work = 53L + 5L * patch.length().to_int64()
+  // N=2: initialization 4N+257=265, then initial length-1 sort+rerank 3N+257=263 => 528.
+  assert_eq(limits.max_sort_work - sort.remaining, 528L)
+  // Scan 9 (LCP search reuses boundary LCP without re-scanning) + plan validation 1
+  // + encode (4*25+1), five writer feed/finish visits, two copies per compressed
+  // byte, final three passes.
+  let exact_work = 52L + 5L * patch.length().to_int64()
   assert_eq(limits.max_match_work - work.remaining, exact_work)
-  let exact = { ..limits, max_sort_work: 1303L, max_match_work: exact_work, }
+  let exact = { ..limits, max_sort_work: 528L, max_match_work: exact_work, }
   assert_eq(diff(b"A", b"A", exact), Ok(patch))
   resource_error(
-    diff(b"A", b"A", { ..exact, max_sort_work: 1302L, }),
+    diff(b"A", b"A", { ..exact, max_sort_work: 527L, }),
     ResourceLimitExceeded,
     Sorting,
     "sort_remaining",
-    1038L,
-    1037L,
+    263L,
+    262L,
   )
   // One byte-visit short fails in final assembly, not in scanning. No reset.
   resource_error(

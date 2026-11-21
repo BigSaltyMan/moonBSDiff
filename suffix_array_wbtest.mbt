@@ -160,10 +160,11 @@ test "suffix-compact-preflight-and-work-budget" {
     }
   }
   assert_eq(preflight_budget.remaining, 17L)
-  let exact = suffix_test_budget(1303L)
+  // N=2 (b"A"): pre-alloc 4N+257=265, initial length-1 sort+rerank 3N+257=263 => 528.
+  let exact = suffix_test_budget(528L)
   assert_eq(build_suffix_array(b"A", 2L, exact), Ok([1, 0]))
   assert_eq(exact.remaining, 0L)
-  let short = suffix_test_budget(1302L)
+  let short = suffix_test_budget(527L)
   for budget in [exact, short, suffix_test_budget(0L)] {
     match build_suffix_array(b"A", 2L, budget) {
       Ok(_) => abort("work budget bypassed")
@@ -174,12 +175,29 @@ test "suffix-compact-preflight-and-work-budget" {
       }
     }
   }
-  assert_eq(short.remaining, 1037L)
+  assert_eq(short.remaining, 262L)
+  // N=3 (b"AA"): pre-alloc 4*3+257=269, initial pass 3*3+257=266,
+  // doubling round (step=1, keys=2) 4*3+1+2*2=17 => 552.
+  let exact_aa = suffix_test_budget(552L)
+  assert_eq(build_suffix_array(b"AA", 3L, exact_aa), Ok([2, 1, 0]))
+  assert_eq(exact_aa.remaining, 0L)
+  let short_aa = suffix_test_budget(551L)
+  match build_suffix_array(b"AA", 3L, short_aa) {
+    Ok(_) => abort("doubling round work budget bypassed")
+    Err(e) => {
+      assert_eq(e.kind, ResourceLimitExceeded)
+      assert_eq(e.stage, Sorting)
+      assert_eq(e.field, Some("sort_remaining"))
+      assert_eq(e.value, Some(17L))
+      assert_eq(e.limit, Some(16L))
+    }
+  }
+  assert_eq(short_aa.remaining, 16L)
   match sorting_budget(-1L) {
     Ok(_) => abort("negative budget accepted")
     Err(e) => assert_eq(e.kind, InvalidConfiguration)
   }
-  assert_eq(build_suffix_array(b"A", 2L, suffix_test_budget(1303L)), Ok([1, 0]))
+  assert_eq(build_suffix_array(b"A", 2L, suffix_test_budget(528L)), Ok([1, 0]))
 }
 
 ///|

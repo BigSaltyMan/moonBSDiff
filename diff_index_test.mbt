@@ -125,9 +125,9 @@ test "index-reuse-exact-per-call-budget-and-recovery" {
   let limits = @moonbsdiff.Limits::for_diff()
   let index = index_build(b"A", limits)
   let patch = index_patch(index, b"A", limits)
-  // Existing generation reservation derivation for this fixture: scan/plan/raw
-  // and stream calls = 53, compressed/final copies = 5*actual patch length.
-  let cost = 53L + 5L * patch.length().to_int64()
+  // Generation reservation derivation for this fixture: scan (9 with LCP reuse),
+  // plan/raw and stream calls = 52, compressed/final copies = 5*actual patch length.
+  let cost = 52L + 5L * patch.length().to_int64()
   let exact = { ..limits, max_sort_work: 1L, max_match_work: cost, }
   assert_eq(index.diff(b"A", exact), Ok(patch))
   assert_eq(index.diff(b"A", exact), Ok(patch))

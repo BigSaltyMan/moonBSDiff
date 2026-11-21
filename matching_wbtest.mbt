@@ -387,3 +387,288 @@ test "matching-native-random-and-repetition" {
     assert_eq(reuse, n)
   }
 }
+
+///|
+// Independent non-LCP reference search implementing the exact lower-bound and
+// right-preferring equal-length tie-break specification from i = 0 every step.
+fn matching_reference_search(
+  old : Bytes,
+  new : Bytes,
+  sa : Array[Int32],
+  at : Int32,
+) -> (Int32, Int32) {
+  let mut lo = 0
+  let mut hi = sa.length()
+  while lo < hi {
+    let mid = lo + (hi - lo) / 2
+    let pos = sa[mid]
+    let old_rem = old.length() - pos
+    let new_rem = new.length() - at
+    let cap = if old_rem < new_rem { old_rem } else { new_rem }
+    let mut i = 0
+    let mut cmp = 0
+    let mut diff = false
+    while i < cap {
+      if old[pos + i] != new[at + i] {
+        cmp = if old[pos + i].to_int() < new[at + i].to_int() { -1 } else { 1 }
+        diff = true
+        break
+      }
+      i = i + 1
+    }
+    if !diff {
+      cmp = if old_rem < new_rem {
+        -1
+      } else if old_rem > new_rem {
+        1
+      } else {
+        0
+      }
+    }
+    if cmp < 0 {
+      lo = mid + 1
+    } else {
+      hi = mid
+    }
+  }
+  let lcp_at = fn(pos : Int32) -> Int32 {
+    let mut i = 0
+    while i < old.length() - pos &&
+          i < new.length() - at &&
+          old[pos + i] == new[at + i] {
+      i = i + 1
+    }
+    i
+  }
+  let mut pos = old.length()
+  let mut length = 0
+  if lo > 0 {
+    pos = sa[lo - 1]
+    length = lcp_at(pos)
+  }
+  if lo < sa.length() {
+    let right = lcp_at(sa[lo])
+    if right >= length {
+      pos = sa[lo]
+      length = right
+    }
+  }
+  (pos, length)
+}
+
+///|
+fn matching_repetitive_random(
+  length : Int32,
+  alphabet : Int32,
+  seed : UInt32,
+) -> Bytes {
+  let mut state = seed
+  let bytes : Array[Byte] = []
+  let symbols : Array[Byte] = [b'\x00', b'\x01', b'\x41', b'\xff']
+  for _ in 0..<length {
+    state = state * 1664525U + 1013904223U
+    let idx = ((state >> 24).reinterpret_as_int() % alphabet + alphabet) %
+      alphabet
+    bytes.push(symbols[idx])
+  }
+  Bytes::from_array(bytes)
+}
+
+///|
+test "matching-compact-lcp-reference-equivalence" {
+  // Exhaustive binary strings of length 0..3: exact (pos, length) equivalence.
+  let words : Array[Bytes] = []
+  let mut count = 1
+  for length in 0..<4 {
+    for code in 0..<count {
+      let mut value = code
+      let bytes : Array[Byte] = []
+      for _ in 0..<length {
+        bytes.push(if value % 2 == 0 { b'\x00' } else { b'\xff' })
+        value = value / 2
+      }
+      words.push(Bytes::from_array(bytes))
+    }
+    count = count * 2
+  }
+  for old in words {
+    let sa = suffix_test_build(old)
+    for new in words {
+      for at in 0..<=new.length() {
+        assert_eq(
+          matching_test_search(old, new, sa, at),
+          matching_reference_search(old, new, sa, at),
+        )
+      }
+    }
+  }
+  // Boundary & high-repetition cases including queries beyond sa[last],
+  // exact matches at sa[last], proper prefixes, and equal-length ties.
+  for
+    (old, new) in [
+      (b"aaaa", b"aaaab"),
+      (b"aaaa", b"aaaa"),
+      (b"aaaa", b"aa"),
+      (b"aaaa", b"a"),
+      (b"\x00\x00\x00\x00", b"\x00\x00\x00\x01"),
+      (b"abababababab", b"abababacabab"),
+      (
+        matching_repetitive_random(64, 2, 20261121U),
+        matching_repetitive_random(64, 2, 20261122U),
+      ),
+      (
+        matching_repetitive_random(64, 3, 20261123U),
+        matching_repetitive_random(64, 3, 20261124U),
+      ),
+    ] {
+    let sa = suffix_test_build(old)
+    for at in 0..<=new.length() {
+      assert_eq(
+        matching_test_search(old, new, sa, at),
+        matching_reference_search(old, new, sa, at),
+      )
+    }
+  }
+}
+
+///|
+test "matching-compact-repeated-prefix-regression" {
+  let limits = Limits::for_diff()
+  let apply_limits = Limits::for_apply()
+  let zeros_2k = Bytes::from_array(Array::make(2048, b'\x00'))
+  let head = b"HEAD0123456789AB"
+  let tail = b"TAIL"
+  let as_2k = Bytes::from_array(Array::make(2048, b'A'))
+  let as_2k_tail = Bytes::from_array(Array::make(2047, b'A')) + b"B"
+  for
+    (old, new) in [
+      // 1-byte insertion before a 2 KiB zero run: previously exceeded
+      // Limits::for_diff().max_match_work (8,388,608) at ~26.2M work units.
+      (zeros_2k, b"X" + zeros_2k),
+      (head + zeros_2k + tail, head + b"!" + zeros_2k + tail),
+      (as_2k, as_2k_tail),
+      (as_2k, as_2k),
+    ] {
+    let old_snap = old.to_array()
+    let new_snap = new.to_array()
+    let sort = suffix_test_budget(limits.max_sort_work)
+    let work = matching_test_budget(limits.max_match_work)
+    let patch = match generate_patch(old, new, limits, sort, work) {
+      Ok(p) => p
+      Err(_) => abort("2 KiB repeated-prefix diff exhausted default limits")
+    }
+    assert_true(limits.max_match_work - work.remaining < 6500000L)
+    assert_eq(apply(old, patch, apply_limits), Ok(new))
+    assert_eq(diff(old, new, limits), Ok(patch))
+    assert_eq(old.to_array(), old_snap)
+    assert_eq(new.to_array(), new_snap)
+  }
+}
+
+///|
+test "matching-native-lcp-exhaustive-and-repetitive-equivalence" {
+  // Full 2-symbol exhaustive (length 0..4 => 31 words, 961 pairs, 3999 queries).
+  let words2 : Array[Bytes] = []
+  let mut count2 = 1
+  for length in 0..<5 {
+    for code in 0..<count2 {
+      let mut value = code
+      let bytes : Array[Byte] = []
+      for _ in 0..<length {
+        bytes.push(if value % 2 == 0 { b'\x00' } else { b'\xff' })
+        value = value / 2
+      }
+      words2.push(Bytes::from_array(bytes))
+    }
+    count2 = count2 * 2
+  }
+  let mut checked = 0
+  for old in words2 {
+    let sa = suffix_test_build(old)
+    for new in words2 {
+      for at in 0..<=new.length() {
+        assert_eq(
+          matching_test_search(old, new, sa, at),
+          matching_reference_search(old, new, sa, at),
+        )
+        checked = checked + 1
+      }
+    }
+  }
+  assert_eq(checked, 3999)
+  // Full 3-symbol exhaustive (length 0..3 => 40 words, 1600 pairs).
+  let words3 : Array[Bytes] = []
+  let mut count3 = 1
+  for length in 0..<4 {
+    for code in 0..<count3 {
+      let mut value = code
+      let bytes : Array[Byte] = []
+      for _ in 0..<length {
+        bytes.push([b'\x00', b'\x01', b'\xff'][value % 3])
+        value = value / 3
+      }
+      words3.push(Bytes::from_array(bytes))
+    }
+    count3 = count3 * 3
+  }
+  for old in words3 {
+    let sa = suffix_test_build(old)
+    for new in words3 {
+      for at in 0..<=new.length() {
+        assert_eq(
+          matching_test_search(old, new, sa, at),
+          matching_reference_search(old, new, sa, at),
+        )
+      }
+    }
+  }
+  // High-repetition random pairs (2-, 3-, 4-symbol alphabets, lengths up to 128).
+  for i in 0..<48 {
+    let alphabet = 2 + i % 3
+    let len_old = 16 + i * 2
+    let len_new = 16 + (47 - i) * 2
+    let old = matching_repetitive_random(
+      len_old,
+      alphabet,
+      20261125U + i.reinterpret_as_uint(),
+    )
+    let new = matching_repetitive_random(
+      len_new,
+      alphabet,
+      20261225U + i.reinterpret_as_uint(),
+    )
+    let sa = suffix_test_build(old)
+    for at in 0..<=new.length() {
+      assert_eq(
+        matching_test_search(old, new, sa, at),
+        matching_reference_search(old, new, sa, at),
+      )
+    }
+  }
+}
+
+///|
+test "matching-native-repeated-prefix-large-regression" {
+  let limits = Limits::for_diff()
+  let apply_limits = Limits::for_apply()
+  let zeros_2k = Bytes::from_array(Array::make(2048, b'\x00'))
+  let body_14k = suffix_test_random(14336, 2026112101U)
+  let body_62k = suffix_test_random(63487, 2026112102U)
+  let a_16k = Bytes::from_array(Array::make(16384, b'A'))
+  let a_16k_tail = Bytes::from_array(Array::make(16383, b'A')) + b"B"
+  let a_64k = Bytes::from_array(Array::make(65536, b'A'))
+  let a_64k_tail = Bytes::from_array(Array::make(65535, b'A')) + b"B"
+  for
+    (old, new) in [
+      (body_14k + zeros_2k, body_14k + b"!" + zeros_2k),
+      (body_62k + zeros_2k, body_62k + b"!" + zeros_2k),
+      (a_16k, a_16k_tail),
+      (a_64k, a_64k_tail),
+    ] {
+    let patch = match diff(old, new, limits) {
+      Ok(p) => p
+      Err(_) => abort("large high-repetition diff exhausted default limits")
+    }
+    assert_eq(apply(old, patch, apply_limits), Ok(new))
+  }
+}

@@ -48,10 +48,15 @@ No mutable budget, index, encoder or result buffer is shared between public call
 ## Work units and arithmetic
 
 `max_sort_work` counts logical Int32-array visits. For N=n+1, B=max(N,257):
-empty input costs 1; other initialization costs **4N+B** before five arrays are
-allocated. Every doubling round reserves **5N+4K** (two stable radix passes and
-reranking), K being the current rank count. All arithmetic uses Int64 after N/K
-are proven at most Int max. Allocation capacities, rank accesses, conditional
+empty input costs `1`; other initialization costs **4N+B** before five arrays
+are allocated. Nonempty inputs then reserve **3N+257** for the initial length-1
+counting sort and dense reranking (count `N`, prefix sum `257`, scatter `N`,
+reranking `N`; returning early when `init_classes == N`). Each subsequent
+doubling round reserves **4N+step+2K** (linear second-key placement `step+N`,
+one stable first-key counting pass `2N+2K`, and dense reranking `N`, where `K`
+is the current dense rank count; earlier Commit 11 reserved `5N+4K` for two
+counting-sort passes per round). All arithmetic uses Int64 after N/K are proven
+at most Int max. Allocation capacities, rank accesses, conditional
 position+step, prefix totals and step doubling retain the existing index proofs.
 
 `max_match_work` now means matching **and generation visit reservations**:
@@ -75,10 +80,16 @@ position+step, prefix totals and step doubling retain the existing index proofs.
 These declared reservations deliberately include conservative copy allowances;
 they are neither instruction counts nor wall-clock limits. Sort and matching
 categories have different owners; no sort visit is also charged as a matching
-comparison. Native tests derive the one-byte case independently: sort 1303;
-matching/generation `53 + 5 * actual_patch_length`. Exact quotas pass; one less
-sort unit fails in the next radix reservation, and one less matching unit fails
-at final assembly, proving the scan quota did not reset at later phases.
+comparison. Current native tests derive the one-byte case independently:
+**sort 528** (`4*2+257` pre-alloc + `3*2+257` initial length-1 sort+rerank with
+early return); **matching/generation `52 + 5 * actual_patch_length`** (scan
+drops from 10 to 9 because `search_match` reuses boundary LCP lengths instead of
+rescanning after binary search; earlier Commit 11 derived `sort 1303` and
+`53 + 5 * actual_patch_length`). Exact quotas pass; one less sort unit fails at
+the initial length-1 sort reservation (`263` requested vs `262` remaining), and
+one less matching unit fails at final assembly, proving the scan quota did not
+reset at later phases. The `8388608` default caps in the table below remain the
+historical Commit 11 policy baseline.
 
 Each source length is an Int. The suffix builder proves n<=2147483646 before
 n+1 and narrowing. Control count is checked before multiplication by 24.

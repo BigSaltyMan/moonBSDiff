@@ -84,9 +84,13 @@ fn MatchBudget::reserve(
 
 ///|
 fn MatchBudget::tick(self : MatchBudget) -> Unit raise MatchingFault {
-  match self.reserve(1L) {
-    Ok(_) => ()
-    Err(e) => raise Stop(e)
+  if self.remaining > 0L {
+    self.remaining = self.remaining - 1L
+  } else {
+    match self.reserve(1L) {
+      Ok(_) => ()
+      Err(e) => raise Stop(e)
+    }
   }
 }
 
@@ -134,57 +138,6 @@ fn match_shape(
 }
 
 ///|
-fn prefix_order(
-  old : Bytes,
-  pos : Int32,
-  new : Bytes,
-  at : Int32,
-  budget : MatchBudget,
-) -> Int32 raise MatchingFault {
-  match_position(old, pos)
-  let mut i = 0
-  let cap = if old.length() - pos < new.length() - at {
-    old.length() - pos
-  } else {
-    new.length() - at
-  }
-  while i < cap {
-    budget.tick()
-    if old[pos + i] != new[at + i] {
-      return if old[pos + i].to_int() < new[at + i].to_int() { -1 } else { 1 }
-    }
-    i = i + 1
-  }
-  if old.length() - pos < new.length() - at {
-    -1
-  } else if old.length() - pos > new.length() - at {
-    1
-  } else {
-    0
-  }
-}
-
-///|
-fn prefix_length(
-  old : Bytes,
-  pos : Int32,
-  new : Bytes,
-  at : Int32,
-  budget : MatchBudget,
-) -> Int32 raise MatchingFault {
-  match_position(old, pos)
-  let mut i = 0
-  while i < old.length() - pos && i < new.length() - at {
-    budget.tick()
-    if old[pos + i] != new[at + i] {
-      break
-    }
-    i = i + 1
-  }
-  i
-}
-
-///|
 fn search_match(
   old : Bytes,
   new : Bytes,
@@ -193,28 +146,75 @@ fn search_match(
   budget : MatchBudget,
 ) -> (Int32, Int32) raise MatchingFault {
   match_shape(old, new, sa, at)
+  let old_len = old.length()
+  let new_rem = new.length() - at
+  let sa_len = sa.length()
   let mut lo = 0
-  let mut hi = sa.length()
+  let mut hi = sa_len
+  // Invariant on sorted `sa`:
+  // - Whenever `lo > 0`, `sa[lo - 1]` was the last `mid` strictly less than
+  //   `new[at..]` and `lcp_lo` is its exact common prefix length with `new[at..]`.
+  // - Whenever `hi < sa_len`, `sa[hi]` was the last `mid` >= `new[at..]`
+  //   and `lcp_hi` is its exact common prefix length with `new[at..]`.
+  // Because `sa[lo - 1] < sa[mid] < sa[hi]`, every suffix strictly between them
+  // must share at least `min(lcp_lo, lcp_hi)` leading bytes with `new[at..]`.
+  // Probing `sa_len - 1` on the first iteration establishes `lcp_hi` upfront
+  // (and resolves queries greater than every suffix in one probe) instead of
+  // leaving `lcp_hi == 0` along a long right-leaning branch.
+  let mut lcp_lo = 0
+  let mut lcp_hi = 0
   while lo < hi {
     budget.tick()
-    let mid = lo + (hi - lo) / 2
-    if prefix_order(old, sa[mid], new, at, budget) < 0 {
+    let mid = if hi == sa_len && lo == 0 { hi - 1 } else { lo + (hi - lo) / 2 }
+    let pos = sa[mid]
+    match_position(old, pos)
+    let old_rem = old_len - pos
+    let cap = if old_rem < new_rem { old_rem } else { new_rem }
+    let start = if lcp_lo < lcp_hi { lcp_lo } else { lcp_hi }
+    let mut i = if start < cap { start } else { cap }
+    let mut cmp = 0
+    let mut decided = false
+    while i < cap {
+      budget.tick()
+      let a = old[pos + i]
+      let b = new[at + i]
+      if a != b {
+        cmp = if a.to_int() < b.to_int() { -1 } else { 1 }
+        decided = true
+        break
+      }
+      i = i + 1
+    }
+    if !decided {
+      cmp = if old_rem < new_rem {
+        -1
+      } else if old_rem > new_rem {
+        1
+      } else {
+        0
+      }
+    }
+    if cmp < 0 {
       lo = mid + 1
+      lcp_lo = i
     } else {
       hi = mid
+      lcp_hi = i
     }
   }
-  let mut pos = old.length()
+  // At termination `lo == hi`: `sa[lo - 1]` (if `lo > 0`) and `sa[lo]` (if
+  // `lo < sa_len`) were already validated and measured as the final left
+  // and right bounds, so `lcp_lo` and `lcp_hi` give their exact match lengths.
+  let mut pos = old_len
   let mut length = 0
   if lo > 0 {
     pos = sa[lo - 1]
-    length = prefix_length(old, pos, new, at, budget)
+    length = lcp_lo
   }
-  if lo < sa.length() {
-    let right = prefix_length(old, sa[lo], new, at, budget)
-    if right >= length {
+  if lo < sa_len {
+    if lcp_hi >= length {
       pos = sa[lo]
-      length = right
+      length = lcp_hi
     }
   }
   (pos, length)
