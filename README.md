@@ -123,6 +123,6 @@ and [CI results](https://github.com/BigSaltyMan/moonBSDiff/actions/workflows/ci.
 
 ## Project references
 
-- [Changelog](CHANGELOG.md) and [0.5.3 release evidence](https://github.com/BigSaltyMan/moonBSDiff/blob/master/docs/release-0.5.3.md)
+- [Changelog](CHANGELOG.md) and [0.5.4 release evidence](https://github.com/BigSaltyMan/moonBSDiff/blob/master/docs/release-0.5.4.md)
 - [BSDIFF40 format](https://github.com/BigSaltyMan/moonBSDiff/blob/master/docs/format.md) and [benchmarks](https://github.com/BigSaltyMan/moonBSDiff/blob/master/docs/benchmarks.md)
 - [BSD-2-Clause license](LICENSE) and [upstream and third-party notices](https://github.com/BigSaltyMan/moonBSDiff/blob/master/docs/upstream.md)

@@ -1,0 +1,961 @@
+{
+  "schema": 1,
+  "module": "BigSaltyMan/moonbsdiff",
+  "version": "0.5.4",
+  "source_sha": "bac93622df18bf70cf49a89b7f48e40d7f140e4b",
+  "tag": "v0.5.4",
+  "tag_target_sha": "bac93622df18bf70cf49a89b7f48e40d7f140e4b",
+  "tag_object_sha": "e4fe7caf0faf778fb22d9cb6b6d54696775602aa",
+  "ci": {
+    "url": "https://github.com/BigSaltyMan/moonBSDiff/actions/runs/44915136201",
+    "run_id": 44915136201,
+    "event": "workflow_dispatch",
+    "run_generation_scales": true,
+    "jobs": {
+      "CLI (windows-latest)": {
+        "url": "https://github.com/BigSaltyMan/moonBSDiff/actions/runs/44915136201/job/136879023381",
+        "conclusion": "success"
+      },
+      "native": {
+        "url": "https://github.com/BigSaltyMan/moonBSDiff/actions/runs/44915136201/job/136879023544",
+        "conclusion": "success"
+      },
+      "Native larger-input policies (256 KiB then 1 MiB)": {
+        "url": "https://github.com/BigSaltyMan/moonBSDiff/actions/runs/44915136201/job/136879023549",
+        "conclusion": "success"
+      },
+      "Real BSDiff reference interoperability": {
+        "url": "https://github.com/BigSaltyMan/moonBSDiff/actions/runs/44915136201/job/136879023551",
+        "conclusion": "success"
+      },
+      "CLI (ubuntu-latest)": {
+        "url": "https://github.com/BigSaltyMan/moonBSDiff/actions/runs/44915136201/job/136879023560",
+        "conclusion": "success"
+      },
+      "Collect source-bound CLI release assets": {
+        "url": "https://github.com/BigSaltyMan/moonBSDiff/actions/runs/44915136201/job/136879803346",
+        "conclusion": "success"
+      }
+    },
+    "artifacts": [
+      {
+        "id": 14712020053,
+        "name": "cli-release-bac93622df18bf70cf49a89b7f48e40d7f140e4b",
+        "sha256": "45d0d5ac4752cb4f4d71f3d87fb9bdace69d175ff4e1297ca485cccc6e16a538",
+        "files": [
+          "SHA256SUMS",
+          "build-info.json",
+          "moonbsdiff-0.5.4-linux-x86_64.tar.gz",
+          "moonbsdiff-0.5.4-windows-x86_64.zip"
+        ]
+      },
+      {
+        "id": 14711187093,
+        "name": "generation-scales-bac93622df18bf70cf49a89b7f48e40d7f140e4b",
+        "sha256": "6006509c4d64f906b731c825964598b019de34508d51bcd23662fdbaa2bba3ef",
+        "files": [
+          "cli-13054c75c170448da2df495be4b5e20a.json",
+          "cli-f3f5cb7612124f8b9cf08c94da0e0616.json",
+          "scale-all.json"
+        ]
+      },
+      {
+        "id": 14711143795,
+        "name": "mooncakes-candidate-bac93622df18bf70cf49a89b7f48e40d7f140e4b",
+        "sha256": "7d7c6e9e147d4bd3f8a31580e7c29b7891075acbdf62932b03671d43ff16ee02",
+        "files": [
+          "BigSaltyMan-moonbsdiff-0.5.4.zip",
+          "audit.json",
+          "consumer.json"
+        ]
+      }
+    ]
+  },
+  "regression": {
+    "sha": "bac93622df18bf70cf49a89b7f48e40d7f140e4b",
+    "run_id": 44915136201,
+    "native_tests": 169,
+    "ci_js_wasm_gc_tests_each": 137,
+    "cli": {
+      "windows": {
+        "python_cases": 118,
+        "huffman_kraft_level_9": "Huffman Kraft at level 9: max lengths by block [[[4, 3]], [], [[20, 8, 8, 8, 7, 7]]], 869442 bytes restored",
+        "boundary_cases": [
+          {
+            "level": 1,
+            "tail": "CDE",
+            "restored_bytes": 100002
+          },
+          {
+            "level": 1,
+            "tail": "CCD",
+            "restored_bytes": 100002
+          },
+          {
+            "level": 1,
+            "tail": "CC",
+            "restored_bytes": 100001
+          },
+          {
+            "level": 9,
+            "tail": "CDE",
+            "restored_bytes": 900002
+          },
+          {
+            "level": 9,
+            "tail": "CCD",
+            "restored_bytes": 900002
+          },
+          {
+            "level": 9,
+            "tail": "CC",
+            "restored_bytes": 900001
+          }
+        ],
+        "private_file_contracts": 9,
+        "private_stream_compat_tests": 2,
+        "public_archive": {
+          "source_sha": "bac93622df18bf70cf49a89b7f48e40d7f140e4b",
+          "platform": "Windows-11-10.0.26300-SP0",
+          "archive": "moonbsdiff-0.5.4-windows-x86_64.zip",
+          "archive_sha256": "2dbd1915da0c44bf32ac14bac1001909b5d54c4bb5b4eb7638be85946e90cb96",
+          "executable_sha256": "4d09464bb9c6ea078c15d0c86e528984723357e30a04bc928c9332b3fd740dee",
+          "version": "moonbsdiff 0.5.4"
+        }
+      },
+      "linux": {
+        "python_cases": 118,
+        "huffman_kraft_level_9": "Huffman Kraft at level 9: max lengths by block [[[4, 3]], [], [[20, 8, 8, 8, 7, 7]]], 869442 bytes restored",
+        "boundary_cases": [
+          {
+            "level": 1,
+            "tail": "CDE",
+            "restored_bytes": 100002
+          },
+          {
+            "level": 1,
+            "tail": "CCD",
+            "restored_bytes": 100002
+          },
+          {
+            "level": 1,
+            "tail": "CC",
+            "restored_bytes": 100001
+          },
+          {
+            "level": 9,
+            "tail": "CDE",
+            "restored_bytes": 900002
+          },
+          {
+            "level": 9,
+            "tail": "CCD",
+            "restored_bytes": 900002
+          },
+          {
+            "level": 9,
+            "tail": "CC",
+            "restored_bytes": 900001
+          }
+        ],
+        "private_file_contracts": 9,
+        "private_stream_compat_tests": 4,
+        "public_archive": {
+          "source_sha": "bac93622df18bf70cf49a89b7f48e40d7f140e4b",
+          "platform": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+          "archive": "moonbsdiff-0.5.4-linux-x86_64.tar.gz",
+          "archive_sha256": "cae26fa8427c8530a640df045993109284a3ce92f0ad81809d1a76c740e56d6c",
+          "executable_sha256": "e45b5f4b27ad80ebce1ada0fb63d8eb26032f8dc5480eda8dcfb9ab4cda0b123",
+          "version": "moonbsdiff 0.5.4"
+        }
+      }
+    },
+    "reference": {
+      "provenance": {
+        "attempt": "1",
+        "event": "workflow_dispatch",
+        "run_id": "44915136201",
+        "source_sha": "bac93622df18bf70cf49a89b7f48e40d7f140e4b",
+        "workflow_sha": "bac93622df18bf70cf49a89b7f48e40d7f140e4b"
+      },
+      "reference": {
+        "counts": {
+          "js": {
+            "moon-to-oracle": {
+              "expected": 19,
+              "failed": 0,
+              "skipped": 0,
+              "success": 19
+            },
+            "oracle-to-moon": {
+              "expected": 19,
+              "failed": 0,
+              "skipped": 0,
+              "success": 19
+            }
+          },
+          "native": {
+            "moon-to-oracle": {
+              "expected": 31,
+              "failed": 0,
+              "skipped": 0,
+              "success": 31
+            },
+            "oracle-to-moon": {
+              "expected": 31,
+              "failed": 0,
+              "skipped": 0,
+              "success": 31
+            }
+          },
+          "wasm-gc": {
+            "moon-to-oracle": {
+              "expected": 19,
+              "failed": 0,
+              "skipped": 0,
+              "success": 19
+            },
+            "oracle-to-moon": {
+              "expected": 19,
+              "failed": 0,
+              "skipped": 0,
+              "success": 19
+            }
+          }
+        },
+        "full_results_sha256": "1b54b1f55ed36a21725f166166bf604a700aea166a7a8b00f52c4fa445a54577",
+        "identities": [
+          {
+            "case_id": "both-empty",
+            "moon_patch_sha256": "82d27a0bd77c668d2ab2c3ca96aeffae567bd4c8313786c610704410bf2dc42e",
+            "oracle_patch_sha256": "82d27a0bd77c668d2ab2c3ca96aeffae567bd4c8313786c610704410bf2dc42e",
+            "restored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "target": "native"
+          },
+          {
+            "case_id": "old-empty",
+            "moon_patch_sha256": "0fa4b707a5a7345bac9c90ea22da9fb9b2aa70222fa6c4f5797664f5b5c40f6f",
+            "oracle_patch_sha256": "8ff6ff724280ef7806814b01b6b3e299e578cdfe00e176fe5f8733d7a1ee104b",
+            "restored_sha256": "3454c7ec1e02edce0fe7f4efe362651fbb457bc6d62fdd7a2f8001611bf23cf0",
+            "target": "native"
+          },
+          {
+            "case_id": "new-empty",
+            "moon_patch_sha256": "82d27a0bd77c668d2ab2c3ca96aeffae567bd4c8313786c610704410bf2dc42e",
+            "oracle_patch_sha256": "82d27a0bd77c668d2ab2c3ca96aeffae567bd4c8313786c610704410bf2dc42e",
+            "restored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "target": "native"
+          },
+          {
+            "case_id": "identical",
+            "moon_patch_sha256": "34a47f2d53baea177d471f233e52f7a77eee21d82fb33dc96e72e695bdc5a92e",
+            "oracle_patch_sha256": "319172215bbb04c6c91106a168c2dd2912dccb7525cd1b1e9f9ea894bbd831e8",
+            "restored_sha256": "6bc14bdc4517a7a682c6910de2e2946eb8e1ecd04090728fef6d092a7ceb62c5",
+            "target": "native"
+          },
+          {
+            "case_id": "replace",
+            "moon_patch_sha256": "62a400b3d5ee169dffad7461e91f5691e2a7b5012e1a14ce33b8fe8a2053cf7b",
+            "oracle_patch_sha256": "cd22b7f1c8031af0f84f610b967771311791007e33914b64d8ef81cfd58a7c6b",
+            "restored_sha256": "5719410b795aeecf690587cb18dfa92f4bc7c7c9c46662343faaa6dee218fa79",
+            "target": "native"
+          },
+          {
+            "case_id": "insert",
+            "moon_patch_sha256": "e2baabd0248054e82c7bd8c917b50b204224da38045e91ce0877e5cf4146b548",
+            "oracle_patch_sha256": "8dbcab7dfff3fdfbef1bdab6e07acf6c158682bb70a4f4fa9e6742bda839cd1f",
+            "restored_sha256": "c113e1e46bfafc9685a8ed02623f9293695e89d453b5e3b3e5b2459e3bbadc36",
+            "target": "native"
+          },
+          {
+            "case_id": "delete",
+            "moon_patch_sha256": "4ebad7cdabae57ae455e00962f888be3159371890fe18e70a7dd438d6af05255",
+            "oracle_patch_sha256": "4ebad7cdabae57ae455e00962f888be3159371890fe18e70a7dd438d6af05255",
+            "restored_sha256": "ac461b883ccc91b73aa2c89c5bf02c20d35accbb0ffdb9e7c8cfe9537483a196",
+            "target": "native"
+          },
+          {
+            "case_id": "prepend",
+            "moon_patch_sha256": "c80ae5f332b4034a6824b9a14c8986fcb336829292db2a9bf1d665f4c6caabec",
+            "oracle_patch_sha256": "dd013587bb034497071b9710428aa657c4afa30159adde603df58908341cae8e",
+            "restored_sha256": "56a5c83a71a41d14e3a1f1c7dca9315a1361318e6d8877a7ad04d3fb3ccbb663",
+            "target": "native"
+          },
+          {
+            "case_id": "append",
+            "moon_patch_sha256": "ba8a38b14b4cce3570144dad9ba6c2406c37097d5fcf3e6160ebb2334d984312",
+            "oracle_patch_sha256": "57a7b250dca6589f1ac784dad87627bbd911db14f5eb348f8fefd6f447e4af36",
+            "restored_sha256": "48cb942b30d9a5fbd8461bd975d3ff8c799e7573029f5845ddf50f06ea484d9e",
+            "target": "native"
+          },
+          {
+            "case_id": "all-bytes",
+            "moon_patch_sha256": "60fa74472008e01e91e04bb6b772afca608917a3a38f96f99577593bf0c63442",
+            "oracle_patch_sha256": "3bae2a0fab6c0f7f4cbb1575aea7240141690cf543370b95a714f66865d8899f",
+            "restored_sha256": "14025cad98e1fe9dd06ca112f9d69fe9f7f53f61c097d86f259f28f452b32154",
+            "target": "native"
+          },
+          {
+            "case_id": "periodic",
+            "moon_patch_sha256": "cd4308a298d5df7daa4448f3de4c549e6fcb9f938dabbd18f5d1c6079d8d092d",
+            "oracle_patch_sha256": "c31c566b3208aee59fdedfc809679294daeb60dfb2b031487b22ee17f7d003ee",
+            "restored_sha256": "b2f3ef47b023f59acd86772d8a7cad91b9b549bb9a54a8a4914709af8a269647",
+            "target": "native"
+          },
+          {
+            "case_id": "block-move",
+            "moon_patch_sha256": "c0ff5a516a676e1169e8573bd3786e8d05bf41a0a118c86afac0864ed3df21c8",
+            "oracle_patch_sha256": "d61311bc8a2b13dd717b554519e5fa7848c1fc2c783957e356566ef99f00bca6",
+            "restored_sha256": "47855f9752d0e2ebe6157ddeafe32f8ec407da9cc7ed8eae969b46e4a0388a80",
+            "target": "native"
+          },
+          {
+            "case_id": "seeded-random",
+            "moon_patch_sha256": "2bccb2f5daaa9da169822e290792a2ae9d5895bd453abca47f49ee9ce02a6210",
+            "oracle_patch_sha256": "b48d5bd790a5a37b507603284b501f21a6c15c110e96c6cabecd1867f705927b",
+            "restored_sha256": "ec7c875b594819312410388bd93805e989e4dba1cc68f793ece69352bfe8d6f5",
+            "target": "native"
+          },
+          {
+            "case_id": "rnd-2026110701-sparse",
+            "moon_patch_sha256": "8bc9d35f924c0510a19ec80a998926318a8cba83c5867c4aee8e6b499626fabf",
+            "oracle_patch_sha256": "341d6a39de791b8b0e3e9f9262fa9c3818d0802a8cdd288dfa1376e24d39b9fe",
+            "restored_sha256": "d65c36eadf6f8bd51d3657f1d48f3a8c7192d6566f2359ba565c6ede2632f431",
+            "target": "native"
+          },
+          {
+            "case_id": "rnd-2026110701-insert",
+            "moon_patch_sha256": "551cdfcb2f44e5686e9b386550cf5e11f31795f41e5f6c0fbeaa725ee187c8a1",
+            "oracle_patch_sha256": "7356ea7f4170b124259e70ae274d6a965a85bd2ab3bdbdbf105518bba82a9723",
+            "restored_sha256": "886d61f668e8f094f7c755edf7ce8f97ce0ce1c74cdc2ee96ed27d5f6aa9bcae",
+            "target": "native"
+          },
+          {
+            "case_id": "rnd-2026110701-delete",
+            "moon_patch_sha256": "cd18c70f8317e4b35da5c64fe6b25197084584d2409d80b2aa7e32af72a1d659",
+            "oracle_patch_sha256": "f30a1622b840d1e755986114b4736df4d89df92496c12b58ad9bb9e58d37d766",
+            "restored_sha256": "74a34dd2117e955275bef3309db7e84d1e97d97a3099af9186408135415f9dbe",
+            "target": "native"
+          },
+          {
+            "case_id": "rnd-2026110701-prepend",
+            "moon_patch_sha256": "383ca77491edd9e4c64b8488fa10209ce448b9befa38aaf7e9c7edb5d3c7eac6",
+            "oracle_patch_sha256": "146863f7a242800b752f1acfe5ac3c1a46a7feaa8403d487473104c9cd06e2f2",
+            "restored_sha256": "0e6002d893c4bdb30202e7f38efaa55817308021eaa55976e723b05e6d8b0791",
+            "target": "native"
+          },
+          {
+            "case_id": "rnd-2026110701-append",
+            "moon_patch_sha256": "b71dc68fe4199c47b6dd179d34a6c3fcfbbc7948cb1f35d5b86f9407577a0e70",
+            "oracle_patch_sha256": "1d1241bab6a208a0898d6ce79bdafcc79de4e662c9d61472e160cf7a07675cb0",
+            "restored_sha256": "fa6f962f7377f7fd16d397d5f6340935a7900c180808415981dc543cacf7e321",
+            "target": "native"
+          },
+          {
+            "case_id": "rnd-2026110701-truncate",
+            "moon_patch_sha256": "e684789a24f155a64f48ca2691f8a3434d6bf9043956544b900076d8cdc1df16",
+            "oracle_patch_sha256": "df80755af8c53e28e45b419a9636fbf5c68aa08b5485f4ca4cc0dae25088d474",
+            "restored_sha256": "6b79d4f249040ef2ea0859257499f427fb1a37d95ae3c1e6f2a846e75674d8f5",
+            "target": "native"
+          },
+          {
+            "case_id": "rnd-2026110702-sparse",
+            "moon_patch_sha256": "7d2ede4103ded67d7ca4a9bd5adf785aab0f50fb8709dbe942f7f7693e1739ec",
+            "oracle_patch_sha256": "bfaf44c0d3be03f8cf793c97192901627d6dc066d31a36392644b29f4ff60608",
+            "restored_sha256": "12e96a31c6a15d0b45bbfcc540b14cc927f65d0557af6949e2af4ca76bf0f757",
+            "target": "native"
+          },
+          {
+            "case_id": "rnd-2026110702-insert",
+            "moon_patch_sha256": "9321c2453cd844b7446eb5a1baa83275a5332cc8df7d9e41a0ac427ae20db910",
+            "oracle_patch_sha256": "631a29905b3a137f5ba0c3838afccbb826a6a3461eee8756af1f12ffa19daa36",
+            "restored_sha256": "5d8a3da2b3cc793c7f450c58dc58dd389600783c6c0b023c5776ef93ad8fef8b",
+            "target": "native"
+          },
+          {
+            "case_id": "rnd-2026110702-delete",
+            "moon_patch_sha256": "fa170f8bc2c6eaa9ab80e8a546d030415a3b2528720fb01cd564f2f40856b325",
+            "oracle_patch_sha256": "c724f9ccf2bbe0d73e3dd4cadbfba7581fdc7f13d9eab64c15888a91267a2183",
+            "restored_sha256": "5aa865a22cf104efa93aac398c8656d10370d79e75fcd1ad768f3d32d3dfac67",
+            "target": "native"
+          },
+          {
+            "case_id": "rnd-2026110702-prepend",
+            "moon_patch_sha256": "811f21c8a07dbe3288d88298394882dcdce4382d8b9c0d66abff3dbe0f1a0a15",
+            "oracle_patch_sha256": "f467a74c7471a1486d8f816ddae9dcc571767194cbb61a160957247a50d61946",
+            "restored_sha256": "61cf6f381d3a69f17d94f4958e5d36715c9d9624f0539d2e4f178fcaea923eac",
+            "target": "native"
+          },
+          {
+            "case_id": "rnd-2026110702-append",
+            "moon_patch_sha256": "509fc675c892cd0431c626fc5344f626896c8b5feeddd9020a815f7d9d84974b",
+            "oracle_patch_sha256": "fa406c6916aa0af99df5ed4193a1be27b72479d7181f2919b956189b924a7863",
+            "restored_sha256": "5218945a2770fc67e593a25fabb7a20087c341a16fb5f4f17040c33b44b0e475",
+            "target": "native"
+          },
+          {
+            "case_id": "rnd-2026110702-truncate",
+            "moon_patch_sha256": "4d647f3f3f0862963ffe5b482e84abaefb4be39e5e21c56f8e8fd1d158004ff8",
+            "oracle_patch_sha256": "5353385166ee60ab5a6f0f63a19acf192f02fa347fe2b1ba3a07ae1dbaf740a7",
+            "restored_sha256": "c28b26d251f811a8bd73fabafe8c3c7a1fd32d9f6b3110c04eb93dbb8f83fbdf",
+            "target": "native"
+          },
+          {
+            "case_id": "rnd-2026110703-sparse",
+            "moon_patch_sha256": "38e49fe19a2a29f52aefb6590a79dc9a1ab3a976542b1a691e1a81698dc01a74",
+            "oracle_patch_sha256": "9e6d597214c84cee35833914c6649f1b433eb892ab40896d1901315eeb921ad3",
+            "restored_sha256": "626634e0cab80236d7497c2fe3df7ab515482134d100ae1eeb7d0fbf654734da",
+            "target": "native"
+          },
+          {
+            "case_id": "rnd-2026110703-insert",
+            "moon_patch_sha256": "71e10c3136766f55dcfb23db2344ff87e53c4004cc9e0c165d40dbdaf5945563",
+            "oracle_patch_sha256": "5e8cab3a6065572c1f928cfa154938506273b54a9463a9bbfb1050e0f60f89fe",
+            "restored_sha256": "5d75d38182ea64649b6068bfad12a5b445296de44ea026e4d5549b6fa4ca2f48",
+            "target": "native"
+          },
+          {
+            "case_id": "rnd-2026110703-delete",
+            "moon_patch_sha256": "7d92e4eec82739c267a9ac9d92306da1a0c002837fc0a47393aab57ca688d1f5",
+            "oracle_patch_sha256": "7d92e4eec82739c267a9ac9d92306da1a0c002837fc0a47393aab57ca688d1f5",
+            "restored_sha256": "6050a48c348a65c4e53dfb0541b2c6ed7f4fde1215b3771a67b14777339c23fd",
+            "target": "native"
+          },
+          {
+            "case_id": "rnd-2026110703-prepend",
+            "moon_patch_sha256": "4a0e8bd9aed6bd9fb0226341342d45cf56f8de93869e324c5114a659e214d3ee",
+            "oracle_patch_sha256": "433fc75d5c5619f6e422aba9c10016650872f8974af03326c589341e4c78d42d",
+            "restored_sha256": "759eb7f77892d85a55f9557aea926e301d67d1ee2f1ad7e3d7026831ddfee331",
+            "target": "native"
+          },
+          {
+            "case_id": "rnd-2026110703-append",
+            "moon_patch_sha256": "7acff4150ba962ba745f0d579b1b5f7e5c13a6582f80ff8067381ed069dfadf4",
+            "oracle_patch_sha256": "1f63d8e82742af52542351e7ca95ebc301194913a09007339d89bf9bc307b567",
+            "restored_sha256": "b108ccca2d0fe21c3813cac3aa1078c02c77221089b820e71b83e2a43e845c4d",
+            "target": "native"
+          },
+          {
+            "case_id": "rnd-2026110703-truncate",
+            "moon_patch_sha256": "07ed095cd18fdd411c0484a6e4cc62fdf3a96f61bf0eb5fbddcdb928347c3d49",
+            "oracle_patch_sha256": "07ed095cd18fdd411c0484a6e4cc62fdf3a96f61bf0eb5fbddcdb928347c3d49",
+            "restored_sha256": "46c403f2554a20e3281a07083f31e67c132c924aef09b16070bc752df08b969a",
+            "target": "native"
+          },
+          {
+            "case_id": "both-empty",
+            "moon_patch_sha256": "82d27a0bd77c668d2ab2c3ca96aeffae567bd4c8313786c610704410bf2dc42e",
+            "oracle_patch_sha256": "82d27a0bd77c668d2ab2c3ca96aeffae567bd4c8313786c610704410bf2dc42e",
+            "restored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "target": "js"
+          },
+          {
+            "case_id": "old-empty",
+            "moon_patch_sha256": "0fa4b707a5a7345bac9c90ea22da9fb9b2aa70222fa6c4f5797664f5b5c40f6f",
+            "oracle_patch_sha256": "8ff6ff724280ef7806814b01b6b3e299e578cdfe00e176fe5f8733d7a1ee104b",
+            "restored_sha256": "3454c7ec1e02edce0fe7f4efe362651fbb457bc6d62fdd7a2f8001611bf23cf0",
+            "target": "js"
+          },
+          {
+            "case_id": "new-empty",
+            "moon_patch_sha256": "82d27a0bd77c668d2ab2c3ca96aeffae567bd4c8313786c610704410bf2dc42e",
+            "oracle_patch_sha256": "82d27a0bd77c668d2ab2c3ca96aeffae567bd4c8313786c610704410bf2dc42e",
+            "restored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "target": "js"
+          },
+          {
+            "case_id": "identical",
+            "moon_patch_sha256": "34a47f2d53baea177d471f233e52f7a77eee21d82fb33dc96e72e695bdc5a92e",
+            "oracle_patch_sha256": "319172215bbb04c6c91106a168c2dd2912dccb7525cd1b1e9f9ea894bbd831e8",
+            "restored_sha256": "6bc14bdc4517a7a682c6910de2e2946eb8e1ecd04090728fef6d092a7ceb62c5",
+            "target": "js"
+          },
+          {
+            "case_id": "replace",
+            "moon_patch_sha256": "62a400b3d5ee169dffad7461e91f5691e2a7b5012e1a14ce33b8fe8a2053cf7b",
+            "oracle_patch_sha256": "cd22b7f1c8031af0f84f610b967771311791007e33914b64d8ef81cfd58a7c6b",
+            "restored_sha256": "5719410b795aeecf690587cb18dfa92f4bc7c7c9c46662343faaa6dee218fa79",
+            "target": "js"
+          },
+          {
+            "case_id": "insert",
+            "moon_patch_sha256": "e2baabd0248054e82c7bd8c917b50b204224da38045e91ce0877e5cf4146b548",
+            "oracle_patch_sha256": "8dbcab7dfff3fdfbef1bdab6e07acf6c158682bb70a4f4fa9e6742bda839cd1f",
+            "restored_sha256": "c113e1e46bfafc9685a8ed02623f9293695e89d453b5e3b3e5b2459e3bbadc36",
+            "target": "js"
+          },
+          {
+            "case_id": "delete",
+            "moon_patch_sha256": "4ebad7cdabae57ae455e00962f888be3159371890fe18e70a7dd438d6af05255",
+            "oracle_patch_sha256": "4ebad7cdabae57ae455e00962f888be3159371890fe18e70a7dd438d6af05255",
+            "restored_sha256": "ac461b883ccc91b73aa2c89c5bf02c20d35accbb0ffdb9e7c8cfe9537483a196",
+            "target": "js"
+          },
+          {
+            "case_id": "prepend",
+            "moon_patch_sha256": "c80ae5f332b4034a6824b9a14c8986fcb336829292db2a9bf1d665f4c6caabec",
+            "oracle_patch_sha256": "dd013587bb034497071b9710428aa657c4afa30159adde603df58908341cae8e",
+            "restored_sha256": "56a5c83a71a41d14e3a1f1c7dca9315a1361318e6d8877a7ad04d3fb3ccbb663",
+            "target": "js"
+          },
+          {
+            "case_id": "append",
+            "moon_patch_sha256": "ba8a38b14b4cce3570144dad9ba6c2406c37097d5fcf3e6160ebb2334d984312",
+            "oracle_patch_sha256": "57a7b250dca6589f1ac784dad87627bbd911db14f5eb348f8fefd6f447e4af36",
+            "restored_sha256": "48cb942b30d9a5fbd8461bd975d3ff8c799e7573029f5845ddf50f06ea484d9e",
+            "target": "js"
+          },
+          {
+            "case_id": "all-bytes",
+            "moon_patch_sha256": "60fa74472008e01e91e04bb6b772afca608917a3a38f96f99577593bf0c63442",
+            "oracle_patch_sha256": "3bae2a0fab6c0f7f4cbb1575aea7240141690cf543370b95a714f66865d8899f",
+            "restored_sha256": "14025cad98e1fe9dd06ca112f9d69fe9f7f53f61c097d86f259f28f452b32154",
+            "target": "js"
+          },
+          {
+            "case_id": "periodic",
+            "moon_patch_sha256": "cd4308a298d5df7daa4448f3de4c549e6fcb9f938dabbd18f5d1c6079d8d092d",
+            "oracle_patch_sha256": "c31c566b3208aee59fdedfc809679294daeb60dfb2b031487b22ee17f7d003ee",
+            "restored_sha256": "b2f3ef47b023f59acd86772d8a7cad91b9b549bb9a54a8a4914709af8a269647",
+            "target": "js"
+          },
+          {
+            "case_id": "block-move",
+            "moon_patch_sha256": "c0ff5a516a676e1169e8573bd3786e8d05bf41a0a118c86afac0864ed3df21c8",
+            "oracle_patch_sha256": "d61311bc8a2b13dd717b554519e5fa7848c1fc2c783957e356566ef99f00bca6",
+            "restored_sha256": "47855f9752d0e2ebe6157ddeafe32f8ec407da9cc7ed8eae969b46e4a0388a80",
+            "target": "js"
+          },
+          {
+            "case_id": "seeded-random",
+            "moon_patch_sha256": "2bccb2f5daaa9da169822e290792a2ae9d5895bd453abca47f49ee9ce02a6210",
+            "oracle_patch_sha256": "b48d5bd790a5a37b507603284b501f21a6c15c110e96c6cabecd1867f705927b",
+            "restored_sha256": "ec7c875b594819312410388bd93805e989e4dba1cc68f793ece69352bfe8d6f5",
+            "target": "js"
+          },
+          {
+            "case_id": "rnd-2026110701-sparse",
+            "moon_patch_sha256": "8bc9d35f924c0510a19ec80a998926318a8cba83c5867c4aee8e6b499626fabf",
+            "oracle_patch_sha256": "341d6a39de791b8b0e3e9f9262fa9c3818d0802a8cdd288dfa1376e24d39b9fe",
+            "restored_sha256": "d65c36eadf6f8bd51d3657f1d48f3a8c7192d6566f2359ba565c6ede2632f431",
+            "target": "js"
+          },
+          {
+            "case_id": "rnd-2026110701-insert",
+            "moon_patch_sha256": "551cdfcb2f44e5686e9b386550cf5e11f31795f41e5f6c0fbeaa725ee187c8a1",
+            "oracle_patch_sha256": "7356ea7f4170b124259e70ae274d6a965a85bd2ab3bdbdbf105518bba82a9723",
+            "restored_sha256": "886d61f668e8f094f7c755edf7ce8f97ce0ce1c74cdc2ee96ed27d5f6aa9bcae",
+            "target": "js"
+          },
+          {
+            "case_id": "rnd-2026110701-delete",
+            "moon_patch_sha256": "cd18c70f8317e4b35da5c64fe6b25197084584d2409d80b2aa7e32af72a1d659",
+            "oracle_patch_sha256": "f30a1622b840d1e755986114b4736df4d89df92496c12b58ad9bb9e58d37d766",
+            "restored_sha256": "74a34dd2117e955275bef3309db7e84d1e97d97a3099af9186408135415f9dbe",
+            "target": "js"
+          },
+          {
+            "case_id": "rnd-2026110701-prepend",
+            "moon_patch_sha256": "383ca77491edd9e4c64b8488fa10209ce448b9befa38aaf7e9c7edb5d3c7eac6",
+            "oracle_patch_sha256": "146863f7a242800b752f1acfe5ac3c1a46a7feaa8403d487473104c9cd06e2f2",
+            "restored_sha256": "0e6002d893c4bdb30202e7f38efaa55817308021eaa55976e723b05e6d8b0791",
+            "target": "js"
+          },
+          {
+            "case_id": "rnd-2026110701-append",
+            "moon_patch_sha256": "b71dc68fe4199c47b6dd179d34a6c3fcfbbc7948cb1f35d5b86f9407577a0e70",
+            "oracle_patch_sha256": "1d1241bab6a208a0898d6ce79bdafcc79de4e662c9d61472e160cf7a07675cb0",
+            "restored_sha256": "fa6f962f7377f7fd16d397d5f6340935a7900c180808415981dc543cacf7e321",
+            "target": "js"
+          },
+          {
+            "case_id": "rnd-2026110701-truncate",
+            "moon_patch_sha256": "e684789a24f155a64f48ca2691f8a3434d6bf9043956544b900076d8cdc1df16",
+            "oracle_patch_sha256": "df80755af8c53e28e45b419a9636fbf5c68aa08b5485f4ca4cc0dae25088d474",
+            "restored_sha256": "6b79d4f249040ef2ea0859257499f427fb1a37d95ae3c1e6f2a846e75674d8f5",
+            "target": "js"
+          },
+          {
+            "case_id": "both-empty",
+            "moon_patch_sha256": "82d27a0bd77c668d2ab2c3ca96aeffae567bd4c8313786c610704410bf2dc42e",
+            "oracle_patch_sha256": "82d27a0bd77c668d2ab2c3ca96aeffae567bd4c8313786c610704410bf2dc42e",
+            "restored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "target": "wasm-gc"
+          },
+          {
+            "case_id": "old-empty",
+            "moon_patch_sha256": "0fa4b707a5a7345bac9c90ea22da9fb9b2aa70222fa6c4f5797664f5b5c40f6f",
+            "oracle_patch_sha256": "8ff6ff724280ef7806814b01b6b3e299e578cdfe00e176fe5f8733d7a1ee104b",
+            "restored_sha256": "3454c7ec1e02edce0fe7f4efe362651fbb457bc6d62fdd7a2f8001611bf23cf0",
+            "target": "wasm-gc"
+          },
+          {
+            "case_id": "new-empty",
+            "moon_patch_sha256": "82d27a0bd77c668d2ab2c3ca96aeffae567bd4c8313786c610704410bf2dc42e",
+            "oracle_patch_sha256": "82d27a0bd77c668d2ab2c3ca96aeffae567bd4c8313786c610704410bf2dc42e",
+            "restored_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "target": "wasm-gc"
+          },
+          {
+            "case_id": "identical",
+            "moon_patch_sha256": "34a47f2d53baea177d471f233e52f7a77eee21d82fb33dc96e72e695bdc5a92e",
+            "oracle_patch_sha256": "319172215bbb04c6c91106a168c2dd2912dccb7525cd1b1e9f9ea894bbd831e8",
+            "restored_sha256": "6bc14bdc4517a7a682c6910de2e2946eb8e1ecd04090728fef6d092a7ceb62c5",
+            "target": "wasm-gc"
+          },
+          {
+            "case_id": "replace",
+            "moon_patch_sha256": "62a400b3d5ee169dffad7461e91f5691e2a7b5012e1a14ce33b8fe8a2053cf7b",
+            "oracle_patch_sha256": "cd22b7f1c8031af0f84f610b967771311791007e33914b64d8ef81cfd58a7c6b",
+            "restored_sha256": "5719410b795aeecf690587cb18dfa92f4bc7c7c9c46662343faaa6dee218fa79",
+            "target": "wasm-gc"
+          },
+          {
+            "case_id": "insert",
+            "moon_patch_sha256": "e2baabd0248054e82c7bd8c917b50b204224da38045e91ce0877e5cf4146b548",
+            "oracle_patch_sha256": "8dbcab7dfff3fdfbef1bdab6e07acf6c158682bb70a4f4fa9e6742bda839cd1f",
+            "restored_sha256": "c113e1e46bfafc9685a8ed02623f9293695e89d453b5e3b3e5b2459e3bbadc36",
+            "target": "wasm-gc"
+          },
+          {
+            "case_id": "delete",
+            "moon_patch_sha256": "4ebad7cdabae57ae455e00962f888be3159371890fe18e70a7dd438d6af05255",
+            "oracle_patch_sha256": "4ebad7cdabae57ae455e00962f888be3159371890fe18e70a7dd438d6af05255",
+            "restored_sha256": "ac461b883ccc91b73aa2c89c5bf02c20d35accbb0ffdb9e7c8cfe9537483a196",
+            "target": "wasm-gc"
+          },
+          {
+            "case_id": "prepend",
+            "moon_patch_sha256": "c80ae5f332b4034a6824b9a14c8986fcb336829292db2a9bf1d665f4c6caabec",
+            "oracle_patch_sha256": "dd013587bb034497071b9710428aa657c4afa30159adde603df58908341cae8e",
+            "restored_sha256": "56a5c83a71a41d14e3a1f1c7dca9315a1361318e6d8877a7ad04d3fb3ccbb663",
+            "target": "wasm-gc"
+          },
+          {
+            "case_id": "append",
+            "moon_patch_sha256": "ba8a38b14b4cce3570144dad9ba6c2406c37097d5fcf3e6160ebb2334d984312",
+            "oracle_patch_sha256": "57a7b250dca6589f1ac784dad87627bbd911db14f5eb348f8fefd6f447e4af36",
+            "restored_sha256": "48cb942b30d9a5fbd8461bd975d3ff8c799e7573029f5845ddf50f06ea484d9e",
+            "target": "wasm-gc"
+          },
+          {
+            "case_id": "all-bytes",
+            "moon_patch_sha256": "60fa74472008e01e91e04bb6b772afca608917a3a38f96f99577593bf0c63442",
+            "oracle_patch_sha256": "3bae2a0fab6c0f7f4cbb1575aea7240141690cf543370b95a714f66865d8899f",
+            "restored_sha256": "14025cad98e1fe9dd06ca112f9d69fe9f7f53f61c097d86f259f28f452b32154",
+            "target": "wasm-gc"
+          },
+          {
+            "case_id": "periodic",
+            "moon_patch_sha256": "cd4308a298d5df7daa4448f3de4c549e6fcb9f938dabbd18f5d1c6079d8d092d",
+            "oracle_patch_sha256": "c31c566b3208aee59fdedfc809679294daeb60dfb2b031487b22ee17f7d003ee",
+            "restored_sha256": "b2f3ef47b023f59acd86772d8a7cad91b9b549bb9a54a8a4914709af8a269647",
+            "target": "wasm-gc"
+          },
+          {
+            "case_id": "block-move",
+            "moon_patch_sha256": "c0ff5a516a676e1169e8573bd3786e8d05bf41a0a118c86afac0864ed3df21c8",
+            "oracle_patch_sha256": "d61311bc8a2b13dd717b554519e5fa7848c1fc2c783957e356566ef99f00bca6",
+            "restored_sha256": "47855f9752d0e2ebe6157ddeafe32f8ec407da9cc7ed8eae969b46e4a0388a80",
+            "target": "wasm-gc"
+          },
+          {
+            "case_id": "seeded-random",
+            "moon_patch_sha256": "2bccb2f5daaa9da169822e290792a2ae9d5895bd453abca47f49ee9ce02a6210",
+            "oracle_patch_sha256": "b48d5bd790a5a37b507603284b501f21a6c15c110e96c6cabecd1867f705927b",
+            "restored_sha256": "ec7c875b594819312410388bd93805e989e4dba1cc68f793ece69352bfe8d6f5",
+            "target": "wasm-gc"
+          },
+          {
+            "case_id": "rnd-2026110701-sparse",
+            "moon_patch_sha256": "8bc9d35f924c0510a19ec80a998926318a8cba83c5867c4aee8e6b499626fabf",
+            "oracle_patch_sha256": "341d6a39de791b8b0e3e9f9262fa9c3818d0802a8cdd288dfa1376e24d39b9fe",
+            "restored_sha256": "d65c36eadf6f8bd51d3657f1d48f3a8c7192d6566f2359ba565c6ede2632f431",
+            "target": "wasm-gc"
+          },
+          {
+            "case_id": "rnd-2026110701-insert",
+            "moon_patch_sha256": "551cdfcb2f44e5686e9b386550cf5e11f31795f41e5f6c0fbeaa725ee187c8a1",
+            "oracle_patch_sha256": "7356ea7f4170b124259e70ae274d6a965a85bd2ab3bdbdbf105518bba82a9723",
+            "restored_sha256": "886d61f668e8f094f7c755edf7ce8f97ce0ce1c74cdc2ee96ed27d5f6aa9bcae",
+            "target": "wasm-gc"
+          },
+          {
+            "case_id": "rnd-2026110701-delete",
+            "moon_patch_sha256": "cd18c70f8317e4b35da5c64fe6b25197084584d2409d80b2aa7e32af72a1d659",
+            "oracle_patch_sha256": "f30a1622b840d1e755986114b4736df4d89df92496c12b58ad9bb9e58d37d766",
+            "restored_sha256": "74a34dd2117e955275bef3309db7e84d1e97d97a3099af9186408135415f9dbe",
+            "target": "wasm-gc"
+          },
+          {
+            "case_id": "rnd-2026110701-prepend",
+            "moon_patch_sha256": "383ca77491edd9e4c64b8488fa10209ce448b9befa38aaf7e9c7edb5d3c7eac6",
+            "oracle_patch_sha256": "146863f7a242800b752f1acfe5ac3c1a46a7feaa8403d487473104c9cd06e2f2",
+            "restored_sha256": "0e6002d893c4bdb30202e7f38efaa55817308021eaa55976e723b05e6d8b0791",
+            "target": "wasm-gc"
+          },
+          {
+            "case_id": "rnd-2026110701-append",
+            "moon_patch_sha256": "b71dc68fe4199c47b6dd179d34a6c3fcfbbc7948cb1f35d5b86f9407577a0e70",
+            "oracle_patch_sha256": "1d1241bab6a208a0898d6ce79bdafcc79de4e662c9d61472e160cf7a07675cb0",
+            "restored_sha256": "fa6f962f7377f7fd16d397d5f6340935a7900c180808415981dc543cacf7e321",
+            "target": "wasm-gc"
+          },
+          {
+            "case_id": "rnd-2026110701-truncate",
+            "moon_patch_sha256": "e684789a24f155a64f48ca2691f8a3434d6bf9043956544b900076d8cdc1df16",
+            "oracle_patch_sha256": "df80755af8c53e28e45b419a9636fbf5c68aa08b5485f4ca4cc0dae25088d474",
+            "restored_sha256": "6b79d4f249040ef2ea0859257499f427fb1a37d95ae3c1e6f2a846e75674d8f5",
+            "target": "wasm-gc"
+          }
+        ],
+        "independent_inputs": 31,
+        "library_sources": {
+          "apply.mbt": "e6f19202884cc74e1f0b285bfc752936677f1cfd3f055c3e379960d3e71b594c",
+          "compression.mbt": "782a91ed17d437516caf041c512ae99cc12ba340f959b3461006b3fe07df364a",
+          "diff.mbt": "104ad19b742730fdb9a6944f17896212b99eab4040807b6446a54f9b17b3a720",
+          "diff_index.mbt": "103f9a75e9ee79b7796d461bcac2237ed5fefee4872c16efbbabe6a654475eb3",
+          "diff_options.mbt": "da2f246de8dd79260b41d09f021eb5589be24996c6290bf58276a544562e9f07",
+          "errors.mbt": "ea886eb20e9b47d784a2f89b375973c6050c9a9dac20de417b354cec66593718",
+          "format.mbt": "3eb8cfe0841f3b904e31ce825fa5dd6a1b1f20a67339a2e0465284c10d6a4e49",
+          "inspect_deep.mbt": "26b66be0f859ec4f79bad568459353bdf925d817a89fe13d072f83c521d94388",
+          "intcodec.mbt": "c24ccdb0e334b9e903a183a20325e976d56ba7b03bfae355afc14fda7b030793",
+          "internal/bzip2/bits.mbt": "ef9134d64ac8dabc35c120158b70937fb92ccae7574f607cbdc3f71156ea27e6",
+          "internal/bzip2/bounded.mbt": "8509deddbc234babd2b398f6d5e060a6bacc75f6cafc41bd2e59820c28ec7564",
+          "internal/bzip2/bwt.mbt": "fa8ba45ac8544c4530ee614f9c945ca718ef4142a87b73b370447e9426ed099a",
+          "internal/bzip2/bwt_wbtest.mbt": "4cd90259c34f68eea6ac7f0dc8df98e55df8f95a5638c8ac485051be77c5cfa5",
+          "internal/bzip2/bzip2.mbt": "7972d0b5f949a46defbbcf5f04e49ea739fe44563c8b3ef9f68045698ac26f16",
+          "internal/bzip2/crc.mbt": "baff55ebf8723ee27ad3b7a773eafb0f4e31ab8cbf90c220135bd9a32bae5ef4",
+          "internal/bzip2/decode.mbt": "8666834a135faea4b87236452b7de9d425ad0a437a7cc425eabce41d8ba91d24",
+          "internal/bzip2/encode.mbt": "1130caf8998e75fc5e52988bda73651d6d5c0462cc914ca990e2bf46fcc9366a",
+          "internal/bzip2/rand.mbt": "9c05bdd91d74a3afedc80a3db748106da93c781a88322faa12f0b50ec268dbdf",
+          "internal/bzip2/sink.mbt": "f190919d1fc7bc2806d290624060ccb8896d55282103598656c6909e3b266d12",
+          "internal/bzip2/stream.mbt": "5196242609866c5d603b1f174a85ef989de6eaa2c5be806f66578383a626e546",
+          "internal/bzip2/stream_wbtest.mbt": "6e152e526ee4e71910df0318d1a557a1682bdd856644e3ce18c4b89198052028",
+          "internal/bzip2/writer.mbt": "acf9d58d36426f282b7fb1588574d9fdd01ff9b07a5d19fee6d468d12ce492d2",
+          "limits.mbt": "7dc8350f1a9afdfb6859f7db7b287afc824bc02499349782caf3d7a5320aeef4",
+          "matching.mbt": "1cde8562b090f5a63850707cbada2d8831ce593b4a95aa0cd92a408a2bf2ceaa",
+          "moon.mod": "3b9210146538efa58a4c93736c5cb8b8c7f254537382dca45368ef6ac2589c69",
+          "moon.pkg": "5b6edf56e09e2050dc33a3c42d7f147717f0823f410459db65e7fc5ae9932e7f",
+          "suffix_array.mbt": "ff0cd5ced397028f2e1235505d3c2795246f7070748399dca2dbd137b42784d3"
+        },
+        "manifest_sha256": "85a90aaa6110650a8bfef2137d100311a869375d922724e0ac1579618914aea8",
+        "new_oracle_patches": 18,
+        "oracle": {
+          "bsdiff": "101c2fcaf24567b7b14455f7370c68fa4315e949df956e4081489cc8484cd676",
+          "bspatch": "d14deb42bb32e32ed1325b8361062e6be8bf82a6dbda596961e2f800291175cc"
+        },
+        "run_id": "a1b7b005109c41f89157da8a0e2da91d",
+        "schema": 1,
+        "scope": "full",
+        "toolchain": "moon 0.1.20261102 (ea07287 2026-11-02) ~/.moon/bin/moon\nmoonc v0.10.19+bee578715 (2026-11-02) ~/.moon/bin/moonc\nmoonrun 0.1.20261102 (ea07287 2026-11-02) ~/.moon/bin/moonrun\n\nFeature flags enabled: rr_moon_mod,rr_moon_pkg\n"
+      }
+    },
+    "patch_sizes": {
+      "256k-sparse": 188,
+      "256k-periodic": 165,
+      "256k-random": 263849,
+      "1m-sparse": 197,
+      "1m-periodic": 168,
+      "1m-random": 1053978
+    }
+  },
+  "toolchain": "moon 0.1.20261102 (ea07287 2026-11-02) ~/.moon/bin/moon\nmoonc v0.10.19+bee578715 (2026-11-02) ~/.moon/bin/moonc\nmoonrun 0.1.20261102 (ea07287 2026-11-02) ~/.moon/bin/moonrun",
+  "scale": {
+    "measurements": [
+      {
+        "id": "256k-sparse",
+        "old_size": 262144,
+        "new_size": 262144,
+        "patch_bytes": 188,
+        "new_sha256": "9a7ae270ed20bf6a19731308bfa463059b6bc79cd5840a316aa3849593b9ea5a",
+        "restored_sha256": "9a7ae270ed20bf6a19731308bfa463059b6bc79cd5840a316aa3849593b9ea5a",
+        "byte_equal": true,
+        "sort_work": 5896636,
+        "match_work": 1836338,
+        "generate_seconds": 0.0193602
+      },
+      {
+        "id": "256k-periodic",
+        "old_size": 262144,
+        "new_size": 262144,
+        "patch_bytes": 165,
+        "new_sha256": "3e15d65653b8224c6246d392e32c59be47932f1903a9504a24ba442fb7fc9f52",
+        "restored_sha256": "3e15d65653b8224c6246d392e32c59be47932f1903a9504a24ba442fb7fc9f52",
+        "byte_equal": true,
+        "sort_work": 21758538,
+        "match_work": 3259192,
+        "generate_seconds": 0.037352443
+      },
+      {
+        "id": "256k-random",
+        "old_size": 262144,
+        "new_size": 262144,
+        "patch_bytes": 263849,
+        "new_sha256": "2425ad53b10c0eedc10a34b8cb5d73773d7ad067a2572486a7ddb94b299bf342",
+        "restored_sha256": "2425ad53b10c0eedc10a34b8cb5d73773d7ad067a2572486a7ddb94b299bf342",
+        "byte_equal": true,
+        "sort_work": 5896636,
+        "match_work": 14583159,
+        "generate_seconds": 0.137512931
+      },
+      {
+        "id": "1m-sparse",
+        "old_size": 1048576,
+        "new_size": 1048576,
+        "patch_bytes": 197,
+        "new_sha256": "7ce70bb102b5106e41f7315cb274ea1f674d42ef6302a9013616976f918640b8",
+        "restored_sha256": "7ce70bb102b5106e41f7315cb274ea1f674d42ef6302a9013616976f918640b8",
+        "byte_equal": true,
+        "sort_work": 23200464,
+        "match_work": 7341466,
+        "generate_seconds": 0.074976201
+      },
+      {
+        "id": "1m-periodic",
+        "old_size": 1048576,
+        "new_size": 1048576,
+        "patch_bytes": 168,
+        "new_sha256": "3401436606eb9782f7fef20b02c8c9a7a22e334bea7f55a99e0edf4d51defd17",
+        "restored_sha256": "3401436606eb9782f7fef20b02c8c9a7a22e334bea7f55a99e0edf4d51defd17",
+        "byte_equal": true,
+        "sort_work": 95421038,
+        "match_work": 13033421,
+        "generate_seconds": 0.15374533
+      },
+      {
+        "id": "1m-random",
+        "old_size": 1048576,
+        "new_size": 1048576,
+        "patch_bytes": 1053978,
+        "new_sha256": "a11961166dede3a00708b6fbfba1268416d17b0362bc6d134d386576eac68cad",
+        "restored_sha256": "a11961166dede3a00708b6fbfba1268416d17b0362bc6d134d386576eac68cad",
+        "byte_equal": true,
+        "sort_work": 23200464,
+        "match_work": 63147815,
+        "generate_seconds": 0.657286053
+      }
+    ],
+    "cli_replays": [
+      {
+        "stage": "256k",
+        "case": "random",
+        "patch_bytes": 263849,
+        "patch_sha256": "4d6aa7c68fbf52ddfc99d34474885aced4703fdf1cf422e1b2a4062066f34101",
+        "restored_sha256": "2425ad53b10c0eedc10a34b8cb5d73773d7ad067a2572486a7ddb94b299bf342",
+        "byte_equal": true
+      },
+      {
+        "stage": "1m",
+        "case": "random",
+        "patch_bytes": 1053978,
+        "patch_sha256": "81f4ea9d5f75cdfc78dce221af7d83adbb0fbd0e3d6d0aa0ea70bf72db36a473",
+        "restored_sha256": "a11961166dede3a00708b6fbfba1268416d17b0362bc6d134d386576eac68cad",
+        "byte_equal": true
+      }
+    ]
+  },
+  "mooncakes": {
+    "source_sha": "bac93622df18bf70cf49a89b7f48e40d7f140e4b",
+    "version": "0.5.4",
+    "package_url": "https://download.mooncakes.io/user/BigSaltyMan/moonbsdiff/0.5.4.zip",
+    "metadata_url": "https://mooncakes.io/api/v0/manifest/BigSaltyMan/moonbsdiff/0.5.4",
+    "package_sha256": "fa7e0863ec0cbe35a4d9c008d2d75587f956750e7824aea43bfc913301495c5b",
+    "registry_sha256": "fa7e0863ec0cbe35a4d9c008d2d75587f956750e7824aea43bfc913301495c5b",
+    "size_bytes": 77992,
+    "members": 49,
+    "ci_sha256": "4b9611589745937d7e2bd5f87e819cf7ab0923d221c37b0a8098a47315cc2187",
+    "windows_candidate_sha256": "fa7e0863ec0cbe35a4d9c008d2d75587f956750e7824aea43bfc913301495c5b",
+    "byte_equal_windows": true,
+    "byte_equal_ci": false,
+    "member_bytes_equal": true,
+    "canonical_member_sha256": "f9e3f4e20a2dfe83ee5ecd52f744e14b1c7dc903fba54215bad521499c573552",
+    "container_differences": {
+      "same_entry_order": false,
+      "same_zip_comment": true,
+      "header_metadata_fields": []
+    }
+  },
+  "candidate_consumer": {
+    "observations": {
+      "native": [
+        "manifest 0.5.4 probe: candidate=1 patch_bytes=168 target_bytes=1045 apply_patch_cap=131072"
+      ],
+      "js": [
+        "manifest 0.5.4 probe: candidate=1 patch_bytes=168 target_bytes=1045 apply_patch_cap=131072"
+      ],
+      "wasm-gc": [
+        "manifest 0.5.4 probe: candidate=1 patch_bytes=168 target_bytes=1045 apply_patch_cap=131072"
+      ]
+    },
+    "targets": [
+      "native",
+      "js",
+      "wasm-gc"
+    ]
+  },
+  "public_consumer": {
+    "mode": "registry",
+    "platform": "Windows-11-10.0.26300-SP0",
+    "targets": [
+      "native",
+      "js",
+      "wasm-gc"
+    ],
+    "version": "0.5.4",
+    "dependency_tree": "releasecheck/consumer@0.1.0 (local C:\\Users\\85953\\AppData\\Local\\Temp\\moonbsdiff-consumer-1lfp21qa\\consumer):\n\u2514\u2500 BigSaltyMan/moonbsdiff -> BigSaltyMan/moonbsdiff@0.5.4\n   \u251c\u2500 moonbitstack/mooncrypt -> moonbitstack/mooncrypt@0.4.7\n   \u2502  \u251c\u2500 moonbitstack/moonbase -> moonbitstack/moonbase@0.4.2\n   \u2502  \u251c\u2500 moonbitstack/moondate -> moonbitstack/moondate@0.1.0\n   \u2502  \u2514\u2500 moonbitstack/moonseed -> moonbitstack/moonseed@0.1.0\n   \u2514\u2500 moonbitstack/moonzip -> moonbitstack/moonzip@0.3.5\n      \u251c\u2500 moonbitstack/moonbase -> moonbitstack/moonbase@0.4.2\n      \u2514\u2500 moonbitstack/mooncrypt -> moonbitstack/mooncrypt@0.4.7 (*)\n",
+    "observations": {
+      "native": [
+        "manifest 0.5.4 probe: candidate=1 patch_bytes=168 target_bytes=1045 apply_patch_cap=131072"
+      ],
+      "js": [
+        "manifest 0.5.4 probe: candidate=1 patch_bytes=168 target_bytes=1045 apply_patch_cap=131072"
+      ],
+      "wasm-gc": [
+        "manifest 0.5.4 probe: candidate=1 patch_bytes=168 target_bytes=1045 apply_patch_cap=131072"
+      ]
+    },
+    "package_sha256": "fa7e0863ec0cbe35a4d9c008d2d75587f956750e7824aea43bfc913301495c5b"
+  },
+  "readme_public_example_passed": true,
+  "github_release": {
+    "source_sha": "bac93622df18bf70cf49a89b7f48e40d7f140e4b",
+    "run_id": 44915136201,
+    "tag": "v0.5.4",
+    "tag_object_sha": "e4fe7caf0faf778fb22d9cb6b6d54696775602aa",
+    "release_id": 453760555,
+    "release_url": "https://github.com/BigSaltyMan/moonBSDiff/releases/tag/v0.5.4",
+    "draft": false,
+    "prerelease": false,
+    "assets": [
+      {
+        "name": "build-info.json",
+        "url": "https://github.com/BigSaltyMan/moonBSDiff/releases/download/v0.5.4/build-info.json",
+        "sha256": "79140dbe9905ce8bb6959fadca8113e1d3d249f0ef0b6221e04df2d9c90b439c",
+        "size_bytes": 7090,
+        "byte_equal_ci": true
+      },
+      {
+        "name": "moonbsdiff-0.5.4-linux-x86_64.tar.gz",
+        "url": "https://github.com/BigSaltyMan/moonBSDiff/releases/download/v0.5.4/moonbsdiff-0.5.4-linux-x86_64.tar.gz",
+        "sha256": "cae26fa8427c8530a640df045993109284a3ce92f0ad81809d1a76c740e56d6c",
+        "size_bytes": 438873,
+        "byte_equal_ci": true
+      },
+      {
+        "name": "moonbsdiff-0.5.4-windows-x86_64.zip",
+        "url": "https://github.com/BigSaltyMan/moonBSDiff/releases/download/v0.5.4/moonbsdiff-0.5.4-windows-x86_64.zip",
+        "sha256": "2dbd1915da0c44bf32ac14bac1001909b5d54c4bb5b4eb7638be85946e90cb96",
+        "size_bytes": 305615,
+        "byte_equal_ci": true
+      },
+      {
+        "name": "SHA256SUMS",
+        "url": "https://github.com/BigSaltyMan/moonBSDiff/releases/download/v0.5.4/SHA256SUMS",
+        "sha256": "e9cacd8b8a7c3e5b451c23fb725969b6f70be1d9a228cb6643e69122e852aa60",
+        "size_bytes": 287,
+        "byte_equal_ci": true
+      }
+    ]
+  }
+}
