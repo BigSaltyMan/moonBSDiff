@@ -19,3 +19,77 @@ Compressed decoder errors retain patch-file absolute offsets (when available). H
 This document originally recorded the application stage. Generation, native CLI and both interoperability directions are now implemented; see [generation](generation.md), [CLI](cli.md) and [compatibility](compatibility.md) for their separate evidence. BSDIFF40 has no built-in old-file identity hash. Wrong old bytes can produce apparently successful but incorrect output, so applications must verify expected input/output hashes externally.
 
 Application-stage coverage, exact resource boundaries and final three-target results: [stage acceptance](apply-acceptance.md). Reproduce the new compact fixtures with scripts/check_apply_boundaries.py --generate followed by moon fmt. This also reproduces the five resource-test byte literals from independent Python recipes.
+
+## Cross-target streaming application (`apply_stream`, Unreleased)
+
+`BigSaltyMan/moonbsdiff` exposes a cross-target streaming application entry point
+that works identically on Native, JavaScript, and Wasm-GC without buffering the
+whole old input, patch, or restored output in memory:
+
+```moonbit
+pub(all) enum StreamApplyStage {
+  HeaderVerified(PatchInfo)
+  Restoring
+  Validating
+}
+
+pub(all) enum StreamApplyError[E] {
+  Bsdiff(BsdiffError)
+  Io(E)
+}
+
+pub fn[E] apply_stream(
+  old_size : Int64,
+  patch_size : Int64,
+  limits : Limits,
+  read_old_at~ : (Int64, Int32) -> Result[Bytes, E],
+  read_patch_at~ : (Int64, Int32) -> Result[Bytes, E],
+  write_output~ : (Bytes) -> Result[Unit, E],
+  on_stage? : (StreamApplyStage) -> Result[Unit, E],
+  checkpoint? : () -> Result[Unit, E],
+) -> Result[DeepPatchInfo, StreamApplyError[E]]
+```
+
+Behavior and guarantees:
+
+- **Preflight**: validates `limits`, non-negative `old_size <= max_old_bytes`,
+  and non-negative `patch_size <= max_patch_bytes`. Reads up to the 32-byte
+  header prefix via `read_patch_at` and validates it with
+  `inspect_header_prefix`, then checks `info.new_bytes` against both
+  `max_output_bytes` and `max_new_bytes` before emitting `HeaderVerified(info)`
+  and opening the three streams.
+- **Bounded chunked IO (`<= 4096` bytes)**: refills the three compressed bzip2
+  stream readers (`control`, `diff`, `extra`), reads `old` byte spans via
+  `read_old_at`, and emits restored chunks via `write_output` in chunks of at
+  most `4096` bytes. Each range read (`read_old_at`, `read_patch_at`) must
+  return `1..requested` bytes on `Ok`; returning `0` bytes fails with
+  `Bsdiff(TruncatedData)` and returning more than requested fails with
+  `Bsdiff(InvalidField)`. Outside-old cursor positions contribute zero and byte
+  sums wrap modulo 256, matching `apply`.
+- **Stage and checkpoint hooks**: calls optional `on_stage` at
+  `HeaderVerified(PatchInfo)`, `Restoring`, and `Validating`, and optional
+  `checkpoint` before reading each control triple, diff/extra chunk, and final
+  stream validation. Any callback `Err(e)` stops immediately with `Err(Io(e))`.
+- **Strict completion**: enforces shared `max_decompressed_bytes`,
+  `max_control_instructions`, block/combined CRCs, end markers, and exact
+  consumption of `control`, `diff`, and `extra` intervals, returning
+  `Ok(DeepPatchInfo)` on success.
+- **No library file IO**: `BigSaltyMan/moonbsdiff` remains pure and performs no
+  host filesystem calls on Native, JS, or Wasm-GC; callers supply the range and
+  output callbacks. The native CLI (`cmd/main`) streaming executor uses
+  `apply_stream` directly over OS file-handle callbacks.
+
+### Structured-error nuances compared to in-memory `apply`
+
+`apply_stream` enforces the same BSDIFF40 validity and resource contracts as
+in-memory `apply`, with a few intentional structured-error differences driven by
+incremental decoding: control-triple validation reports `diff_length`,
+`extra_length`, `old_plus_x`, and `old_plus_z` (rather than in-memory
+`control_decoded_byte[N].*`); an empty control stream when `new_bytes > 0`
+reports `TruncatedData` at `Control` (`control_triple_bytes`) rather than
+`Output` (`output_size`); any trailing decoded bytes after
+`produced == new_bytes` report `InvalidField` with `unconsumed_control`,
+`unconsumed_diff`, or `unconsumed_extra`; `Int64` cursor overflow checks
+(`oldpos + x`, `oldend + z`) run before reading that instruction's `diff` and
+`extra` chunks; and multi-chunk `diff`/`extra` truncation reports cumulative
+expected/consumed byte counts matching in-memory `apply`.

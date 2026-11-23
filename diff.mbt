@@ -33,15 +33,16 @@ priv struct DiffSegment {
 }
 
 ///|
-fn scan_segments(
-  old : Bytes,
-  new : Bytes,
+fn scan_segments_view(
+  old : BytesView,
+  new : BytesView,
   sa : Array[Int32],
   max_segments : Int64,
   budget : MatchBudget,
   raw_limit : Int64,
+  payload_offset~ : Int64 = 0L,
 ) -> Array[DiffSegment] raise MatchingFault {
-  match_shape(old, new, sa, 0)
+  match_shape_view(old, new, sa, 0)
   if max_segments < 0L || max_segments > 2147483647L {
     raise Stop(
       matching_error(
@@ -67,11 +68,11 @@ fn scan_segments(
     let mut scored = scan
     while scan < new.length() {
       budget.tick()
-      let (p, l) = search_match(old, new, sa, scan, budget)
+      let (p, l) = search_match_view(old, new, sa, scan, budget)
       pos = p
       length = l
       while scored < scan + length {
-        if aligned_equal(old, new, scored, offset, budget) {
+        if aligned_equal_view(old, new, scored, offset, budget) {
           old_score = old_score + 1L
         }
         scored = scored + 1
@@ -80,23 +81,23 @@ fn scan_segments(
         length.to_int64() > old_score + 8L {
         break
       }
-      if aligned_equal(old, new, scan, offset, budget) {
+      if aligned_equal_view(old, new, scan, offset, budget) {
         old_score = old_score - 1L
       }
       scan = scan + 1
     }
     if length.to_int64() != old_score || scan == new.length() {
-      let mut front = forward_choice(
+      let mut front = forward_choice_view(
         old, new, last_pos, last_scan, scan, budget,
       )
       let mut back = if scan < new.length() {
-        backward_choice(old, new, pos, scan, last_scan, budget)
+        backward_choice_view(old, new, pos, scan, last_scan, budget)
       } else {
         0
       }
       if front > scan - last_scan - back {
         let overlap = front - (scan - last_scan - back)
-        let cut = overlap_cut(
+        let cut = overlap_cut_view(
           old,
           new,
           last_pos + front - overlap,
@@ -118,12 +119,12 @@ fn scan_segments(
           ),
         )
       }
-      // Every complete plan has exactly new.length() payload bytes. Check the
-      // next control triple before the segment array grows, not after scanning.
+      // Every complete plan has exactly new.length() + payload_offset payload bytes.
+      // Check the next control triple before the segment array grows, not after scanning.
       match
         raw_control_size(
           segments.length().to_int64() + 1L,
-          new.length().to_int64(),
+          new.length().to_int64() + payload_offset,
           0L,
           raw_limit,
         ) {
@@ -158,6 +159,32 @@ fn scan_segments(
 }
 
 ///|
+fn select_segments_view(
+  old : BytesView,
+  new : BytesView,
+  sa : Array[Int32],
+  max_segments : Int64,
+  budget : MatchBudget,
+  raw_limit~ : Int64 = 9223372036854775807L,
+  payload_offset~ : Int64 = 0L,
+) -> Result[Array[DiffSegment], BsdiffError] {
+  Ok(
+    scan_segments_view(
+      old,
+      new,
+      sa,
+      max_segments,
+      budget,
+      raw_limit,
+      payload_offset~,
+    ),
+  ) catch {
+    Stop(e) => Err(e)
+  }
+}
+
+///|
+#warnings("-unused_value")
 fn select_segments(
   old : Bytes,
   new : Bytes,
@@ -166,9 +193,7 @@ fn select_segments(
   budget : MatchBudget,
   raw_limit~ : Int64 = 9223372036854775807L,
 ) -> Result[Array[DiffSegment], BsdiffError] {
-  Ok(scan_segments(old, new, sa, max_segments, budget, raw_limit)) catch {
-    Stop(e) => Err(e)
-  }
+  select_segments_view(old[:], new[:], sa, max_segments, budget, raw_limit~)
 }
 
 ///|
@@ -493,70 +518,283 @@ fn generation_preflight(
 }
 
 ///|
-/// Generate a standard BSDIFF40 patch with explicit generation limits.
-fn generate_patch(
+const FAST_PATH_TRIM_MIN : Int32 = 64
+
+///|
+fn scan_common_affixes(
   old_bytes : Bytes,
   new_bytes : Bytes,
-  limits : Limits,
-  sort_budget : SortBudget,
-  match_budget : MatchBudget,
-  options~ : DiffOptions = DiffOptions::default(),
-) -> Result[Bytes, BsdiffError] {
-  match options.validate() {
-    Err(e) => return Err(e)
-    Ok(_) => ()
+  budget : MatchBudget,
+) -> (Int32, Int32) raise MatchingFault {
+  let old_len = old_bytes.length()
+  let new_len = new_bytes.length()
+  let min_len = if old_len < new_len { old_len } else { new_len }
+  let mut p = 0
+  while p < min_len {
+    budget.tick()
+    if old_bytes[p] != new_bytes[p] {
+      break
+    }
+    p = p + 1
   }
-  match generation_preflight(old_bytes, new_bytes, limits) {
-    Err(e) => return Err(e)
-    Ok(_) => ()
+  let max_s = min_len - p
+  let mut s = 0
+  while s < max_s {
+    budget.tick()
+    if old_bytes[old_len - 1 - s] != new_bytes[new_len - 1 - s] {
+      break
+    }
+    s = s + 1
   }
-  let sa = match build_suffix_array(old_bytes, 2147483647L, sort_budget) {
-    Err(e) => return Err(e)
-    Ok(v) => v
-  }
-
-  generate_indexed_patch(
-    old_bytes,
-    new_bytes,
-    sa,
-    limits,
-    match_budget,
-    options~,
-  )
+  (p, s)
 }
 
 ///|
-// Both callers have passed generation_preflight. This function only reads sa;
-// it owns no persistent work state and never constructs/sorts an index.
-fn generate_indexed_patch(
+fn common_affix_lengths(
   old_bytes : Bytes,
   new_bytes : Bytes,
-  sa : Array[Int32],
-  limits : Limits,
-  match_budget : MatchBudget,
-  options~ : DiffOptions = DiffOptions::default(),
-) -> Result[Bytes, BsdiffError] {
-  match options.validate() {
-    Err(e) => return Err(e)
-    Ok(_) => ()
+  budget : MatchBudget,
+) -> Result[(Int32, Int32), BsdiffError] {
+  Ok(scan_common_affixes(old_bytes, new_bytes, budget)) catch {
+    Stop(e) => Err(e)
   }
-  let segment_cap = if limits.max_control_instructions < 2147483647L / 24L {
+}
+
+///|
+fn segment_cap_for(limits : Limits) -> Int64 {
+  if limits.max_control_instructions < 2147483647L / 24L {
     limits.max_control_instructions
   } else {
     2147483647L / 24L
   }
-  let plan = match
-    select_segments(
-      old_bytes,
-      new_bytes,
-      sa,
-      segment_cap,
-      match_budget,
-      raw_limit=limits.max_decompressed_bytes,
-    ) {
-    Err(e) => return Err(e)
-    Ok(v) => v
+}
+
+///|
+fn reserve_fast_plan(
+  count : Int64,
+  new_len : Int32,
+  segment_cap : Int64,
+  max_decompressed_bytes : Int64,
+  match_budget : MatchBudget,
+) -> Result[Unit, BsdiffError] {
+  if count > segment_cap {
+    return Err(
+      matching_error(
+        ResourceLimitExceeded,
+        "segments",
+        Some(count),
+        Some(segment_cap),
+      ),
+    )
   }
+  match
+    raw_control_size(count, new_len.to_int64(), 0L, max_decompressed_bytes) {
+    Ok(_) => ()
+    Err(e) => return Err(e)
+  }
+  Ok(match_budget.tick()) catch {
+    Stop(e) => Err(e)
+  }
+}
+
+///|
+fn trivial_affix_plan(
+  old_len : Int32,
+  new_len : Int32,
+  p : Int32,
+  s : Int32,
+  segment_cap : Int64,
+  max_decompressed_bytes : Int64,
+  match_budget : MatchBudget,
+) -> Result[Array[DiffSegment]?, BsdiffError] {
+  let old_mid_len = old_len - p - s
+  let new_mid_len = new_len - p - s
+  if old_mid_len == 0 && new_mid_len == 0 {
+    match
+      reserve_fast_plan(
+        1L, new_len, segment_cap, max_decompressed_bytes, match_budget,
+      ) {
+      Err(e) => return Err(e)
+      Ok(_) => ()
+    }
+    return Ok(
+      Some([
+        {
+          new_start: 0,
+          old_start: 0,
+          diff_length: p,
+          extra_length: 0,
+          seek: 0L,
+        },
+      ]),
+    )
+  }
+  if old_mid_len == 0 && new_mid_len > 0 {
+    let count = if s == 0 { 1L } else { 2L }
+    match
+      reserve_fast_plan(
+        count, new_len, segment_cap, max_decompressed_bytes, match_budget,
+      ) {
+      Err(e) => return Err(e)
+      Ok(_) => ()
+    }
+    if s == 0 {
+      return Ok(
+        Some([
+          {
+            new_start: 0,
+            old_start: 0,
+            diff_length: p,
+            extra_length: new_mid_len,
+            seek: 0L,
+          },
+        ]),
+      )
+    }
+    return Ok(
+      Some([
+        {
+          new_start: 0,
+          old_start: 0,
+          diff_length: p,
+          extra_length: new_mid_len,
+          seek: 0L,
+        },
+        {
+          new_start: p + new_mid_len,
+          old_start: p,
+          diff_length: s,
+          extra_length: 0,
+          seek: 0L,
+        },
+      ]),
+    )
+  }
+  if new_mid_len == 0 && old_mid_len > 0 {
+    let count = if s == 0 { 1L } else { 2L }
+    match
+      reserve_fast_plan(
+        count, new_len, segment_cap, max_decompressed_bytes, match_budget,
+      ) {
+      Err(e) => return Err(e)
+      Ok(_) => ()
+    }
+    if s == 0 {
+      return Ok(
+        Some([
+          {
+            new_start: 0,
+            old_start: 0,
+            diff_length: p,
+            extra_length: 0,
+            seek: 0L,
+          },
+        ]),
+      )
+    }
+    return Ok(
+      Some([
+        {
+          new_start: 0,
+          old_start: 0,
+          diff_length: p,
+          extra_length: 0,
+          seek: old_mid_len.to_int64(),
+        },
+        {
+          new_start: p,
+          old_start: old_len - s,
+          diff_length: s,
+          extra_length: 0,
+          seek: 0L,
+        },
+      ]),
+    )
+  }
+  Ok(None)
+}
+
+///|
+fn translate_mid_plan(
+  old_len : Int32,
+  new_len : Int32,
+  p : Int32,
+  s : Int32,
+  mid_plan : Array[DiffSegment],
+  segment_cap : Int64,
+  max_decompressed_bytes : Int64,
+  match_budget : MatchBudget,
+) -> Result[Array[DiffSegment], BsdiffError] {
+  let plan : Array[DiffSegment] = []
+  let m0 = mid_plan[0]
+  plan.push({
+    new_start: 0,
+    old_start: 0,
+    diff_length: p + m0.diff_length,
+    extra_length: m0.extra_length,
+    seek: m0.seek,
+  })
+  for i in 1..<mid_plan.length() {
+    let m = mid_plan[i]
+    plan.push({
+      new_start: p + m.new_start,
+      old_start: p + m.old_start,
+      diff_length: m.diff_length,
+      extra_length: m.extra_length,
+      seek: m.seek,
+    })
+  }
+  if s > 0 {
+    let last_idx = plan.length() - 1
+    let last = plan[last_idx]
+    let last_old_end = last.old_start + last.diff_length
+    let old_rem = old_len - s - last_old_end
+    let new_rem = last.extra_length
+    if old_rem == new_rem && s > new_rem {
+      plan[last_idx] = {
+        new_start: last.new_start,
+        old_start: last.old_start,
+        diff_length: last.diff_length + new_rem + s,
+        extra_length: 0,
+        seek: 0L,
+      }
+    } else {
+      plan[last_idx] = {
+        ..last,
+        seek: (old_len - s).to_int64() - last_old_end.to_int64(),
+      }
+      match
+        reserve_fast_plan(
+          plan.length().to_int64() + 1L,
+          new_len,
+          segment_cap,
+          max_decompressed_bytes,
+          match_budget,
+        ) {
+        Err(e) => return Err(e)
+        Ok(_) => ()
+      }
+      plan.push({
+        new_start: new_len - s,
+        old_start: old_len - s,
+        diff_length: s,
+        extra_length: 0,
+        seek: 0L,
+      })
+    }
+  }
+  Ok(plan)
+}
+
+///|
+fn assemble_patch(
+  old_bytes : Bytes,
+  new_bytes : Bytes,
+  plan : Array[DiffSegment],
+  limits : Limits,
+  match_budget : MatchBudget,
+  options : DiffOptions,
+) -> Result[Bytes, BsdiffError] {
   let raw = match
     encode_plan(old_bytes, new_bytes, plan, limits, match_budget) {
     Err(e) => return Err(e)
@@ -635,6 +873,280 @@ fn generate_indexed_patch(
     }
   }
   Ok(Bytes::from_array(patch))
+}
+
+///|
+/// Generate a standard BSDIFF40 patch with explicit generation limits.
+fn generate_patch(
+  old_bytes : Bytes,
+  new_bytes : Bytes,
+  limits : Limits,
+  sort_budget : SortBudget,
+  match_budget : MatchBudget,
+  options~ : DiffOptions = DiffOptions::default(),
+) -> Result[Bytes, BsdiffError] {
+  match options.validate() {
+    Err(e) => return Err(e)
+    Ok(_) => ()
+  }
+  match generation_preflight(old_bytes, new_bytes, limits) {
+    Err(e) => return Err(e)
+    Ok(_) => ()
+  }
+  let old_len = old_bytes.length()
+  let new_len = new_bytes.length()
+  let min_len = if old_len < new_len { old_len } else { new_len }
+  let segment_cap = segment_cap_for(limits)
+  if min_len >= FAST_PATH_TRIM_MIN {
+    let (p, s) = match
+      common_affix_lengths(old_bytes, new_bytes, match_budget) {
+      Err(e) => return Err(e)
+      Ok(v) => v
+    }
+    if p + s >= FAST_PATH_TRIM_MIN {
+      match
+        trivial_affix_plan(
+          old_len,
+          new_len,
+          p,
+          s,
+          segment_cap,
+          limits.max_decompressed_bytes,
+          match_budget,
+        ) {
+        Err(e) => return Err(e)
+        Ok(Some(plan)) =>
+          return assemble_patch(
+            old_bytes, new_bytes, plan, limits, match_budget, options,
+          )
+        Ok(None) => {
+          let old_mid = old_bytes[p:old_len - s]
+          let new_mid = new_bytes[p:new_len - s]
+          let sa_mid = match
+            build_suffix_array_view(old_mid, 2147483647L, sort_budget) {
+            Err(e) => return Err(e)
+            Ok(v) => v
+          }
+          let mid_plan = match
+            select_segments_view(
+              old_mid,
+              new_mid,
+              sa_mid,
+              segment_cap,
+              match_budget,
+              raw_limit=limits.max_decompressed_bytes,
+              payload_offset=(p + s).to_int64(),
+            ) {
+            Err(e) => return Err(e)
+            Ok(v) => v
+          }
+          let plan = match
+            translate_mid_plan(
+              old_len,
+              new_len,
+              p,
+              s,
+              mid_plan,
+              segment_cap,
+              limits.max_decompressed_bytes,
+              match_budget,
+            ) {
+            Err(e) => return Err(e)
+            Ok(v) => v
+          }
+          return assemble_patch(
+            old_bytes, new_bytes, plan, limits, match_budget, options,
+          )
+        }
+      }
+    }
+  }
+  let sa = match
+    build_suffix_array_view(old_bytes[:], 2147483647L, sort_budget) {
+    Err(e) => return Err(e)
+    Ok(v) => v
+  }
+  let plan = match
+    select_segments_view(
+      old_bytes[:],
+      new_bytes[:],
+      sa,
+      segment_cap,
+      match_budget,
+      raw_limit=limits.max_decompressed_bytes,
+    ) {
+    Err(e) => return Err(e)
+    Ok(v) => v
+  }
+  assemble_patch(old_bytes, new_bytes, plan, limits, match_budget, options)
+}
+
+///|
+fn scan_indexed_trivial(
+  old_bytes : Bytes,
+  new_bytes : Bytes,
+  budget : MatchBudget,
+) -> (Int32, Int32)? raise MatchingFault {
+  let old_len = old_bytes.length()
+  let new_len = new_bytes.length()
+  if old_len == new_len {
+    for p in 0..<new_len {
+      budget.tick()
+      if old_bytes[p] != new_bytes[p] {
+        return None
+      }
+    }
+    return Some((new_len, 0))
+  }
+  let mut p = 0
+  while p < new_len {
+    budget.tick()
+    if old_bytes[p] != new_bytes[p] {
+      break
+    }
+    p = p + 1
+  }
+  let max_s = new_len - p
+  let mut s = 0
+  while s < max_s {
+    budget.tick()
+    if old_bytes[old_len - 1 - s] != new_bytes[new_len - 1 - s] {
+      break
+    }
+    s = s + 1
+  }
+  if p + s == new_len {
+    Some((p, s))
+  } else {
+    None
+  }
+}
+
+///|
+fn indexed_trivial_plan(
+  old_bytes : Bytes,
+  new_bytes : Bytes,
+  segment_cap : Int64,
+  max_decompressed_bytes : Int64,
+  match_budget : MatchBudget,
+) -> Result[Array[DiffSegment]?, BsdiffError] {
+  let old_len = old_bytes.length()
+  let new_len = new_bytes.length()
+  if old_len < new_len || new_len < FAST_PATH_TRIM_MIN {
+    return Ok(None)
+  }
+  let found = scan_indexed_trivial(old_bytes, new_bytes, match_budget) catch {
+    Stop(e) => return Err(e)
+  }
+  let (p, s) = match found {
+    None => return Ok(None)
+    Some(pair) => pair
+  }
+  if old_len == new_len {
+    match
+      reserve_fast_plan(
+        1L, new_len, segment_cap, max_decompressed_bytes, match_budget,
+      ) {
+      Err(e) => return Err(e)
+      Ok(_) => ()
+    }
+    return Ok(
+      Some([
+        {
+          new_start: 0,
+          old_start: 0,
+          diff_length: new_len,
+          extra_length: 0,
+          seek: 0L,
+        },
+      ]),
+    )
+  }
+  let count = if s == 0 { 1L } else { 2L }
+  match
+    reserve_fast_plan(
+      count, new_len, segment_cap, max_decompressed_bytes, match_budget,
+    ) {
+    Err(e) => return Err(e)
+    Ok(_) => ()
+  }
+  if s == 0 {
+    return Ok(
+      Some([
+        {
+          new_start: 0,
+          old_start: 0,
+          diff_length: p,
+          extra_length: 0,
+          seek: 0L,
+        },
+      ]),
+    )
+  }
+  Ok(
+    Some([
+      {
+        new_start: 0,
+        old_start: 0,
+        diff_length: p,
+        extra_length: 0,
+        seek: (old_len - p - s).to_int64(),
+      },
+      {
+        new_start: p,
+        old_start: old_len - s,
+        diff_length: s,
+        extra_length: 0,
+        seek: 0L,
+      },
+    ]),
+  )
+}
+
+///|
+// Both callers have passed generation_preflight. This function only reads sa;
+// it owns no persistent work state and never constructs/sorts an index.
+fn generate_indexed_patch(
+  old_bytes : Bytes,
+  new_bytes : Bytes,
+  sa : Array[Int32],
+  limits : Limits,
+  match_budget : MatchBudget,
+  options~ : DiffOptions = DiffOptions::default(),
+) -> Result[Bytes, BsdiffError] {
+  match options.validate() {
+    Err(e) => return Err(e)
+    Ok(_) => ()
+  }
+  let segment_cap = segment_cap_for(limits)
+  match
+    indexed_trivial_plan(
+      old_bytes,
+      new_bytes,
+      segment_cap,
+      limits.max_decompressed_bytes,
+      match_budget,
+    ) {
+    Err(e) => return Err(e)
+    Ok(Some(plan)) =>
+      return assemble_patch(
+        old_bytes, new_bytes, plan, limits, match_budget, options,
+      )
+    Ok(None) => ()
+  }
+  let plan = match
+    select_segments_view(
+      old_bytes[:],
+      new_bytes[:],
+      sa,
+      segment_cap,
+      match_budget,
+      raw_limit=limits.max_decompressed_bytes,
+    ) {
+    Err(e) => return Err(e)
+    Ok(v) => v
+  }
+  assemble_patch(old_bytes, new_bytes, plan, limits, match_budget, options)
 }
 
 ///|

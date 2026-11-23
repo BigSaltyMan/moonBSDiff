@@ -148,12 +148,12 @@ class PatchChain(ChainFixture):
         target = "v1-to-v3.json"
         args = ("--max-patch-bytes", "204", "--target-manifest", target, "--")
         self.assertEqual([len(self.read(p)) for p in (FIRST[0], SECOND[0], "v1-to-v3.patch")],
-                         [204, 164, 2532])
+                         [204, 155, 2532])
         plan = json.loads(run_cli(EXE, self.folder, "target manifest planning",
                                   "manifest", "plan", "--allow-full", *args,
                                   "installed.bin", FIRST[1], SECOND[1]))
-        self.assertEqual((plan["strategy"], plan["download_bytes"]), ("patches", "368"))
-        self.assertEqual([int(step["patch"]["size_bytes"]) for step in plan["steps"]], [204, 164])
+        self.assertEqual((plan["strategy"], plan["download_bytes"]), ("patches", "359"))
+        self.assertEqual([int(step["patch"]["size_bytes"]) for step in plan["steps"]], [204, 155])
         before = self.files()
         self.invoke("verify-chain", *args, "installed.bin", *FIRST, *SECOND,
                     stdout=(b"Chain verification succeeded: all steps match the supplied manifests.",))
@@ -161,7 +161,7 @@ class PatchChain(ChainFixture):
         self.invoke("patch-chain", *args, "installed.bin", "restored.bin", *FIRST, *SECOND)
         self.assertEqual(len(self.target), 2048)
         self.assertEqual(self.files(), {**before, "restored.bin": self.target})
-        print("204-byte cap: 204 + 164 = 368 bytes planned; chain verified and restored 2048 bytes")
+        print("204-byte cap: 204 + 155 = 359 bytes planned; chain verified and restored 2048 bytes")
 
         smaller = ("--max-patch-bytes", "203", *args[2:])
         error = self.invoke("patch-chain", *smaller, "installed.bin", "too-small.bin",

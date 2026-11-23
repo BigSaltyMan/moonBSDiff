@@ -2,6 +2,16 @@
 import argparse,pathlib,platform,re,shutil,subprocess
 ROOT=pathlib.Path(__file__).resolve().parents[1]
 VERSION=ROOT/'internal/manifest/version.mbt'
+def host_platform():
+    system=platform.system().lower()
+    if system=='darwin':return 'macos'
+    if system in ('windows','linux'):return system
+    raise ValueError('unsupported host platform: '+platform.system())
+def host_arch():
+    machine=platform.machine().lower()
+    if machine in ('amd64','x86_64'):return 'x86_64'
+    if machine in ('arm64','aarch64'):return 'arm64'
+    raise ValueError('unsupported host architecture: '+platform.machine())
 def version():
     match=re.search(r'^version\s*=\s*"([^"\r\n]+)"', (ROOT/'moon.mod').read_text(encoding='utf8'),re.M)
     if not match:raise ValueError('missing module version')
@@ -14,11 +24,12 @@ if __name__=='__main__':
         print('CLI version agrees with moon.mod:',version())
     else:
         VERSION.write_text(generated(),encoding='utf8',newline='\n')
-        target=ROOT/'_build'/('cli-'+platform.system().lower())
+        plat=host_platform()
+        target=ROOT/'_build'/('cli-'+plat)
         subprocess.run(['moon','build','cmd/main','--target','native','--deny-warn','--target-dir',str(target)]+(['--release'] if a.release else []),cwd=ROOT,check=True)
-        extension='.exe' if platform.system()=='Windows' else ''
+        extension='.exe' if plat=='windows' else ''
         artifact=target/'native'/('release' if a.release else 'debug')/'build/cmd/main'/'main.exe'
         if not artifact.is_file():raise SystemExit('missing native artifact: '+str(artifact))
-        output=ROOT/'_build/bin'/platform.system().lower()/('moonbsdiff'+extension)
+        output=ROOT/'_build/bin'/plat/('moonbsdiff'+extension)
         output.parent.mkdir(parents=True,exist_ok=True);shutil.copy2(artifact,output)
         print('CLI executable:',output)

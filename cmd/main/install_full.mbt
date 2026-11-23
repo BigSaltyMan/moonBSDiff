@@ -40,6 +40,13 @@ fn install_full_command(config : CliConfig) -> Unit {
     manifest,
     @manifest_support.MAX_MANIFEST_BYTES.to_int64(),
   )
+  verify_optional_manifest_signature(
+    "install-full",
+    data,
+    config.public_key,
+    config.signature,
+  )
+  |> ignore
   let target = match @manifest.prepare_target(data, config.limits) {
     Ok(target) => target
     Err(error) =>
@@ -47,7 +54,14 @@ fn install_full_command(config : CliConfig) -> Unit {
         "install-full '\{manifest}': " + manifest_diagnostic(error),
       )
   }
-  if !check_output_against([config.files[0], manifest], output) {
+  let inputs = [config.files[0], manifest]
+  if config.public_key is Some(pk) {
+    inputs.push(pk)
+  }
+  if config.signature is Some(sig) {
+    inputs.push(sig)
+  }
+  if !check_output_against(inputs, output) {
     failure(
       "install-full output '\{output}': " + @utf8.decode_lossy(io_error()[:]),
     )

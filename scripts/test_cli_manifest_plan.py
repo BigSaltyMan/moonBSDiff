@@ -104,10 +104,10 @@ class ManifestPlan(ManifestPlanFixture):
         result = self.plan(marker, *paths, options=(*budget, "--"))
         plan = json.loads(result.stdout)
         self.assertEqual(plan["target"], identity(target))
-        self.assertEqual(plan["total_patch_bytes"], "368")
+        self.assertEqual(plan["total_patch_bytes"], "359")
         self.assertEqual([step["manifest_path"] for step in plan["steps"]], list(paths))
-        self.assertEqual([step["patch"]["size_bytes"] for step in plan["steps"]], ["204", "164"])
-        print("Target-only manifest: " + " -> ".join(paths) + ", 368 patch bytes at cap 204")
+        self.assertEqual([step["patch"]["size_bytes"] for step in plan["steps"]], ["204", "155"])
+        print("Target-only manifest: " + " -> ".join(paths) + ", 359 patch bytes at cap 204")
 
         direct = self.plan(marker, *paths, marker, code=1, options=(*budget, "--"))
         self.assertIn(b"'v1-to-v3.json':", direct.stderr)
@@ -176,7 +176,7 @@ class ManifestPlanStepLimit(ManifestPlanFixture):
         candidates = ("v1-to-v2.json", "v2-to-v3.json", "v1-to-v3.json")
         for max_steps, expected_paths, expected_sizes in [
             ("1", candidates[2:], [2532]),
-            ("2", candidates[:2], [204, 164]),
+            ("2", candidates[:2], [204, 155]),
         ]:
             with self.subTest(max_steps=max_steps):
                 raw = self.plan(candidates[1], *candidates, options=("--max-steps", max_steps, "--"))
@@ -269,7 +269,7 @@ class ManifestUpdatePlan(ManifestPlanFixture):
 
         route = json.loads(self.plan(marker, *candidates, options=two).stdout)
         patches = json.loads(self.plan(marker, *candidates, options=("--allow-full", *two)).stdout)
-        self.assertEqual(patches, {**common, "strategy": "patches", "download_bytes": "368", "steps": route["steps"]})
+        self.assertEqual(patches, {**common, "strategy": "patches", "download_bytes": "359", "steps": route["steps"]})
         self.assertEqual([step["manifest_path"] for step in patches["steps"]], list(candidates[:2]))
 
         self.write("broken.json", b"{")
@@ -569,7 +569,7 @@ class ManifestPlanLocal(ManifestPlanFixture):
         self.assertEqual(plan["schema_version"], 1)
         self.assertEqual(plan["target"], identity(target))
         self.assertEqual(plan["target"]["size_bytes"], "2048")
-        self.assertEqual(plan["total_patch_bytes"], "368")
+        self.assertEqual(plan["total_patch_bytes"], "359")
         self.assertEqual(plan["download_bytes"], "0")
         expected = []
         for patch, manifest_path in [("first.bin", self.candidates[0]), ("second.bin", self.marker)]:

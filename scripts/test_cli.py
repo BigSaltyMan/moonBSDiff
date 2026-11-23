@@ -46,18 +46,18 @@ class CliFiles(unittest.TestCase):
              generation | {'--manifest', '--show-limits'}),
             ('diff-many', '[OPTIONS] OLD (NEW PATCH MANIFEST)...', generation),
             ('patch', '[OPTIONS] OLD_FILE PATCH_FILE OUTPUT_FILE',
-             apply_limits | {'--manifest', '--stream', '--progress', '--show-limits'}),
+             apply_limits | {'--manifest', '--public-key', '--signature', '--stream', '--progress', '--show-limits'}),
             ('patch-chain', '--target-manifest FILE [--progress text|json] [LIMITS] OLD OUTPUT (PATCH MANIFEST)...',
              apply_limits | {'--target-manifest', '--progress'}),
             ('verify-chain', '--target-manifest FILE [--progress text|json] [LIMITS] OLD (PATCH MANIFEST)...',
              apply_limits | {'--target-manifest', '--progress'}),
-            ('verify', '[--stream] --manifest MANIFEST_FILE [LIMITS] OLD_FILE PATCH_FILE',
-             apply_limits | {'--manifest', '--stream'}),
+            ('verify', '[--stream] --manifest MANIFEST_FILE [--public-key KEY_FILE --signature SIG_FILE] [LIMITS] OLD_FILE PATCH_FILE',
+             apply_limits | {'--manifest', '--public-key', '--signature', '--stream'}),
             ('inspect', '[--deep] [--json] [--max-patch-bytes VALUE] PATCH_FILE',
              {'--deep', '--json', '--max-patch-bytes', '--max-output-bytes', '--max-expanded-bytes', '--max-controls'}),
             ('install-full',
-             '--target-manifest FILE [--max-new-bytes VALUE] [--max-output-bytes VALUE] DOWNLOADED_FILE OUTPUT_FILE',
-             {'--target-manifest', '--max-new-bytes', '--max-output-bytes'}),
+             '--target-manifest FILE [--public-key KEY_FILE --signature SIG_FILE] [--max-new-bytes VALUE] [--max-output-bytes VALUE] DOWNLOADED_FILE OUTPUT_FILE',
+             {'--target-manifest', '--public-key', '--signature', '--max-new-bytes', '--max-output-bytes'}),
             ('manifest create', '[LIMITS] OLD_FILE NEW_FILE PATCH_FILE MANIFEST_FILE', apply_limits),
             ('manifest select', '[LIMITS] OLD_FILE MANIFEST_FILE [MANIFEST_FILE...]', file_limits),
             ('manifest plan',
@@ -66,6 +66,11 @@ class CliFiles(unittest.TestCase):
             ('manifest plan-local',
              '--target-manifest FILE [--local-patch FILE ...] [--max-steps COUNT] [LIMITS] OLD_FILE [MANIFEST_FILE...]',
              plan | {'--local-patch'}),
+            ('manifest keygen', '[--json] PRIVATE_KEY_FILE PUBLIC_KEY_FILE', {'--json'}),
+            ('manifest sign', '[--json] --private-key KEY_FILE MANIFEST_FILE SIGNATURE_FILE',
+             {'--json', '--private-key'}),
+            ('manifest verify-sig', '[--json] --public-key KEY_FILE --signature SIG_FILE MANIFEST_FILE',
+             {'--json', '--public-key', '--signature'}),
         ]
         for command, usage, options in pages:
             with self.subTest(command=command):
@@ -83,7 +88,10 @@ class CliFiles(unittest.TestCase):
                                  self.run_cli([*command, '--help']).stdout)
         output = self.run_cli(['manifest', '--help']).stdout
         for name, purpose in [(b'create', b'Write a manifest'), (b'select', b'smallest patch'),
-                              (b'plan', b'download route'), (b'plan-local', b'offline route')]:
+                              (b'plan', b'download route'), (b'plan-local', b'offline route'),
+                              (b'keygen', b'Ed25519 signing keypair'),
+                              (b'sign', b'Sign a Schema 1 manifest'),
+                              (b'verify-sig', b'Verify a detached Ed25519')]:
             with self.subTest(subcommand=name):
                 self.assertTrue(any(line.split()[:1] == [name] and purpose in line
                                     for line in output.splitlines()))

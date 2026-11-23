@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import queue
 import subprocess
+import sys
 import tempfile
 import threading
 import unittest
@@ -65,14 +66,14 @@ class StreamManifest(unittest.TestCase):
             try:
                 self.assertEqual(ready.get(timeout=25).strip(),
                                  f"INTERRUPT_READY {child.pid}".encode())
-                if os.name != "nt":
+                if sys.platform.startswith("linux"):
                     links = []
                     for entry in Path(f"/proc/{child.pid}/fd").iterdir():
                         links.append(os.readlink(entry))
                     expected_copies = 2 if point == "copied" else 1
                     self.assertEqual(sum("moonbsdiff-compat-" in x and x.endswith(" (deleted)")
                                          for x in links), expected_copies)
-                else:
+                elif os.name == "nt":
                     self.assertEqual(len(list(self.scratch.glob(".moonbsdiff-input-*.tmp"))),
                                      2 if point == "copied" else 1)
                 mutate()

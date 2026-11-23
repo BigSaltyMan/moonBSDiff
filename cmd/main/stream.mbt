@@ -46,157 +46,73 @@ fn stream_require(ok : Bool, message : String) -> Unit raise StreamError {
 }
 
 ///|
-fn stream_add(a : Int64, b : Int64) -> Int64 raise StreamError {
-  stream_require(
-    !(b > 0L && a > 9223372036854775807L - b) &&
-    !(b < 0L && a < -9223372036854775808L - b),
-    "Applying IntegerOverflow: old cursor",
-  )
-  a + b
+priv enum CliStreamFault {
+  Cancelled
+  Failed(String)
 }
 
 ///|
-// The control codec is the format's eight-byte sign-magnitude integer, not
-// a native-endian/complement load. Magnitude accumulation never exceeds Int64.max.
-fn stream_integer(data : Bytes, at : Int32) -> Int64 {
-  let mut value = (data[at + 7].to_int() & 127).to_int64()
-  for j = 6; j >= 0; j = j - 1 {
-    value = value * 256L + data[at + j].to_int().to_int64()
-  }
-  if (data[at + 7].to_int() & 128) == 0 {
-    value
-  } else {
-    -value
+fn stream_checkpoint(
+  progress : StreamProgress,
+  point : Int32,
+) -> Result[Unit, CliStreamFault] {
+  try {
+    progress.checkpoint(point)
+    Ok(())
+  } catch {
+    StreamCancelled => Err(Cancelled)
   }
 }
 
 ///|
-fn stream_source(start : Int64, length : Int64) -> () -> Bytes {
-  let mut at = 0L
-  fn() {
-    let n = Int64::min(4096L, length - at).to_int()
-    let data = stream_read(1, start + at, n)
-    at += data.length().to_int64()
-    data
-  }
-}
-
-///|
-fn stream_exact(
-  reader : @bzip2.StreamReader,
+fn stream_read_range(
+  which : Int32,
+  offset : Int64,
   count : Int32,
-  block : String,
-) -> Bytes raise {
-  let out : Array[Byte] = []
-  while out.length() < count {
-    let data = reader.read(count - out.length())
-    stream_require(data.length() != 0, "Applying TruncatedData: " + block)
+  label : String,
+) -> Result[Bytes, CliStreamFault] {
+  if count <= 0 {
+    return Ok(b"")
+  }
+  if count <= 4096 {
+    let data = stream_read(which, offset, count)
+    if io_failed() != 0 {
+      return Err(Failed(label))
+    }
+    return Ok(data)
+  }
+  let buf : Array[Byte] = []
+  while buf.length() < count {
+    let want = Int32::min(4096, count - buf.length())
+    let data = stream_read(which, offset + buf.length().to_int64(), want)
+    if io_failed() != 0 {
+      return Err(Failed(label))
+    }
+    if data.length() == 0 {
+      break
+    }
     for b in data {
-      out.push(b)
+      buf.push(b)
     }
   }
-  Bytes::from_array(out)
+  Ok(Bytes::from_array(buf))
 }
 
 ///|
-fn open_patch_streams(
-  info : @moonbsdiff.PatchInfo,
-  limits : @moonbsdiff.Limits,
-  budget : @bzip2.Budget,
-  source : (Int64, Int64) -> () -> Bytes,
-) -> (@bzip2.StreamReader, @bzip2.StreamReader, @bzip2.StreamReader) raise @bzip2.Fault {
-  // Control byte cap saturates at Int.max without multiplying a large count.
-  let control_cap = if limits.max_control_instructions > 2147483647L / 24L {
-    2147483647
-  } else {
-    (limits.max_control_instructions * 24L).to_int()
+fn stream_bsdiff_message(err : @moonbsdiff.BsdiffError) -> String {
+  match err {
+    { kind: DecompressionFailed, field: Some("crc"), .. } =>
+      "Checksum failure: " + @debug.to_string(err)
+    { kind: InvalidField, stage: Control, value: Some(v), .. } if v < 0L =>
+      "negative control instruction length: " + @debug.to_string(err)
+    {
+      kind: TruncatedData,
+      stage: Control,
+      field: Some("control_triple_bytes"),
+      ..
+    } => "TruncatedData: control triple truncated: " + @debug.to_string(err)
+    _ => @debug.to_string(err)
   }
-  let control = @bzip2.StreamReader::new(
-    info.control_length.to_int(),
-    source(info.control_start, info.control_length),
-    control_cap,
-    budget,
-  )
-  let delta = @bzip2.StreamReader::new(
-    info.diff_length.to_int(),
-    source(info.diff_start, info.diff_length),
-    info.new_bytes.to_int(),
-    budget,
-  )
-  let extra = @bzip2.StreamReader::new(
-    info.extra_length.to_int(),
-    source(info.extra_start, info.extra_length),
-    info.new_bytes.to_int(),
-    budget,
-  )
-  (control, delta, extra)
-}
-
-///|
-fn read_stream_control(
-  control : @bzip2.StreamReader,
-  instructions : Int64,
-  limits : @moonbsdiff.Limits,
-) -> (Int64, Int64, Int64) raise {
-  stream_require(
-    instructions < limits.max_control_instructions,
-    "Applying ResourceLimitExceeded: max_control_instructions",
-  )
-  let triple = stream_exact(control, 24, "control triple")
-  let x = stream_integer(triple, 0)
-  let y = stream_integer(triple, 8)
-  let z = stream_integer(triple, 16)
-  stream_require(
-    x >= 0L && y >= 0L,
-    "Applying InvalidField: negative control x/y",
-  )
-  (x, y, z)
-}
-
-///|
-fn finish_patch_streams(
-  control : @bzip2.StreamReader,
-  delta : @bzip2.StreamReader,
-  extra : @bzip2.StreamReader,
-  checkpoint : () -> Unit raise,
-) -> Unit raise {
-  // EOF is not assumed at the declared output length: read once more to force
-  // the final run/block CRC, real end marker, combined CRC and interval boundary.
-  for
-    (name, reader) in [("control", control), ("diff", delta), ("extra", extra)] {
-    checkpoint()
-    stream_require(
-      reader.read(1).length() == 0,
-      "Applying InvalidField: unconsumed " + name,
-    )
-  }
-}
-
-///|
-fn check_stream_output(
-  count : Int64,
-  remaining : Int64,
-  block : String,
-) -> Unit raise StreamError {
-  stream_require(
-    count <= remaining,
-    "Applying OutputOutOfBounds: " + block + " length",
-  )
-}
-
-///|
-fn stream_output(
-  data : Bytes,
-  consume : (Bytes) -> Unit raise StreamError,
-  hash : @sha2.Hasher?,
-  progress : StreamProgress,
-) -> Unit raise {
-  progress.checkpoint(20)
-  consume(data)
-  if hash is Some(hasher) {
-    hasher.write(data[:])
-  }
-  progress.recovered(data.length())
 }
 
 ///|
@@ -208,75 +124,63 @@ fn stream_execute(
   consume : (Bytes) -> Unit raise StreamError,
 ) -> Unit raise {
   let hash = expected.map(_ => @sha2.Hasher::new(kind=@sha2.Sha256))
-  let budget = @bzip2.Budget::{
-    remaining: limits.max_decompressed_bytes,
-    emitted: 0L,
-  }
-  let (control, delta, extra) = open_patch_streams(
-    info, limits, budget, stream_source,
-  )
-  let mut newpos = 0L
-  let mut oldpos = 0L
-  let mut instructions = 0L
-  let oldsize = stream_size(0)
-  while newpos < info.new_bytes {
-    progress.checkpoint(10)
-    let (x, y, z) = read_stream_control(control, instructions, limits)
-    instructions += 1L
-    check_stream_output(x, info.new_bytes - newpos, "diff")
-    let oldend = stream_add(oldpos, x)
-    let mut done = 0L
-    while done < x {
-      let count = Int64::min(4096L, x - done).to_int()
-      progress.checkpoint(20)
-      let data = stream_exact(delta, count, "diff")
-      progress.checkpoint(20)
-      let pos = stream_add(oldpos, done)
-      // Never negate Int64.min. Only a negative position within this chunk can
-      // overlap zero; it is then proven to fit an Int before negating.
-      let prefix = if pos >= 0L {
-        0
-      } else if pos < -count.to_int64() {
-        count
-      } else {
-        (-pos).to_int()
+  let old_size = stream_size(0)
+  let patch_size = stream_size(1)
+  let mut validating = false
+  let outcome = @moonbsdiff.apply_stream(
+    old_size,
+    patch_size,
+    limits,
+    read_old_at=(offset, count) => {
+      stream_read_range(0, offset, count, "Applying: old file read")
+    },
+    read_patch_at=(offset, count) => {
+      stream_read_range(1, offset, count, "Applying: patch file read")
+    },
+    write_output=chunk => {
+      match stream_checkpoint(progress, 20) {
+        Err(e) => return Err(e)
+        Ok(_) => ()
       }
-      let oldat = if pos < 0L { 0L } else { pos }
-      let available = if oldat >= oldsize {
-        0
-      } else {
-        Int64::min((count - prefix).to_int64(), oldsize - oldat).to_int()
+      consume(chunk) catch {
+        StreamError(msg) => return Err(Failed(msg))
       }
-      progress.checkpoint(20)
-      let old = stream_read(0, Int64::min(oldat, oldsize), available)
-      stream_require(io_failed() == 0, "Applying: old file read")
-      let out = Array::makei(count, i => {
-        if i >= prefix && i - prefix < available {
-          ((data[i].to_int() + old[i - prefix].to_int()) % 256).to_byte()
-        } else {
-          data[i]
+      if hash is Some(hasher) {
+        hasher.write(chunk[:])
+      }
+      try {
+        progress.recovered(chunk.length())
+        Ok(())
+      } catch {
+        StreamCancelled => Err(Cancelled)
+      }
+    },
+    on_stage=stage => {
+      match stage {
+        @moonbsdiff.HeaderVerified(header) =>
+          if header != info {
+            Err(Failed("stream patch header changed during apply"))
+          } else {
+            Ok(())
+          }
+        @moonbsdiff.Restoring => Ok(())
+        @moonbsdiff.Validating => {
+          validating = true
+          progress.phase("validating")
+          stream_checkpoint(progress, 40)
         }
-      })
-      stream_output(Bytes::from_array(out), consume, hash, progress)
-      done += count.to_int64()
-    }
-    newpos += x
-    oldpos = oldend
-    check_stream_output(y, info.new_bytes - newpos, "extra")
-    done = 0L
-    while done < y {
-      let count = Int64::min(4096L, y - done).to_int()
-      progress.checkpoint(20)
-      let data = stream_exact(extra, count, "extra")
-      stream_output(data, consume, hash, progress)
-      done += count.to_int64()
-    }
-    newpos += y
-    oldpos = stream_add(oldpos, z)
+      }
+    },
+    checkpoint=() => {
+      stream_checkpoint(progress, if validating { 40 } else { 20 })
+    },
+  )
+  match outcome {
+    Ok(_) => ()
+    Err(Io(Cancelled)) => raise StreamCancelled
+    Err(Io(Failed(msg))) => raise StreamError(msg)
+    Err(Bsdiff(err)) => raise StreamError(stream_bsdiff_message(err))
   }
-  progress.phase("validating")
-  progress.checkpoint(40)
-  finish_patch_streams(control, delta, extra, () => progress.checkpoint(40))
   if expected is Some(identity) && hash is Some(hasher) {
     progress.checkpoint(40)
     stream_require(
@@ -387,9 +291,15 @@ fn stream_run(config : CliConfig, progress : StreamProgress) -> Unit raise {
     None
   }
   if output is Some(target) {
-    let inputs = match config.manifest {
-      Some(m) => [config.files[0], config.files[1], m]
-      None => [config.files[0], config.files[1]]
+    let inputs = [config.files[0], config.files[1]]
+    if config.manifest is Some(m) {
+      inputs.push(m)
+    }
+    if config.public_key is Some(pk) {
+      inputs.push(pk)
+    }
+    if config.signature is Some(sig) {
+      inputs.push(sig)
     }
     stream_require(
       check_output_against(inputs, target),

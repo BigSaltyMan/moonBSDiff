@@ -124,8 +124,8 @@ fn suffix_first_pass(
 
 ///|
 // Internal index construction; generation supplies explicit entry/work limits.
-fn build_suffix_array(
-  data : Bytes,
+fn build_suffix_array_view(
+  data : BytesView,
   max_entries : Int64,
   budget : SortBudget,
 ) -> Result[Array[Int32], BsdiffError] {
@@ -283,4 +283,13 @@ fn build_suffix_array(
       Some(size.to_int64()),
     ),
   )
+}
+
+///|
+fn build_suffix_array(
+  data : Bytes,
+  max_entries : Int64,
+  budget : SortBudget,
+) -> Result[Array[Int32], BsdiffError] {
+  build_suffix_array_view(data[:], max_entries, budget)
 }

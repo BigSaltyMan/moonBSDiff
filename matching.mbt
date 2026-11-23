@@ -95,7 +95,10 @@ fn MatchBudget::tick(self : MatchBudget) -> Unit raise MatchingFault {
 }
 
 ///|
-fn match_position(old : Bytes, pos : Int32) -> Unit raise MatchingFault {
+fn match_position_view(
+  old : BytesView,
+  pos : Int32,
+) -> Unit raise MatchingFault {
   if pos < 0 || pos > old.length() {
     raise Stop(
       matching_error(
@@ -109,9 +112,9 @@ fn match_position(old : Bytes, pos : Int32) -> Unit raise MatchingFault {
 }
 
 ///|
-fn match_shape(
-  old : Bytes,
-  new : Bytes,
+fn match_shape_view(
+  old : BytesView,
+  new : BytesView,
   sa : Array[Int32],
   at : Int32,
 ) -> Unit raise MatchingFault {
@@ -138,14 +141,14 @@ fn match_shape(
 }
 
 ///|
-fn search_match(
-  old : Bytes,
-  new : Bytes,
+fn search_match_view(
+  old : BytesView,
+  new : BytesView,
   sa : Array[Int32],
   at : Int32,
   budget : MatchBudget,
 ) -> (Int32, Int32) raise MatchingFault {
-  match_shape(old, new, sa, at)
+  match_shape_view(old, new, sa, at)
   let old_len = old.length()
   let new_rem = new.length() - at
   let sa_len = sa.length()
@@ -167,7 +170,7 @@ fn search_match(
     budget.tick()
     let mid = if hi == sa_len && lo == 0 { hi - 1 } else { lo + (hi - lo) / 2 }
     let pos = sa[mid]
-    match_position(old, pos)
+    match_position_view(old, pos)
     let old_rem = old_len - pos
     let cap = if old_rem < new_rem { old_rem } else { new_rem }
     let start = if lcp_lo < lcp_hi { lcp_lo } else { lcp_hi }
@@ -229,15 +232,15 @@ fn longest_match(
   at : Int32,
   budget : MatchBudget,
 ) -> Result[(Int32, Int32), BsdiffError] {
-  Ok(search_match(old, new, sa, at, budget)) catch {
+  Ok(search_match_view(old[:], new[:], sa, at, budget)) catch {
     Stop(e) => Err(e)
   }
 }
 
 ///|
-fn aligned_equal(
-  old : Bytes,
-  new : Bytes,
+fn aligned_equal_view(
+  old : BytesView,
+  new : BytesView,
   at : Int32,
   offset : Int64,
   budget : MatchBudget,
@@ -248,9 +251,9 @@ fn aligned_equal(
 }
 
 ///|
-fn forward_choice(
-  old : Bytes,
-  new : Bytes,
+fn forward_choice_view(
+  old : BytesView,
+  new : BytesView,
   old_start : Int32,
   new_start : Int32,
   end : Int32,
@@ -275,9 +278,22 @@ fn forward_choice(
 }
 
 ///|
-fn backward_choice(
+#warnings("-unused_value")
+fn forward_choice(
   old : Bytes,
   new : Bytes,
+  old_start : Int32,
+  new_start : Int32,
+  end : Int32,
+  budget : MatchBudget,
+) -> Int32 raise MatchingFault {
+  forward_choice_view(old[:], new[:], old_start, new_start, end, budget)
+}
+
+///|
+fn backward_choice_view(
+  old : BytesView,
+  new : BytesView,
   pos : Int32,
   scan : Int32,
   lower : Int32,
@@ -302,9 +318,22 @@ fn backward_choice(
 }
 
 ///|
-fn overlap_cut(
+#warnings("-unused_value")
+fn backward_choice(
   old : Bytes,
   new : Bytes,
+  pos : Int32,
+  scan : Int32,
+  lower : Int32,
+  budget : MatchBudget,
+) -> Int32 raise MatchingFault {
+  backward_choice_view(old[:], new[:], pos, scan, lower, budget)
+}
+
+///|
+fn overlap_cut_view(
+  old : BytesView,
+  new : BytesView,
   front_old : Int32,
   back_old : Int32,
   start : Int32,
@@ -328,4 +357,18 @@ fn overlap_cut(
     }
   }
   cut
+}
+
+///|
+#warnings("-unused_value")
+fn overlap_cut(
+  old : Bytes,
+  new : Bytes,
+  front_old : Int32,
+  back_old : Int32,
+  start : Int32,
+  size : Int32,
+  budget : MatchBudget,
+) -> Int32 raise MatchingFault {
+  overlap_cut_view(old[:], new[:], front_old, back_old, start, size, budget)
 }

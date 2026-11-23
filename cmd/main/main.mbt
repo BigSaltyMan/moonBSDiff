@@ -160,6 +160,9 @@ struct CliConfig {
   deep : Bool
   manifest : String?
   target_manifest : String?
+  private_key : String?
+  public_key : String?
+  signature : String?
   local_patches : Array[String]
   max_steps : Int64?
   max_download_bytes : Int64?
@@ -182,11 +185,14 @@ fn is_known_option(option : String) -> Bool {
     | "--stream"
     | "--compression-level"
     | "--manifest"
+    | "--target-manifest"
+    | "--private-key"
+    | "--public-key"
+    | "--signature"
     | "--max-steps"
     | "--local-patch"
     | "--max-download-bytes"
     | "--allow-full"
-    | "--target-manifest"
     | "--deep"
     | "--json"
     | "--show-limits"
@@ -216,13 +222,13 @@ fn parse_command(args : Array[String]) -> Result[(String, Int32), String] {
       args[1] != "manifest"
     ) {
     return Err(
-      "expected diff, diff-many, patch, patch-chain, inspect, verify, verify-chain, install-full, or manifest create/select/plan/plan-local; use --help",
+      "expected diff, diff-many, patch, patch-chain, inspect, verify, verify-chain, install-full, or manifest create/select/plan/plan-local/keygen/sign/verify-sig; use --help",
     )
   }
   let (operation, options_start) = if args[1] == "manifest" {
     if args.length() < 3 {
       return Err(
-        "manifest requires create, select, plan or plan-local; use --help",
+        "manifest requires create, select, plan, plan-local, keygen, sign or verify-sig; use --help",
       )
     }
     match args[2] {
@@ -230,9 +236,12 @@ fn parse_command(args : Array[String]) -> Result[(String, Int32), String] {
       "select" => ("manifest select", 3)
       "plan" => ("manifest plan", 3)
       "plan-local" => ("manifest plan-local", 3)
+      "keygen" => ("manifest keygen", 3)
+      "sign" => ("manifest sign", 3)
+      "verify-sig" => ("manifest verify-sig", 3)
       _ =>
         return Err(
-          "manifest requires create, select, plan or plan-local; use --help",
+          "manifest requires create, select, plan, plan-local, keygen, sign or verify-sig; use --help",
         )
     }
   } else {
@@ -267,6 +276,9 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
   let mut deep = false
   let mut manifest : String? = None
   let mut target_manifest : String? = None
+  let mut private_key : String? = None
+  let mut public_key : String? = None
+  let mut signature : String? = None
   let local_patches : Array[String] = []
   let mut max_steps : Int64? = None
   let mut max_download_bytes : Int64? = None
@@ -296,9 +308,25 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
     }
     if operation == "install-full" &&
       option != "--target-manifest" &&
+      option != "--public-key" &&
+      option != "--signature" &&
       option != "--max-new-bytes" &&
       option != "--max-output-bytes" {
       return Err(option + " is not applicable to install-full")
+    }
+    if operation == "manifest keygen" && option != "--json" {
+      return Err(option + " is not applicable to manifest keygen")
+    }
+    if operation == "manifest sign" &&
+      option != "--json" &&
+      option != "--private-key" {
+      return Err(option + " is not applicable to manifest sign")
+    }
+    if operation == "manifest verify-sig" &&
+      option != "--json" &&
+      option != "--public-key" &&
+      option != "--signature" {
+      return Err(option + " is not applicable to manifest verify-sig")
     }
     if manifest_lookup &&
       option != "--max-old-bytes" &&
@@ -353,6 +381,24 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
         }
         false
       }
+      "--private-key" => {
+        if operation != "manifest sign" {
+          return Err("--private-key is only applicable to manifest sign")
+        }
+        false
+      }
+      "--public-key" | "--signature" => {
+        if operation != "manifest verify-sig" &&
+          operation != "verify" &&
+          operation != "patch" &&
+          operation != "install-full" {
+          return Err(
+            option +
+            " is only applicable to manifest verify-sig, verify, patch or install-full",
+          )
+        }
+        false
+      }
       "--max-steps" => {
         if !plan {
           return Err(
@@ -389,8 +435,13 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
         false
       }
       "--json" => {
-        if operation != "inspect" {
-          return Err("--json is only applicable to inspect")
+        if operation != "inspect" &&
+          operation != "manifest keygen" &&
+          operation != "manifest sign" &&
+          operation != "manifest verify-sig" {
+          return Err(
+            "--json is only applicable to inspect, manifest keygen, manifest sign or manifest verify-sig",
+          )
         }
         false
       }
@@ -469,7 +520,10 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
     }
     if option == "--manifest" ||
       option == "--target-manifest" ||
-      option == "--local-patch" {
+      option == "--local-patch" ||
+      option == "--private-key" ||
+      option == "--public-key" ||
+      option == "--signature" {
       let path = args[i + 1]
       if path.length() == 0 || leading_dash(path) {
         return Err(
@@ -480,7 +534,10 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
       match option {
         "--manifest" => manifest = Some(path)
         "--local-patch" => local_patches.push(path)
-        _ => target_manifest = Some(path)
+        "--target-manifest" => target_manifest = Some(path)
+        "--private-key" => private_key = Some(path)
+        "--public-key" => public_key = Some(path)
+        _ => signature = Some(path)
       }
       i = i + 2
       continue
@@ -540,6 +597,11 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
   if show && manifest is Some(_) {
     return Err("--manifest cannot be combined with --show-limits")
   }
+  if show && (public_key is Some(_) || signature is Some(_)) {
+    return Err(
+      "--public-key and --signature cannot be combined with --show-limits",
+    )
+  }
   if progress != "none" && !stream && !chain {
     return Err("--progress requires patch --stream")
   }
@@ -549,6 +611,27 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
   if operation == "verify" && manifest is None {
     return Err("verify requires --manifest MANIFEST_FILE")
   }
+  if operation == "manifest sign" && private_key is None {
+    return Err("manifest sign requires --private-key KEY_FILE")
+  }
+  if operation == "manifest verify-sig" &&
+    (public_key is None || signature is None) {
+    return Err(
+      "manifest verify-sig requires --public-key KEY_FILE and --signature SIG_FILE",
+    )
+  }
+  if (operation == "verify" || operation == "install-full") &&
+    (public_key is Some(_)) != (signature is Some(_)) {
+    return Err("--public-key and --signature must be provided together")
+  }
+  if operation == "patch" && (public_key is Some(_) || signature is Some(_)) {
+    if public_key is None || signature is None {
+      return Err("--public-key and --signature must be provided together")
+    }
+    if manifest is None {
+      return Err("--public-key and --signature require --manifest on patch")
+    }
+  }
   if operation == "inspect" && !deep {
     for
       option in ["--max-output-bytes", "--max-expanded-bytes", "--max-controls"] {
@@ -557,9 +640,11 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
       }
     }
   }
-  let expected = if operation == "inspect" {
+  let expected = if operation == "inspect" || operation == "manifest verify-sig" {
     1
-  } else if operation == "verify" {
+  } else if operation == "verify" ||
+    operation == "manifest keygen" ||
+    operation == "manifest sign" {
     2
   } else if operation == "manifest" {
     4
@@ -622,6 +707,9 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
     deep,
     manifest,
     target_manifest,
+    private_key,
+    public_key,
+    signature,
     local_patches,
     max_steps,
     max_download_bytes,
@@ -715,6 +803,18 @@ fn main {
     manifest_plan_command(config)
     return
   }
+  if config.operation == "manifest keygen" {
+    manifest_keygen_command(config)
+    return
+  }
+  if config.operation == "manifest sign" {
+    manifest_sign_command(config)
+    return
+  }
+  if config.operation == "manifest verify-sig" {
+    manifest_verify_sig_command(config)
+    return
+  }
   if is_chain(config.operation) {
     stream_command(config)
     return
@@ -732,10 +832,17 @@ fn main {
     stream_command(config)
     return
   }
-  let inputs = if operation == "patch" && config.manifest is Some(manifest_path) {
-    [first, second, manifest_path]
-  } else {
-    [first, second]
+  let inputs = [first, second]
+  if operation == "patch" {
+    if config.manifest is Some(manifest_path) {
+      inputs.push(manifest_path)
+    }
+    if config.public_key is Some(pub_path) {
+      inputs.push(pub_path)
+    }
+    if config.signature is Some(sig_path) {
+      inputs.push(sig_path)
+    }
   }
   if !check_output_against(inputs, output) {
     failure(

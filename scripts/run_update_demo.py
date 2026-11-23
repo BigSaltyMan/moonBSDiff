@@ -97,7 +97,7 @@ def run_demo(cli, directory):
     second = patch_step(directory, "v2-to-v3.json", "v2-to-v3.patch")
     direct = patch_step(directory, "v1-to-v3.json", "v1-to-v3.patch")
     expect("fixture patch sizes", [edge["patch"]["size_bytes"] for edge in (first, second, direct)],
-           ["204", "164", "2532"])
+           ["204", "155", "2532"])
     marker = second["manifest_path"]
     candidates = ("--target-manifest", marker, "--", "installed.bin",
                   first["manifest_path"], marker, direct["manifest_path"])
@@ -114,7 +114,7 @@ def run_demo(cli, directory):
     raw = run_cli(cli, directory, label,
                   "manifest", "plan", "--allow-full", "--max-steps", "2", *candidates)
     two_hop = read_plan(label, raw, {
-        **common, "strategy": "patches", "download_bytes": "368", "steps": [first, second],
+        **common, "strategy": "patches", "download_bytes": "359", "steps": [first, second],
     })
     patch_sizes = [step["patch"]["size_bytes"] for step in two_hop["steps"]]
     print(f"2. At most two hops: {two_hop['strategy']}, download "
@@ -127,7 +127,7 @@ def run_demo(cli, directory):
                   "--local-patch", "second.bin", "--local-patch", "first.bin", *candidates)
     offline = read_plan(label, raw, {
         **common,
-        "total_patch_bytes": "368",
+        "total_patch_bytes": "359",
         "download_bytes": "0",
         "steps": [{**first, "patch_path": "first.bin"}, {**second, "patch_path": "second.bin"}],
     })

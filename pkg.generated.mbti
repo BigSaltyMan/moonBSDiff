@@ -8,6 +8,8 @@ import {
 // Values
 pub fn apply(Bytes, Bytes, Limits) -> Result[Bytes, BsdiffError]
 
+pub fn[E] apply_stream(Int64, Int64, Limits, read_old_at~ : (Int64, Int32) -> Result[Bytes, E], read_patch_at~ : (Int64, Int32) -> Result[Bytes, E], write_output~ : (Bytes) -> Result[Unit, E], on_stage? : (StreamApplyStage) -> Result[Unit, E], checkpoint? : () -> Result[Unit, E]) -> Result[DeepPatchInfo, StreamApplyError[E]]
+
 pub fn diff(Bytes, Bytes, Limits) -> Result[Bytes, BsdiffError]
 
 pub fn diff_with_options(Bytes, Bytes, Limits, DiffOptions) -> Result[Bytes, BsdiffError]
@@ -42,6 +44,11 @@ pub struct DeepPatchInfo {
   extra_bytes : Int64
   expanded_bytes : Int64
 }
+pub fn DeepPatchInfo::equal(Self, Self) -> Bool
+pub fn DeepPatchInfo::not_equal(Self, Self) -> Bool
+pub fn DeepPatchInfo::to_repr(Self) -> @debug.Repr
+pub impl Eq for DeepPatchInfo
+pub impl @debug.Debug for DeepPatchInfo
 
 pub struct DiffIndex {
   // private fields
@@ -114,6 +121,30 @@ pub struct PatchInfo {
   extra_start : Int64
   extra_length : Int64
 }
+pub fn PatchInfo::equal(Self, Self) -> Bool
+pub fn PatchInfo::not_equal(Self, Self) -> Bool
+pub fn PatchInfo::to_repr(Self) -> @debug.Repr
+pub impl Eq for PatchInfo
+pub impl @debug.Debug for PatchInfo
+
+#derive(Eq, @debug.Debug)
+pub(all) enum StreamApplyError[E] {
+  Bsdiff(BsdiffError)
+  Io(E)
+}
+pub fn[E : Eq] StreamApplyError::equal(Self[E], Self[E]) -> Bool
+pub fn[E : Eq] StreamApplyError::not_equal(Self[E], Self[E]) -> Bool
+pub fn[E : @debug.Debug] StreamApplyError::to_repr(Self[E]) -> @debug.Repr
+
+#derive(Eq, @debug.Debug)
+pub(all) enum StreamApplyStage {
+  HeaderVerified(PatchInfo)
+  Restoring
+  Validating
+}
+pub fn StreamApplyStage::equal(Self, Self) -> Bool
+pub fn StreamApplyStage::not_equal(Self, Self) -> Bool
+pub fn StreamApplyStage::to_repr(Self) -> @debug.Repr
 
 // Type aliases
 

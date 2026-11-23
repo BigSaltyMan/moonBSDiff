@@ -1,9 +1,13 @@
 /* Original native-only CLI adapter. SPDX-License-Identifier: BSD-2-Clause */
-#if !defined(_WIN32) && !defined(__linux__)
-#error "MoonBSDiff CLI adapter supports Windows and Linux only"
+#if !defined(_WIN32) && !defined(__linux__) && !defined(__APPLE__)
+#error "MoonBSDiff CLI adapter supports Windows, Linux, and macOS only"
 #endif
 #ifndef _WIN32
+#ifdef __linux__
 #define _GNU_SOURCE
+#elif defined(__APPLE__)
+#define _DARWIN_C_SOURCE
+#endif
 #define _FILE_OFFSET_BITS 64
 #endif
 #include "moonbit.h"
@@ -25,16 +29,21 @@
 #include <fcntl.h>
 #include <strings.h>
 #include <sys/stat.h>
-#include <sys/ioctl.h>
 #ifdef MBSD_IO_TEST
 #include <dirent.h>
 #endif
+#ifdef __linux__
+#include <sys/ioctl.h>
 #include <sys/random.h>
 #include <sys/vfs.h>
 #include <linux/fs.h>
 #include <linux/magic.h>
 #ifndef FS_CASEFOLD_FL
 #define FS_CASEFOLD_FL 0x40000000
+#endif
+#endif
+#ifdef __APPLE__
+#include <crt_externs.h>
 #endif
 #endif
 
@@ -67,7 +76,7 @@ static int fault;
 #else
 #define IO_TEST(...)
 #endif
-#ifdef _WIN32
+#if defined(_WIN32) && defined(MBSD_IO_TEST)
 static unsigned sequence;
 #endif
 static void fail(const char *op, unsigned long code) {
@@ -133,24 +142,47 @@ static int valid_utf16(const wchar_t *s) {
 #ifndef LOAD_LIBRARY_SEARCH_SYSTEM32
 #define LOAD_LIBRARY_SEARCH_SYSTEM32 0x00000800
 #endif
-static void win_random_hex(wchar_t out[33]) {
-  unsigned char token[16]={0};
-  int got=0;
+static int fill_csprng(unsigned char *out,size_t len) {
+  if(!len) return 1;
   typedef LONG (WINAPI *bcrypt_random)(void*,unsigned char*,ULONG,ULONG);
   HMODULE dll=LoadLibraryExW(L"bcrypt.dll",NULL,LOAD_LIBRARY_SEARCH_SYSTEM32);
-  if(dll) {
-    bcrypt_random gen=(bcrypt_random)GetProcAddress(dll,"BCryptGenRandom");
-    if(gen && gen(NULL,token,(ULONG)sizeof(token),0x00000002UL)==0) got=1;
+  if(!dll) {
+    DWORD e=GetLastError();
+    SecureZeroMemory(out,len);
+    fail("load cryptographic random provider",e);
+    return 0;
+  }
+  bcrypt_random gen=(bcrypt_random)GetProcAddress(dll,"BCryptGenRandom");
+  if(!gen) {
+    DWORD e=GetLastError();
     FreeLibrary(dll);
+    SecureZeroMemory(out,len);
+    fail("resolve cryptographic random provider",e);
+    return 0;
   }
-  if(!got) {
-    uint64_t a=((uint64_t)GetCurrentProcessId()<<32)^(uint64_t)GetTickCount64();
-    uint64_t b=(uint64_t)(++sequence)*0x9E3779B97F4A7C15ULL;
-    memcpy(token,&a,8); memcpy(token+8,&b,8);
+  size_t at=0;
+  while(at<len) {
+    size_t rem=len-at;
+    ULONG chunk=rem>0xffffffffUL?0xffffffffUL:(ULONG)rem;
+    LONG status=gen(NULL,out+at,chunk,0x00000002UL);
+    if(status!=0) {
+      FreeLibrary(dll);
+      SecureZeroMemory(out,len);
+      fail("generate cryptographic random bytes",(unsigned long)(uint32_t)status);
+      return 0;
+    }
+    at+=chunk;
   }
+  FreeLibrary(dll);
+  return 1;
+}
+static int win_random_hex(wchar_t out[33]) {
+  unsigned char token[16]={0};
+  if(!fill_csprng(token,sizeof(token))) return 0;
   static const wchar_t hex[]=L"0123456789abcdef";
   for(size_t i=0;i<16;i++) { out[i*2]=hex[token[i]>>4]; out[i*2+1]=hex[token[i]&15]; }
   out[32]=0;
+  return 1;
 }
 static int win_validate_output_path(const wchar_t *raw) {
   size_t len=wcslen(raw);
@@ -173,12 +205,35 @@ static int win_validate_output_path(const wchar_t *raw) {
   return 1;
 }
 #else
+#ifdef __linux__
 static int linux_argc;
 static char **linux_argv;
 __attribute__((constructor)) static void mbsd_capture_argv(int argc,char **argv,char **envp) {
   (void)envp;
   if(argc>0 && argv) { linux_argc=argc; linux_argv=argv; }
 }
+static int fill_csprng(unsigned char *out,size_t len) {
+  size_t at=0;
+  while(at<len) {
+    ssize_t n=getrandom(out+at,len-at,0);
+    if(n<0 && errno==EINTR) continue;
+    if(n<=0) {
+      int e=n<0?errno:EIO;
+      volatile unsigned char *vp=out;
+      for(size_t i=0;i<len;i++) vp[i]=0;
+      fail("generate cryptographic random bytes",(unsigned long)e);
+      return 0;
+    }
+    at+=(size_t)n;
+  }
+  return 1;
+}
+#elif defined(__APPLE__)
+static int fill_csprng(unsigned char *out,size_t len) {
+  if(len>0) arc4random_buf(out,len);
+  return 1;
+}
+#endif
 static int valid_utf8(const unsigned char *s,size_t n) {
   size_t i=0;
   while(i<n) {
@@ -210,6 +265,14 @@ static int valid_utf8(const unsigned char *s,size_t n) {
   return 1;
 }
 #endif
+MOONBIT_FFI_EXPORT int32_t mbsd_random_bytes(moonbit_bytes_t out) {
+  problem[0]=0;
+  if(!out) { fail("invalid random buffer",EINVAL); return 0; }
+  int32_t n=Moonbit_array_length(out);
+  if(n<0) { fail("invalid random buffer",EINVAL); return 0; }
+  if(n==0) return 1;
+  return fill_csprng((unsigned char *)out,(size_t)n);
+}
 /* Windows arguments must not depend on the runtime's MinGW ANSI fallback. */
 #ifdef _WIN32
 static LPWSTR *cli_argv;
@@ -236,6 +299,20 @@ MOONBIT_FFI_EXPORT int32_t mbsd_arg_count(void) {
   }
   if(cli_argc<=0) { LocalFree(cli_argv); cli_argv=NULL; cli_argc=0; return 0; }
   return cli_argc;
+#elif defined(__APPLE__)
+  int *argc_ptr=_NSGetArgc();
+  char ***argv_ptr=_NSGetArgv();
+  int argc=argc_ptr?*argc_ptr:0;
+  char **argv=argv_ptr?*argv_ptr:NULL;
+  if(argc>0 && argv) {
+    for(int i=0;i<argc;i++) {
+      if(argv[i] && !valid_utf8((const unsigned char*)argv[i],strlen(argv[i]))) {
+        fail("command-line arguments must be valid UTF-8",EILSEQ);
+        return -3;
+      }
+    }
+  }
+  return -1;
 #else
   if(linux_argc>0 && linux_argv) {
     for(int i=0;i<linux_argc;i++) {
@@ -537,6 +614,7 @@ static int pair_parent(moonbit_bytes_t name,const char **leaf) {
   if(fd<0) fail("open output pair parent",err);
   return fd;
 }
+#ifdef __linux__
 static int is_case_insensitive_dir(int fd) {
   struct statfs fs;
   if(fstatfs(fd,&fs)==0) {
@@ -551,6 +629,12 @@ static int is_case_insensitive_dir(int fd) {
   if(ioctl(fd,FS_IOC_GETFLAGS,&flags)==0 && (flags & FS_CASEFOLD_FL)) return 1;
   return 0;
 }
+#elif defined(__APPLE__)
+static int is_case_insensitive_dir(int fd) {
+  long cs=fpathconf(fd,_PC_CASE_SENSITIVE);
+  return cs<=0;
+}
+#endif
 #endif
 MOONBIT_FFI_EXPORT int32_t mbsd_pair_check(moonbit_bytes_t a,moonbit_bytes_t b) {
   problem[0]=0;
@@ -592,9 +676,11 @@ MOONBIT_FFI_EXPORT int32_t mbsd_pair_check(moonbit_bytes_t a,moonbit_bytes_t b) 
 }
 
 #ifndef _WIN32
+#ifdef __linux__
 /* Set only by the private compatibility contract entrypoint. No product knobs. */
 IO_TEST(static int compat_force,compat_mutate,compat_selected,compat_retained;)
 IO_TEST(static char compat_last[80];)
+#endif
 static int same_inode(const struct stat *a,const struct stat *b) {
   return a->st_dev==b->st_dev && a->st_ino==b->st_ino;
 }
@@ -610,23 +696,53 @@ static int payload_entry(int dir,const struct stat *created) {
     named.st_uid==geteuid() && (named.st_mode&07777)==0600 && same_inode(&named,created);
 }
 static void retained(const char *name) {
+#ifdef __linux__
   IO_TEST(compat_retained=1;)
+#endif
   size_t used=strlen(problem);
   snprintf(problem+used,sizeof(problem)-used,"; private temporary retained or renamed: %s (do not blindly delete)",name);
 }
 static int random_name(char name[80]) {
-  unsigned char token[16];size_t at=0;
-  while(at<sizeof(token)) {
-    ssize_t n=getrandom(token+at,sizeof(token)-at,0);
-    if(n<0 && errno==EINTR) continue;
-    if(n<=0) { fail("temporary name entropy",n<0?errno:EIO);return 0; }
-    at+=(size_t)n;
-  }
+  unsigned char token[16];
+  if(!fill_csprng(token,sizeof(token))) return 0;
   strcpy(name,".moonbsdiff-compat-");size_t prefix=strlen(name);
   static const char hex[]="0123456789abcdef";
   for(size_t i=0;i<sizeof(token);i++) { name[prefix+i*2]=hex[token[i]>>4];name[prefix+i*2+1]=hex[token[i]&15]; }
   name[prefix+sizeof(token)*2]=0;return 1;
 }
+static void posix_write_payload(int writer,moonbit_bytes_t data) {
+  size_t at=0,n=data?Moonbit_array_length(data):0;
+  if(!data && !problem[0]) stream_populate(writer);
+  while(!problem[0] && at<n) {
+    size_t amount=n-at>32768?32768:n-at;
+    IO_TEST(if(fault==9 && amount>2) amount=2;)
+    IO_TEST(if(fault==4 && at) { fail("injected write",EIO);break; })
+    IO_TEST(if(fault==4) amount=1;)
+    ssize_t done=IO_TEST(fault==10?0:)write(writer,data+at,amount);
+    if(done<0 && errno==EINTR) continue;
+    if(done<=0) { fail("write private payload",done<0?errno:EIO);break; }
+    at+=(size_t)done;
+  }
+}
+static void posix_cleanup_private(int dir,const char *name,int private_fd,const struct stat *ds,
+                                  int made,int known_dir,int payload_made,int payload,
+                                  const struct stat *ps,int force_dirty) {
+  int clean=!force_dirty;
+  if(private_fd>=0) {
+    if(!private_entry(dir,name,private_fd,ds)) clean=0;
+    if(clean && payload_made) {
+      if(!payload || !payload_entry(private_fd,ps)) clean=0;
+      else if(unlinkat(private_fd,"payload",0)<0) { fail("cleanup owned private payload",errno);clean=0; }
+    }
+  } else if(payload_made) clean=0;
+  if(clean && made && known_dir) {
+    struct stat named;
+    if(fstatat(dir,name,&named,AT_SYMLINK_NOFOLLOW)<0 || !same_inode(&named,ds)) clean=0;
+    else if(unlinkat(dir,name,AT_REMOVEDIR)<0) { fail("cleanup owned private directory",errno);clean=0; }
+  } else if(!known_dir) clean=0;
+  if(!clean) { fail("private cleanup ownership uncertain",ESTALE);retained(name); }
+}
+#ifdef __linux__
 static int compat_deliver(int dir,const char *leaf,moonbit_bytes_t data) {
   IO_TEST(compat_selected++;)
   struct stat parent,ds,ps;struct statfs fs;
@@ -676,18 +792,7 @@ static int compat_deliver(int dir,const char *leaf,moonbit_bytes_t data) {
     if(keeper<0 || fstat(keeper,&held)<0) fail("retain private payload identity",errno);
     else if(!same_inode(&held,&ps)) fail("private payload changed on open",ESTALE);
   }
-  size_t at=0,n=data?Moonbit_array_length(data):0;
-  if(!data && !problem[0]) stream_populate(writer);
-  while(!problem[0] && at<n) {
-    size_t amount=n-at>32768?32768:n-at;
-    IO_TEST(if(fault==9 && amount>2) amount=2;)
-    IO_TEST(if(fault==4 && at) { fail("injected write",EIO);break; })
-    IO_TEST(if(fault==4) amount=1;)
-    ssize_t done=IO_TEST(fault==10?0:)write(writer,data+at,amount);
-    if(done<0 && errno==EINTR) continue;
-    if(done<=0) { fail("write private payload",done<0?errno:EIO);break; }
-    at+=(size_t)done;
-  }
+  posix_write_payload(writer,data);
   if(writer>=0) { if(close(writer)<0) fail("close written private payload",errno);writer=-1; }
   IO_TEST(if(fault==5) fail("injected close written private payload",EIO);)
 #ifdef MBSD_IO_TEST
@@ -715,21 +820,9 @@ static int compat_deliver(int dir,const char *leaf,moonbit_bytes_t data) {
   /* These deletes rely on the protected parent and uid-private directory, NOT
    * on an atomic check/unlink illusion. Malicious same-uid/root control is out
    * of scope. Unexpected identity => retain, never follow/delete replacement. */
-  int clean=1;
-  IO_TEST(if(compat_mutate==5 && committed) { fail("injected compatibility cleanup",EIO);clean=0; })
-  if(private_fd>=0) {
-    if(!private_entry(dir,name,private_fd,&ds)) clean=0;
-    if(clean && payload_made) {
-      if(!payload || !payload_entry(private_fd,&ps)) clean=0;
-      else if(unlinkat(private_fd,"payload",0)<0) { fail("cleanup owned private payload",errno);clean=0; }
-    }
-  } else if(payload_made) clean=0;
-  if(clean && made && known_dir) {
-    struct stat named;
-    if(fstatat(dir,name,&named,AT_SYMLINK_NOFOLLOW)<0 || !same_inode(&named,&ds)) clean=0;
-    else if(unlinkat(dir,name,AT_REMOVEDIR)<0) { fail("cleanup owned private directory",errno);clean=0; }
-  } else if(!known_dir) clean=0;
-  if(!clean) { fail("private cleanup ownership uncertain",ESTALE);retained(name); }
+  int force_dirty=0;
+  IO_TEST(if(compat_mutate==5 && committed) { fail("injected compatibility cleanup",EIO);force_dirty=1; })
+  posix_cleanup_private(dir,name,private_fd,&ds,made,known_dir,payload_made,payload,&ps,force_dirty);
   if(keeper>=0 && close(keeper)<0) fail("close private identity reference",errno);
   if(private_fd>=0 && close(private_fd)<0) fail("close private directory",errno);
   if(committed && problem[0]) annotate_delivered_problem();
@@ -738,11 +831,133 @@ static int compat_deliver(int dir,const char *leaf,moonbit_bytes_t data) {
 static int anonymous_unavailable(int error) {
   return error==EOPNOTSUPP || error==EINVAL || error==EISDIR || error==ENOSYS || error==ENOENT;
 }
+#elif defined(__APPLE__)
+static int apple_deliver(int dir,const char *leaf,moonbit_bytes_t data,const char *path) {
+  (void)path;
+  struct stat parent,ds,ps;
+  if(fstat(dir,&parent)<0) { fail("output parent metadata",errno);return 0; }
+  if(!S_ISDIR(parent.st_mode) || parent.st_nlink==0 ||
+     (parent.st_uid!=geteuid() && parent.st_uid!=0) ||
+     ((parent.st_mode&0022) && !(parent.st_mode&S_ISVTX))) {
+    fail("output requires protected parent permissions",EPERM);return 0;
+  }
+  int made=0,known_dir=0,payload_made=0,payload=0,private_fd=-1,writer=-1,keeper=-1;
+  char name[80]={0};
+  for(unsigned attempt=0;attempt<128;attempt++) {
+    IO_TEST(if(fault==1 && !attempt) strcpy(name,".moonbsdiff-collision.tmp"); else)
+    if(!random_name(name)) return 0;
+    if(mkdirat(dir,name,0700)==0) { made=1;break; }
+    if(errno!=EEXIST) { fail("exclusive private directory creation",errno);return 0; }
+  }
+  if(!made) { fail("private directory name collisions exhausted",EEXIST);return 0; }
+  if(fstatat(dir,name,&ds,AT_SYMLINK_NOFOLLOW)<0) fail("created private directory identity",errno);
+  else {
+    known_dir=1;
+    if(!S_ISDIR(ds.st_mode) || ds.st_uid!=geteuid() || (ds.st_mode&05777)!=0700) fail("private directory permissions",EPERM);
+  }
+  if(!problem[0]) {
+    private_fd=openat(dir,name,O_RDONLY|O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC);
+    if(private_fd<0) fail("open private directory",errno);
+    else if(!private_entry(dir,name,private_fd,&ds)) fail("private directory identity changed",ESTALE);
+  }
+  if(!problem[0]) {
+    writer=openat(private_fd,"payload",O_WRONLY|O_CREAT|O_EXCL|O_NOFOLLOW|O_CLOEXEC,0600);
+    if(writer<0) fail("exclusive private payload creation",errno);
+    else {
+      payload_made=1;
+      if(fstat(writer,&ps)<0) fail("private payload identity",errno);
+      else {
+        payload=1;
+        if(!S_ISREG(ps.st_mode) || ps.st_uid!=geteuid() || (ps.st_mode&07777)!=0600 || ps.st_nlink!=1) fail("private payload permissions",EPERM);
+      }
+    }
+  }
+  if(!problem[0]) {
+    keeper=openat(private_fd,"payload",O_RDONLY|O_NOFOLLOW|O_CLOEXEC);
+    struct stat held;
+    if(keeper<0 || fstat(keeper,&held)<0) fail("retain private payload identity",errno);
+    else if(!same_inode(&held,&ps)) fail("private payload changed on open",ESTALE);
+  }
+  posix_write_payload(writer,data);
+  if(writer>=0) { if(close(writer)<0) fail("close written private payload",errno);writer=-1; }
+  IO_TEST(if(fault==5) fail("injected close written private payload",EIO);)
+  IO_TEST(if(!problem[0] && fault==2 && !test_put(path,"other",5,0)) fail("test target creation",EIO);)
+  if(!problem[0] && (!private_entry(dir,name,private_fd,&ds) || !payload_entry(private_fd,&ps))) fail("private temporary identity changed before delivery",ESTALE);
+  IO_TEST(if(!problem[0] && fault==6) fail("injected delivery",EACCES);)
+  if(!data && !problem[0]) stream_prepare_commit();
+  int committed=0;
+  if(!problem[0]) {
+    if(linkat(private_fd,"payload",dir,leaf,0)<0) fail("deliver without replacement",errno);
+    else { committed=1; mark_delivery(data); }
+  }
+  posix_cleanup_private(dir,name,private_fd,&ds,made,known_dir,payload_made,payload,&ps,0);
+  if(keeper>=0 && close(keeper)<0) fail("close private identity reference",errno);
+  if(private_fd>=0 && close(private_fd)<0) fail("close private directory",errno);
+  if(committed && problem[0]) annotate_delivered_problem();
+  return !problem[0];
+}
+#endif
+#endif
+
+static int deliver_secret_mode=0;
+#ifdef _WIN32
+static PSECURITY_DESCRIPTOR win_owner_sd(void) {
+  typedef BOOL (WINAPI *fn_open_token)(HANDLE,DWORD,PHANDLE);
+  typedef BOOL (WINAPI *fn_token_info)(HANDLE,TOKEN_INFORMATION_CLASS,LPVOID,DWORD,PDWORD);
+  typedef BOOL (WINAPI *fn_sid_str)(PSID,LPWSTR*);
+  typedef BOOL (WINAPI *fn_str_sd)(LPCWSTR,DWORD,PSECURITY_DESCRIPTOR*,PULONG);
+  HMODULE adv=LoadLibraryExW(L"advapi32.dll",NULL,LOAD_LIBRARY_SEARCH_SYSTEM32);
+  if(!adv) { fail("load security provider",GetLastError()); return NULL; }
+  fn_open_token open_tok=(fn_open_token)GetProcAddress(adv,"OpenProcessToken");
+  fn_token_info tok_info=(fn_token_info)GetProcAddress(adv,"GetTokenInformation");
+  fn_sid_str sid_str=(fn_sid_str)GetProcAddress(adv,"ConvertSidToStringSidW");
+  fn_str_sd str_sd=(fn_str_sd)GetProcAddress(adv,"ConvertStringSecurityDescriptorToSecurityDescriptorW");
+  if(!open_tok || !tok_info || !sid_str || !str_sd) {
+    DWORD e=GetLastError(); FreeLibrary(adv);
+    fail("resolve security provider",e?e:ERROR_PROC_NOT_FOUND);
+    return NULL;
+  }
+  HANDLE tok=NULL; TOKEN_USER *tu=NULL; LPWSTR sid=NULL; wchar_t *sddl=NULL; PSECURITY_DESCRIPTOR sd=NULL;
+  if(!open_tok(GetCurrentProcess(),TOKEN_QUERY,&tok)) {
+    fail("open process token",GetLastError()); goto done;
+  }
+  DWORD needed=0;
+  if(!tok_info(tok,TokenUser,NULL,0,&needed) && GetLastError()!=ERROR_INSUFFICIENT_BUFFER) {
+    fail("query token user size",GetLastError()); goto done;
+  }
+  if(!needed) { fail("query token user size",ERROR_INVALID_DATA); goto done; }
+  tu=malloc(needed);
+  if(!tu) { fail("token user allocation",ERROR_NOT_ENOUGH_MEMORY); goto done; }
+  if(!tok_info(tok,TokenUser,tu,needed,&needed)) {
+    fail("query token user",GetLastError()); goto done;
+  }
+  if(!sid_str(tu->User.Sid,&sid) || !sid) {
+    fail("format owner SID",GetLastError()); goto done;
+  }
+  size_t cap=wcslen(sid)+32;
+  sddl=malloc(cap*sizeof(wchar_t));
+  if(!sddl) { fail("security descriptor allocation",ERROR_NOT_ENOUGH_MEMORY); goto done; }
+  int written=swprintf(sddl,cap,L"D:P(A;;FA;;;%ls)",sid);
+  if(written<=0 || (size_t)written>=cap) {
+    fail("format owner security descriptor",ERROR_INVALID_DATA); goto done;
+  }
+  if(!str_sd(sddl,1,&sd,NULL) || !sd) {
+    fail("build owner security descriptor",GetLastError()); sd=NULL; goto done;
+  }
+done:
+  if(sddl) free(sddl);
+  if(sid) LocalFree(sid);
+  if(tu) free(tu);
+  if(tok) CloseHandle(tok);
+  FreeLibrary(adv);
+  return sd;
+}
 #endif
 
 /* Never removes final caller paths. Primary cleanup uses held identities;
  * compatibility cleanup uses only the protected private namespace above. */
 MOONBIT_FFI_EXPORT int32_t mbsd_deliver(moonbit_bytes_t name,moonbit_bytes_t data) {
+  int secret=deliver_secret_mode; deliver_secret_mode=0;
   delivery_committed=0; problem[0]=0; size_t n=data?Moonbit_array_length(data):0,at=0;
 #ifdef _WIN32
   wchar_t *relative=wide((char*)name); if(!relative) return 0;
@@ -758,19 +973,27 @@ MOONBIT_FFI_EXPORT int32_t mbsd_deliver(moonbit_bytes_t name,moonbit_bytes_t dat
   wchar_t *slash=wcsrchr(full,L'\\');
   if(!slash || !slash[1] || slash-full>32000) { free(full); free(temp); fail("output parent",ERROR_INVALID_NAME); return 0; }
   size_t parent=(size_t)(slash-full)+1;
+  PSECURITY_DESCRIPTOR sd=NULL;
+  SECURITY_ATTRIBUTES sa={sizeof(sa),NULL,FALSE};
+  if(secret) {
+    sd=win_owner_sd();
+    if(!sd) { free(full); free(temp); return 0; }
+    sa.lpSecurityDescriptor=sd;
+  }
   HANDLE writer=INVALID_HANDLE_VALUE,keeper=INVALID_HANDLE_VALUE;
   for(unsigned attempt=0;attempt<128;attempt++) {
     memcpy(temp,full,parent*sizeof(wchar_t));
     IO_TEST(if(fault==1 && attempt==0) wcscpy(temp+parent,L".moonbsdiff-collision.tmp"); else)
     {
       wchar_t hex[33];
-      win_random_hex(hex);
+      if(!win_random_hex(hex)) { if(sd) LocalFree(sd); free(full); free(temp); return 0; }
       swprintf(temp+parent,32768-parent,L".moonbsdiff-%ls.tmp",hex);
     }
-    writer=CreateFileW(temp,GENERIC_WRITE|DELETE|FILE_READ_ATTRIBUTES,0,NULL,CREATE_NEW,FILE_ATTRIBUTE_NORMAL,NULL);
+    writer=CreateFileW(temp,GENERIC_WRITE|DELETE|FILE_READ_ATTRIBUTES,0,secret?&sa:NULL,CREATE_NEW,FILE_ATTRIBUTE_NORMAL,NULL);
     if(writer!=INVALID_HANDLE_VALUE) break;
-    DWORD e=GetLastError(); if(e!=ERROR_FILE_EXISTS && e!=ERROR_ALREADY_EXISTS) { free(full); free(temp); fail("exclusive temporary creation",e); return 0; }
+    DWORD e=GetLastError(); if(e!=ERROR_FILE_EXISTS && e!=ERROR_ALREADY_EXISTS) { if(sd) LocalFree(sd); free(full); free(temp); fail("exclusive temporary creation",e); return 0; }
   }
+  if(sd) { LocalFree(sd); sd=NULL; }
   if(writer==INVALID_HANDLE_VALUE) { free(full); free(temp); fail("temporary name collisions exhausted",ERROR_FILE_EXISTS); return 0; }
   if(!DuplicateHandle(GetCurrentProcess(),writer,GetCurrentProcess(),&keeper,DELETE|FILE_READ_ATTRIBUTES, FALSE,0)) fail("retain temporary identity",GetLastError());
   if(!data && !problem[0]) stream_populate(writer);
@@ -817,6 +1040,12 @@ MOONBIT_FFI_EXPORT int32_t mbsd_deliver(moonbit_bytes_t name,moonbit_bytes_t dat
   int open_err=errno;
   free(parent);
   if(dir<0) { fail("open output directory",open_err); return 0; }
+#ifdef __APPLE__
+  (void)secret; (void)n; (void)at;
+  apple_deliver(dir,leaf,data,path);
+  if(close(dir)<0) fail("close output directory",errno);
+  annotate_delivered_problem();
+#else
   /* O_TMPFILE creates a fresh unnamed inode. O_EXCL must not be used here:
    * Linux defines O_TMPFILE|O_EXCL to forbid its later linking. */
   int writer,keeper=-1;
@@ -829,6 +1058,16 @@ MOONBIT_FFI_EXPORT int32_t mbsd_deliver(moonbit_bytes_t name,moonbit_bytes_t dat
     if(close(dir)<0) fail("close output directory",errno);
     annotate_delivered_problem();
     return !problem[0];
+  }
+  if(secret) {
+    struct stat st;
+    if(fstat(writer,&st)<0) fail("inspect secret temporary permissions",errno);
+    else if(!S_ISREG(st.st_mode) || st.st_uid!=geteuid() || (st.st_mode&07777)!=0600) fail("secret output requires private 0600 permissions",EPERM);
+    if(problem[0]) {
+      if(close(writer)<0) fail("close rejected secret temporary",errno);
+      if(close(dir)<0) fail("close output directory",errno);
+      return 0;
+    }
   }
   char reference[80]; snprintf(reference,sizeof(reference),"/proc/self/fd/%d",writer);
   IO_TEST(if(compat_force==3 || compat_force==4) { keeper=-1;errno=ENOENT; } else)
@@ -868,7 +1107,13 @@ MOONBIT_FFI_EXPORT int32_t mbsd_deliver(moonbit_bytes_t name,moonbit_bytes_t dat
   if(close(dir)<0) fail("close output directory",errno);
   annotate_delivered_problem();
 #endif
+#endif
   return !problem[0];
+}
+
+MOONBIT_FFI_EXPORT int32_t mbsd_deliver_secret(moonbit_bytes_t name,moonbit_bytes_t data) {
+  deliver_secret_mode=1;
+  return mbsd_deliver(name,data);
 }
 
 #ifdef MBSD_IO_TEST
@@ -968,7 +1213,7 @@ MOONBIT_FFI_EXPORT int32_t mbsd_io_contract(int32_t mode) {
   test_remove(input,0); test_remove(output,0); if(mode==1) test_remove(collision,0); test_remove(root,1);
   problem[0]=0; return result;
 }
-#ifndef _WIN32
+#ifdef __linux__
 /* Deterministic tests operate exclusively inside a newly owned fixture root. */
 MOONBIT_FFI_EXPORT int32_t mbsd_compat_contract(int32_t mode) {
   char root[]="/tmp/moonbsdiff-compat-contract-XXXXXX",input[256],out[256];
@@ -983,7 +1228,8 @@ MOONBIT_FFI_EXPORT int32_t mbsd_compat_contract(int32_t mode) {
     int cd=openat(dir,".moonbsdiff-compat-collision",O_RDONLY|O_DIRECTORY|O_CLOEXEC);
     int file=cd>=0?openat(cd,"marker",O_WRONLY|O_CREAT|O_EXCL|O_CLOEXEC,0600):-1;
     if(file<0 || write(file,"keep",4)!=4) result=204;
-    if(file>=0) close(file);if(cd>=0) close(cd);
+    if(file>=0) close(file);
+    if(cd>=0) close(cd);
   }
   if(mode==3) compat_mutate=2;
   if(mode==4) compat_mutate=3;
@@ -1191,8 +1437,29 @@ MOONBIT_FFI_EXPORT moonbit_bytes_t mbsd_stream_read(int32_t which,int64_t offset
   return problem[0]?bytes(NULL,0):bytes(buffer,at);
 }
 /* Private scratch files are accessed only by handle after exclusive creation.
- * Windows denies sharing and removes on handle close. Linux unlinks the entry
- * in a trusted, anchored /tmp before writing any content. */
+ * Windows denies sharing and removes on handle close. POSIX unlinks the entry
+ * in a trusted, anchored temporary directory before writing any content. */
+#ifdef __APPLE__
+static int open_apple_copy_dir(void) {
+  int dir=open("/private/tmp",O_RDONLY|O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC);
+  if(dir>=0) return dir;
+  int first_err=errno;
+  const char *env_tmp=getenv("TMPDIR");
+  if(!env_tmp || env_tmp[0]!='/') { fail("open input copy directory /private/tmp",first_err); return -1; }
+  size_t len=strlen(env_tmp);
+  while(len>1 && env_tmp[len-1]=='/') len--;
+  if(len==1) { fail("open input copy directory /private/tmp",first_err); return -1; }
+  char *copy=malloc(len+1);
+  if(!copy) { fail("input copy directory allocation",ENOMEM); return -1; }
+  memcpy(copy,env_tmp,len);
+  copy[len]=0;
+  dir=open(copy,O_RDONLY|O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC);
+  int second_err=errno;
+  free(copy);
+  if(dir<0) fail("open input copy directory",second_err);
+  return dir;
+}
+#endif
 MOONBIT_FFI_EXPORT int32_t mbsd_stream_copy_begin(void) {
   if(stream_copy!=STREAM_INVALID) { fail("private input copy already open",EBUSY);return 0; }
 #ifdef _WIN32
@@ -1203,7 +1470,7 @@ MOONBIT_FFI_EXPORT int32_t mbsd_stream_copy_begin(void) {
   if(n>32000) { free(path); fail("resolve input copy directory",ERROR_BUFFER_OVERFLOW);return 0; }
   for(int attempt=0;attempt<128;attempt++) {
     wchar_t hex[33];
-    win_random_hex(hex);
+    if(!win_random_hex(hex)) { free(path); return 0; }
     swprintf(path+n,32768-n,L".moonbsdiff-input-%ls.tmp",hex);
     stream_copy=CreateFileW(path,GENERIC_READ|GENERIC_WRITE|DELETE,0,NULL,CREATE_NEW,
                            FILE_ATTRIBUTE_TEMPORARY|FILE_FLAG_DELETE_ON_CLOSE,NULL);
@@ -1216,11 +1483,17 @@ MOONBIT_FFI_EXPORT int32_t mbsd_stream_copy_begin(void) {
   free(path);
   fail("input copy name collisions exhausted",ERROR_FILE_EXISTS);
 #else
+#ifdef __APPLE__
+  int dir=open_apple_copy_dir();
+  if(dir<0) return 0;
+#else
   int dir=open("/tmp",O_RDONLY|O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC);
   if(dir<0) { fail("open input copy directory /tmp",errno);return 0; }
+#endif
   struct stat parent;
   if(fstat(dir,&parent)<0) fail("inspect input copy directory",errno);
-  else if((parent.st_uid!=0 && parent.st_uid!=geteuid()) ||
+  else if(!S_ISDIR(parent.st_mode) || parent.st_nlink==0 ||
+          (parent.st_uid!=0 && parent.st_uid!=geteuid()) ||
           ((parent.st_mode&0022) && !(parent.st_mode&S_ISVTX)))
     fail("input copy directory must be protected or sticky",EPERM);
   char name[80];
@@ -1401,7 +1674,7 @@ MOONBIT_FFI_EXPORT int32_t mbsd_stream_contract(int32_t mode) {
   snprintf(input,sizeof(input),"%s/input",root);snprintf(output,sizeof(output),"%s/output",root);
   int result=0;if(!test_put(input,"A",1,0)) result=303;
   moonbit_bytes_t a=bytes(input,strlen(input)+1),b=bytes(output,strlen(output)+1);
-#ifndef _WIN32
+#ifdef __linux__
   if(mode==11) compat_force=1;
 #endif
   if(!result && !mbsd_stream_open(a,a,1,1)) result=304;
@@ -1437,7 +1710,10 @@ MOONBIT_FFI_EXPORT int32_t mbsd_stream_contract(int32_t mode) {
 #ifdef _WIN32
   wchar_t *r=wide(root);if(!r || !RemoveDirectoryW(r)) result=314;free(r);
 #else
-  if(rmdir(root)<0) result=314;compat_force=0;
+  if(rmdir(root)<0) result=314;
+#ifdef __linux__
+  compat_force=0;
+#endif
 #endif
   moonbit_decref(a);moonbit_decref(b);problem[0]=0;return result;
 }

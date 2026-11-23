@@ -1,39 +1,63 @@
-# Downloadable MoonBSDiff CLI 0.5.0
+# Downloadable MoonBSDiff CLI
 
-Use the [v0.5.0 GitHub Release](https://github.com/BigSaltyMan/moonBSDiff/releases/tag/v0.5.0)
-for the Windows and Linux x86_64 archives. The [0.5.0 release record](release-0.5.0.md)
-links the source, CI and Mooncakes version. The [0.4.0 record](release-0.4.0.md)
-preserves its historical package and CLI identities.
+See [GitHub Releases](https://github.com/BigSaltyMan/moonBSDiff/releases) for
+published archives. Releases `v0.5.0` through `v0.5.4` ship 4 assets (Windows
+and Linux `x86_64`, `SHA256SUMS`, `build-info.json`); see the
+[0.5.4 release record](release-0.5.4.md), [0.5.0 release record](release-0.5.0.md),
+and [0.4.0 record](release-0.4.0.md) for historical package and CLI identities.
 
-## Choose, verify, and extract
+Unreleased CLI packaging expands the CI-built release matrix from 2 to 4 native
+targets (6 release assets total: 4 archives, `SHA256SUMS`, and
+`build-info.json`, with `<VERSION>` matching `moon.mod`):
 
-The release has four assets:
-
-- `moonbsdiff-0.5.0-windows-x86_64.zip`
-- `moonbsdiff-0.5.0-linux-x86_64.tar.gz`
+- `moonbsdiff-<VERSION>-windows-x86_64.zip`
+- `moonbsdiff-<VERSION>-linux-x86_64.tar.gz`
+- `moonbsdiff-<VERSION>-linux-arm64.tar.gz`
+- `moonbsdiff-<VERSION>-macos-arm64.tar.gz`
 - `SHA256SUMS`
 - `build-info.json`
 
-Download the archive for your platform, SHA256SUMS and build-info.json from that
-same release. Pick a new extraction directory. No administrator access, global
-PATH change, MoonBit, Python, or C compiler is required to run the binary.
+Intel macOS (`macos-x86_64`) is not built in CI because upstream MoonBit
+`0.10.19` does not publish `darwin-x86_64` native toolchains.
 
-Linux shell, from the directory containing those downloads:
+## Choose, verify, and extract
+
+Download the archive for your platform, `SHA256SUMS`, and `build-info.json` from
+the same release. Pick a new extraction directory. No administrator access,
+global `PATH` change, MoonBit, Python, or C compiler is required to run the
+binary.
+
+Linux shell (`x86_64` or `arm64`, substituting the downloaded `<VERSION>` and `<ARCH>`):
 
 ```sh
 sha256sum --ignore-missing --check SHA256SUMS
-mkdir moonbsdiff-0.5.0
-tar -xzf moonbsdiff-0.5.0-linux-x86_64.tar.gz -C moonbsdiff-0.5.0
-./moonbsdiff-0.5.0/moonbsdiff --version
-./moonbsdiff-0.5.0/moonbsdiff --help
+mkdir moonbsdiff-<VERSION>
+tar -xzf moonbsdiff-<VERSION>-linux-<ARCH>.tar.gz -C moonbsdiff-<VERSION>
+./moonbsdiff-<VERSION>/moonbsdiff --version
+./moonbsdiff-<VERSION>/moonbsdiff --help
 ```
 
-Check that both your archive and build-info.json report OK; `--ignore-missing`
-only permits omitting the other platform's archive. Do not accept a changed or
-missing selected archive. Windows PowerShell, with all three files downloaded:
+Check that both your archive and `build-info.json` report `OK`; `--ignore-missing`
+only permits omitting the other platforms' archives. Do not accept a changed or
+missing selected archive.
+
+macOS shell (`arm64`, substituting the downloaded `<VERSION>`):
+
+```sh
+grep -E '  (moonbsdiff-<VERSION>-macos-arm64\.tar\.gz|build-info\.json)$' SHA256SUMS | shasum -a 256 -c -
+mkdir moonbsdiff-<VERSION>
+tar -xzf moonbsdiff-<VERSION>-macos-arm64.tar.gz -C moonbsdiff-<VERSION>
+./moonbsdiff-<VERSION>/moonbsdiff --version
+./moonbsdiff-<VERSION>/moonbsdiff --help
+```
+
+Check that both your macOS archive and `build-info.json` report `OK`.
+
+Windows PowerShell (`x86_64`, with the downloaded `<VERSION>` substituted):
 
 ```powershell
-$asset = 'moonbsdiff-0.5.0-windows-x86_64.zip'
+$version = '<VERSION>'
+$asset = "moonbsdiff-$version-windows-x86_64.zip"
 $lines = Get-Content -LiteralPath SHA256SUMS
 foreach ($name in @($asset, 'build-info.json')) {
     $entry = @($lines | Where-Object { $_.EndsWith('  ' + $name) })
@@ -41,40 +65,61 @@ foreach ($name in @($asset, 'build-info.json')) {
     $expected = $entry[0].Substring(0, 64)
     if ((Get-FileHash -LiteralPath $name -Algorithm SHA256).Hash.ToLowerInvariant() -ne $expected) { throw "Checksum mismatch: $name" }
 }
-if (Test-Path -LiteralPath moonbsdiff-0.5.0) { throw 'Extraction directory already exists' }
-Expand-Archive -LiteralPath $asset -DestinationPath moonbsdiff-0.5.0
-./moonbsdiff-0.5.0/moonbsdiff.exe --version
-./moonbsdiff-0.5.0/moonbsdiff.exe --help
+if (Test-Path -LiteralPath "moonbsdiff-$version") { throw 'Extraction directory already exists' }
+Expand-Archive -LiteralPath $asset -DestinationPath "moonbsdiff-$version"
+& "./moonbsdiff-$version/moonbsdiff.exe" --version
+& "./moonbsdiff-$version/moonbsdiff.exe" --help
 ```
 
-Version must be exactly `moonbsdiff 0.5.0`. Checksums detect changed content
-against a trusted expected checksum; they do not authenticate a publisher if
-the archive and checksum are both replaced. Obtain trusted release identities
-through a channel appropriate to your use.
+Version output must match `moonbsdiff <VERSION>`. Checksums detect changed
+content against a trusted expected checksum; they do not authenticate a
+publisher if both the archive and `SHA256SUMS` are replaced. Obtain trusted
+release identities through a channel appropriate to your use.
 
 ## Runtime and filesystem scope
 
-Only Windows AMD64 and Linux x86_64 are distributed. Read the selected platform's
-`runtime` entry in build-info.json: it records actual compiler, host/runner image,
-PE DLL imports or ELF loader/NEEDED libraries, glibc symbol requirements and
-build libc. Linux binaries are dynamically linked, not universal Linux/static
-executables. The highest required glibc symbol is an ABI requirement, not proof
-of operation on every distribution providing it. Windows system DLL/UCRT
-requirements are not a promise of every Windows version. CI rejects an
-unhandled VCRUNTIME/MSVCP/CONCRT dependency rather than silently shipping it
-without a runtime distribution policy. No system runtime DLLs are bundled.
+Four CI-built native targets are supported by release packaging:
+`windows-x86_64`, `linux-x86_64`, `linux-arm64`, and `macos-arm64` (published
+`0.5.4` archives covered `windows-x86_64` and `linux-x86_64` only; Intel macOS
+`macos-x86_64` is not built in CI because upstream MoonBit `0.10.19` does not
+publish `darwin-x86_64` native toolchains). Read the selected platform's
+`runtime` entry in `build-info.json`: it records actual compiler, host/runner
+image, PE DLL imports, ELF loader/`NEEDED` libraries and glibc symbols, or
+Mach-O dylib imports and macOS build version.
+
+- **Linux (`x86_64` and `arm64`)**: dynamically linked ELF64 executables (`x86_64`
+  or `AArch64`) with no `RPATH`/`RUNPATH` and a loader under `/lib*`, not
+  universal static executables. The highest required glibc symbol is an ABI
+  requirement, not proof of operation on every distribution providing it. Output
+  delivery prefers `O_TMPFILE` and `/proc`; explicit pre-write capability absence
+  can select the guarded local-ext compatibility path (`0700` private directory,
+  `0600` payload, non-replacing `linkat`), requiring trusted-owner/protected
+  parent permissions. Other fallback filesystems fail closed. See
+  [Linux delivery design](linux-delivery.md).
+- **macOS (`arm64`)**: single-architecture (`Non-fat`) 64-bit Mach-O
+  `MH_EXECUTE` binaries with no `LC_RPATH`, dynamically linked solely against
+  `/usr/lib/` and `/System/Library/` system libraries (validated via `lipo -info`,
+  `otool -L`, and `otool -l` during packaging). No universal minimum macOS
+  version is claimed. Safe non-overwriting delivery requires protected parent
+  permissions (`euid` or `root` owner, sticky bit if group/world-writable),
+  generates names via `arc4random_buf`, creates a `0700` private directory and
+  exclusive `0600` payload, and commits with non-replacing `linkat`. Streaming
+  input copies open `/private/tmp` (falling back to `$TMPDIR` if `/private/tmp`
+  cannot be opened), check protected/sticky directory permissions, and unlink each
+  exclusive `0600` scratch file before writing. Output pair preflight checks
+  `fpathconf(_PC_CASE_SENSITIVE)` to guard against APFS/HFS+ case-insensitive
+  path aliases, and CLI argument handling checks strict UTF-8 via `_NSGetArgc`
+  and `_NSGetArgv`.
+- **Windows (`x86_64`)**: PE32+ x86_64 executables using system DLLs/UCRT;
+  packaging rejects unhandled `VCRUNTIME`/`MSVCP`/`CONCRT` dependencies rather
+  than bundling runtime DLLs. Delivery uses `CREATE_NEW` and
+  `SetFileInformationByHandle(FileRenameInfo, ReplaceIfExists=FALSE)`, CSPRNG
+  uses `BCryptGenRandom`, and arguments are parsed as UTF-16 via
+  `GetCommandLineW`/`CommandLineToArgvW`.
 
 Each platform archive is executed on its actual build runner after extraction.
 This establishes that environment, not a separately tested oldest supported OS.
-The final build-info.json records those environments and actual requirements.
-No macOS, ARM, network-filesystem, or universal platform support is added.
-
-Linux output prefers O_TMPFILE and `/proc`; explicit pre-write capability
-absence can select the guarded local-ext compatibility path. That path needs
-trusted-owner/protected parent permissions, exact private-object modes and
-hard-link publication. Other fallback filesystems fail closed. ext4 without
-`/proc` was actually exercised; this is not support for every Linux filesystem.
-See [Linux delivery design](linux-delivery.md).
+No network-filesystem or universal platform support is added.
 
 ## Use
 
@@ -87,27 +132,43 @@ moonbsdiff verify --manifest update.json old.bin update.patch
 moonbsdiff patch --manifest update.json old.bin update.patch restored.bin
 moonbsdiff diff --show-limits
 moonbsdiff patch --max-patch-bytes 256KiB --show-limits
+
+# Optional detached Ed25519 manifest signing and verification (unreleased):
+moonbsdiff manifest keygen publisher.key publisher.pub
+moonbsdiff manifest sign --private-key publisher.key update.json update.sig
+moonbsdiff manifest verify-sig --public-key publisher.pub --signature update.sig update.json
+moonbsdiff verify --stream --manifest update.json --public-key publisher.pub --signature update.sig old.bin update.patch
+moonbsdiff patch --stream --manifest update.json --public-key publisher.pub --signature update.sig old.bin update.patch verified.bin
 ```
 
 These commands cover effective limit configuration, header-only inspect,
-external SHA-256 manifests and actual verification/checked restoration. Hash
-manifests do not prove publisher identity. Outputs are not overwritten. Patch
-and manifest delivery is not a cross-file transaction; partial completion is
+external SHA-256 manifests, detached Ed25519 manifest signatures, and actual
+verification/checked restoration. Unsigned SHA-256 manifests check content
+identity only and do not prove publisher identity; pin a trusted Ed25519
+`PUBLIC_KEY_FILE` out-of-band and pass `--public-key` + `--signature` when
+publisher authentication is required. Outputs are not overwritten. Patch and
+manifest delivery is not a cross-file transaction; partial completion is
 reported without deleting a delivered patch. Default sizes/work quotas remain
 unchanged. No whole-process peak-memory, full bzip2 CPU, wall-clock or durability
 guarantee is introduced. See [CLI contracts](cli.md) and [manifest policy](manifest.md).
 
 To verify the downloaded executable against the fixed update scenario, use Python
-3.10+ and the scripts and fixtures from a clean checkout or source archive of
-the v0.5.0 tag. From that source root, point the demo at the extracted CLI:
+3.10+ for the demo/build/packaging scripts (Python 3.11+ is required for the CLI
+`unittest` test suite, which uses `contextlib.chdir`) together with the scripts
+and fixtures from a clean checkout or source archive of the matching tag. From
+that source root, point the demo at the extracted CLI:
 
 ```sh
 python scripts/run_update_demo.py --cli /path/to/extracted/moonbsdiff
 ```
 
-Use the path to `moonbsdiff.exe` on Windows. The demo checks the 2048, 368 and
-zero-byte download choices and compares the delivered 2048 bytes with an
-independent target. See the [project acceptance page](update-demo.md) for the
+Use the path to `moonbsdiff.exe` on Windows. On the current tree, the demo
+verifies the fast-path `2048`, `359` (`204 + 155`), and `0`-byte download
+choices and compares the delivered 2048 bytes with an independent target.
+Published `v0.5.0`–`v0.5.4` binaries predate the common prefix/suffix fast path
+and generate a `164`-byte `v2-to-v3.patch` (`368` bytes total), so verify them
+with the matching tag's `scripts/run_update_demo.py` rather than the current
+tree's script. See the [project acceptance page](update-demo.md) for the
 expected hash and demo output.
 
 ## Build/provenance procedure
@@ -134,10 +195,15 @@ from the verified 0.10.19+bee578715 Windows SDK. It also mentions
 optional SDK tools; those tools and the SDK itself are not in the CLI archive.
 No C oracle program or Python implementation is bundled.
 
-An independent CI collection job requires exactly the two platform archives and
-records, checks their source SHA equals the workflow checkout, verifies hashes
-and embedded provenance, and emits the four public assets. build-info.json is
-external so archive hashes are not self-referential. Ordinary pushes only build
-and verify; they never create tags or releases. Formal publication reuses those
-exact successful-CI bytes. Fixed archive metadata does not imply a bit-level
+An independent CI collection job (`scripts/collect_cli_release.py`) requires all
+four CI-built platform archives (`windows-x86_64`, `linux-x86_64`, `linux-arm64`,
+`macos-arm64`) and `build-info-<system>-<arch>.json` records, checks their
+source SHA equals the workflow checkout, verifies hashes and embedded
+provenance, and emits the six public assets (the four archives,
+`build-info.json`, and `SHA256SUMS`; `0.5.0`–`0.5.4` releases emitted the
+two-platform / four-asset layout; Intel macOS `macos-x86_64` is excluded because
+upstream MoonBit `0.10.19` does not publish `darwin-x86_64` native toolchains). `build-info.json` is external so archive
+hashes are not self-referential. Ordinary pushes only build and verify; they
+never create tags or releases. Formal publication reuses those exact
+successful-CI bytes. Fixed archive metadata does not imply a bit-level
 reproducibility claim for compiler output.

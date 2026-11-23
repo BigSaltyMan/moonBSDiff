@@ -2,8 +2,11 @@
 
 This CLI feature is not part of published 0.1.0. The patch remains plain
 BSDIFF40: no custom header, trailer or embedded JSON. Commit 20 adds bounded manifest reading, verify, and checked patch delivery.
-Use a trusted manifest. Choose the command according to how you need to handle
-the restored bytes.
+Unsigned Schema 1 manifests verify **content identity** (SHA-256) only.
+Publisher authentication uses a **detached Ed25519 signature file** without
+changing Schema 1 manifests or BSDIFF40 patches; see
+[detached manifest signing](#detached-ed25519-manifest-signing-and-verification-unreleased).
+Choose the command according to how you need to handle the restored bytes.
 
 ~~~sh
 moonbsdiff verify --manifest update.json old.bin update.patch
@@ -474,9 +477,10 @@ Byte caps, the expanded-byte budget and the instruction budget apply afresh to
 each step. At most the current old input copy or intermediate, the current
 patch copy and the next private output are needed together. The current old
 and patch handles are closed before advancing. Private copies use Windows
-temporary storage or Linux `/tmp`, and final staging uses the destination
-directory. Total work grows with the number and sizes of the steps, and the
-same destination filesystem requirements as streaming patch still apply.
+temporary storage, Linux `/tmp`, or macOS `/private/tmp` (with `$TMPDIR`
+fallback), and final staging uses the destination directory. Total work grows
+with the number and sizes of the steps, and the same destination filesystem
+requirements as streaming patch still apply.
 
 By default, success is silent and exits `0`. Invalid arguments exit `2`. Failure exits
 `1` with a diagnostic on stderr that names the step when applicable. Ctrl+C
@@ -675,9 +679,16 @@ After generating each patch, the call hashes that target and patch. A failed
 call leaves the index and previously returned bundles usable. Build and
 generation return the root `BsdiffError` on failure.
 
-Reuse saves repeated sorting and hashing of the old version. Actual time
-depends on the inputs and options. This API is available from this source
-change on native, JS and Wasm-GC. The public 0.4.0 package predates it.
+Reuse saves repeated sorting and hashing of the old version. When inputs share
+`>= 64` leading/trailing bytes, `DiffIndex::diff` keeps full-SA matching for all
+inserts and edits and applies the zero-search fast path only for identical and
+pure-deletion pairs, whereas standalone `diff` trims shared prefix/suffix runs
+for speed (skipping suffix-array construction on identical, pure-insert, and
+pure-delete updates and sorting only the differing middle, trading away matches
+that copy prefix/suffix blocks into a differing middle). Both emit standard
+BSDIFF40 patches and Schema 1 manifests. Actual time depends on the inputs and
+options. This API is available from this source change on native, JS and
+Wasm-GC. The public 0.4.0 package predates it.
 
 ## Verified restoration from MoonBit (0.5.0)
 
@@ -728,6 +739,118 @@ Callers that acquire input bytes after reading a manifest can use `prepare`
 first. Its `PreparedManifest` exposes read-only declared identities and keeps
 the checked limits. `PreparedManifest::restore` verifies the inputs and result
 using those limits. Successful preflight alone checks declarations.
+
+## Detached Ed25519 manifest signing and verification (Unreleased)
+
+Schema 1 manifests and BSDIFF40 patches remain unchanged: SHA-256 content-only
+verification continues to work without signatures, and publisher authentication
+uses a **detached signature file**.
+
+> **Important trust boundary:** Unsigned manifests verify content identity only.
+> If an attacker replaces both the manifest and its patch, SHA-256 hashes alone
+> cannot prove publisher identity. Publisher authentication requires pinning
+> the publisher's trusted `PUBLIC_KEY_FILE` (or `PublicKey`) out-of-band and
+> verifying a detached Ed25519 signature over the exact manifest bytes.
+
+### CLI signing and verification
+
+```sh
+moonbsdiff manifest keygen [--json] PRIVATE_KEY_FILE PUBLIC_KEY_FILE
+moonbsdiff manifest sign [--json] --private-key KEY_FILE MANIFEST_FILE SIGNATURE_FILE
+moonbsdiff manifest verify-sig [--json] --public-key KEY_FILE --signature SIG_FILE MANIFEST_FILE
+```
+
+- `manifest keygen`: generates an Ed25519 keypair from the OS CSPRNG
+  (`BCryptGenRandom` on Windows, `getrandom` on Linux, `arc4random_buf` on
+  macOS) and fails closed on RNG failure. Both files use no-overwrite delivery
+  and output pair preflight, but delivery is non-transactional:
+  `PRIVATE_KEY_FILE` is delivered first and `PUBLIC_KEY_FILE` second; if
+  delivering the second file fails, the CLI exits `1` reporting partial delivery
+  with no rollback. `PRIVATE_KEY_FILE` is written with mode `0600` on POSIX and
+  a protected owner-only DACL (`D:P(A;;FA;;;SID)`) on Windows—store private keys
+  on an NTFS volume, because FAT32 and exFAT ignore Windows ACLs. Private key
+  bytes/seed are never written to stdout, stderr, or `--json`.
+- `manifest sign`: enforces the `4096`-byte key cap (`max_key_file_bytes`),
+  cross-checks the private key envelope, validates the `16384`-byte Schema 1
+  manifest structure before signing, and writes `SIGNATURE_FILE` using
+  no-overwrite delivery.
+- `manifest verify-sig`: validates the public key (`<= 4096` bytes), detached
+  signature (`<= 4096` bytes), and exact manifest bytes (`<= 16384` bytes).
+  Exits `0` when valid, `1` on verification/format/read failure with empty
+  stdout, and `2` on invalid CLI arguments.
+- `--public-key KEY_FILE` and `--signature SIG_FILE` on `verify` (including
+  `--stream`), `patch` (when `--manifest` is also provided, both in-memory and
+  `--stream`), and `install-full` (verifies `--target-manifest`): both flags
+  must appear together. Signature verification runs over the exact manifest
+  bytes in memory before opening old, patch, or downloaded inputs or creating
+  output or temporary files.
+- **Cryptographic implementation note**: the underlying `mooncrypt` Ed25519
+  implementation uses `BigInt` arithmetic and is not constant-time; it is
+  intended for offline publisher signing rather than exposed secret-key oracle
+  services.
+
+### JSON envelopes (`4096`-byte cap) and domain separation
+
+Key and signature files use strict UTF-8 JSON (no BOM, max nesting depth `4`,
+duplicate keys and unknown fields rejected, integer `schema_version: 1`,
+`"algorithm": "ed25519"`, compact single-line JSON with trailing `\n`), each
+capped at `4096` bytes (`max_key_file_bytes` and `max_signature_file_bytes`):
+
+| Envelope | `"format"` | Required fields |
+| --- | --- | --- |
+| Public key | `"moonbsdiff-ed25519-public-key"` | `schema_version`, `format`, `algorithm`, `public_key` (64 lowercase hex), `key_id` (16 lowercase hex) |
+| Private key | `"moonbsdiff-ed25519-private-key"` | `schema_version`, `format`, `algorithm`, `seed` (64 lowercase hex), `public_key` (64 lowercase hex), `key_id` (16 lowercase hex) |
+| Signature | `"moonbsdiff-manifest-signature"` | `schema_version`, `format`, `algorithm`, `key_id` (16 lowercase hex), `manifest_sha256` (64 lowercase hex), `signature` (128 lowercase hex) |
+
+`key_id` is the first 16 lowercase hex digits of `SHA-256(raw_public_key)`.
+`PrivateKey::from_json_bytes` cross-checks the derived `public_key` and
+`key_id` against `seed`.
+
+Signatures are computed and verified over the domain-separated payload
+`moonbsdiff-manifest-ed25519-v1\x00` followed by the exact manifest bytes
+(raw signatures without this prefix are rejected). Verification enforces strict
+RFC 8032 validation on both `PublicKey` and signature `R`:
+
+- rejects non-canonical point encodings (`y >= p`, `x == 0 && sign == 1`),
+  off-curve points, and all 8 small-order torsion points `E[8]`;
+- rejects malleable scalars (`S >= L`);
+- rejects `key_id` mismatches (`KeyIdMismatch`) and `manifest_sha256` mismatches
+  (`ManifestHashMismatch`).
+
+### MoonBit library API (`BigSaltyMan/moonbsdiff/manifest`, Native / JS / Wasm-GC)
+
+All signing and verification types and functions run across Native, JS, and
+Wasm-GC:
+
+- **Constants**: `max_key_file_bytes : Int32 = 4096`,
+  `max_signature_file_bytes : Int32 = 4096`.
+- **Types**:
+  - `PublicKey`: `from_bytes`, `from_json_bytes`, `to_bytes`, `to_hex`,
+    `key_id`, `to_json_bytes`.
+  - `PrivateKey`: `from_seed`, `from_json_bytes`, `public_key`, `key_id`,
+    `to_json_bytes`, `sign_manifest` (intentionally omits `Debug`/`Show` so
+    secret seed bytes are never formatted).
+  - `ManifestSignature`: `from_json_bytes`, `to_json_bytes`, `signature_bytes`,
+    `signature_hex`, `key_id`, `manifest_sha256`.
+- **Functions**:
+  - `verify_raw_signature(manifest_bytes, sig_bytes, public_key)`
+  - `verify_manifest_signature(manifest_bytes, signature, public_key)`
+  - `verify_manifest_signature_bytes(manifest_bytes, signature_json, public_key_json)`
+  - `validate_manifest_schema(manifest_bytes)` — validates Schema 1 structure
+    without applying `Limits` caps on declared `old`/`new`/`patch` byte sizes.
+  - `prepare_signed(manifest_bytes, signature, public_key, limits)` — verifies
+    the detached signature over exact manifest bytes *before* parsing JSON or
+    checking `limits`.
+  - `apply_signed(old_bytes, patch_bytes, manifest_bytes, signature, public_key, limits)` — calls `prepare_signed` and `PreparedManifest::restore`.
+- **Errors**:
+  - `SignatureError`: `InvalidKeyLength(expected~, actual~)`,
+    `InvalidPublicKey(detail~)`, `InvalidSignatureLength(expected~, actual~)`,
+    `InvalidSignatureFormat(detail~)`, `InvalidEncoding`,
+    `InvalidJson(field~, detail~)`, `InvalidSchema(field~, detail~)`,
+    `LimitExceeded(field~, value~, limit~)`, `KeyIdMismatch(expected~, actual~)`,
+    `ManifestHashMismatch(expected~, actual~)`, `VerificationFailed`.
+  - `SignedManifestError`: `Signature(SignatureError)`,
+    `Manifest(ManifestError)`.
 
 ## Schema 1 and real example
 
@@ -853,10 +976,13 @@ old contracts in CI. Locally no old CLI/IO suite, full library/interoperability
 matrix, large compression samples or resource measurements were rerun. CI reuses
 the existing platform builds and appends only the new manifest CLI collection.
 
-**A hash manifest checks content, not publisher identity. If both manifest and
-patch are replaced, ordinary hashes do not provide authenticity. Obtain expected
-manifests from a trusted channel.** This is not a signature or a safe automatic-
-update system. Bounded content verification and checked restoration are provided below; neither authenticates a publisher.
+**An unsigned hash manifest checks content, not publisher identity. If both
+manifest and patch are replaced, ordinary hashes do not provide authenticity.
+Obtain expected manifests from a trusted channel or pin the publisher's public
+key out-of-band and verify a
+[detached Ed25519 signature](#detached-ed25519-manifest-signing-and-verification-unreleased).**
+Bounded content verification and checked restoration are provided below;
+neither authenticates a publisher unless paired with signature verification.
 
 ## Bounded consumption and checked restoration (Commit 20)
 
@@ -963,9 +1089,10 @@ Existing CI platform builds append only this collection; locally the old CLI/IO,
 full library/interoperability matrices, probes and resource measurements were not
 rerun. Root .mbti, default factories, native IO and dependencies are unchanged.
 
-Content consistency against a supplied manifest still does not authenticate its
+Content consistency against an unsigned manifest still does not authenticate its
 publisher. If an attacker replaces both patch and expected manifest, ordinary
-hashes do not supply authenticity. Expected manifests must come from a trusted
-channel. The Commit 20 implementation described above covers memory-based
-verification. These CLI 0.2.0 additions are absent from published Mooncakes 0.1.0;
-Mooncakes 0.2.0 has not been published.
+hashes do not supply authenticity. Pin the publisher's public key out-of-band
+and verify a detached signature (see above), or obtain expected manifests from a
+trusted channel. The Commit 20 implementation described above covers unsigned
+memory-based verification. These CLI 0.2.0 additions are absent from published
+Mooncakes 0.1.0; Mooncakes 0.2.0 has not been published.

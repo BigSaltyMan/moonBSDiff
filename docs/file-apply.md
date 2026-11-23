@@ -5,6 +5,7 @@ This source-only native path is explicit:
 ```sh
 python scripts/build_cli.py --release
 ./_build/bin/linux/moonbsdiff patch --stream OLD_FILE PATCH_FILE OUTPUT_FILE
+# macOS (unreleased): ./_build/bin/macos/moonbsdiff patch --stream OLD_FILE PATCH_FILE OUTPUT_FILE
 # Windows: .\_build\bin\windows\moonbsdiff.exe patch --stream OLD_FILE PATCH_FILE OUTPUT_FILE
 ```
 
@@ -45,14 +46,18 @@ in later bounded pulls without reserving it again. No prefix is decoded twice.
 A reader that raised an error is discarded, never resumed.
 
 The native adapter opens two regular input files, prechecks their measured sizes
-against effective caps, and reads a maximum 32-byte header. Root
+against effective caps, and reads at most the 32-byte header prefix. Root
 `inspect_header_prefix(header, actual_patch_bytes, max_patch_bytes)` reuses the
-existing envelope parser; it does no IO, target allocation or stream validation.
-This one pure helper is the only new root API. The file executor is native CLI
-code; the root library never acquires native IO dependencies.
+existing envelope parser without IO, target allocation, or stream validation.
+The core library also exposes cross-target [`apply_stream`](apply.md#cross-target-streaming-application-apply_stream-unreleased)
+(`StreamApplyStage`, `StreamApplyError`, `DeepPatchInfo`) in
+`BigSaltyMan/moonbsdiff` for Native, JS, and Wasm-GC, and the native CLI
+streaming path uses `apply_stream` directly with native file-handle callbacks
+(retaining native file IO strictly inside `cmd/main`).
 
-Old-file reads use checked absolute Int64 offsets with 64-bit off_t on Linux
-(compile-time assertion) or LARGE_INTEGER on Windows. Read lengths are at most
+Old-file reads use checked absolute Int64 offsets with 64-bit `off_t` on POSIX
+(Linux and macOS, compile-time `_Static_assert(sizeof(off_t) >= 8)`) or
+`LARGE_INTEGER` on Windows. Read lengths are at most
 4096 and checked against the opened size before seek/pread. A negative cursor is
 never narrowed or negated until a chunk overlap proves it lies in -4096..-1.
 Outside-old bytes contribute zero, addition is modulo 256, and x/y/output/cursor
@@ -111,7 +116,11 @@ promised.
 Windows retains handle-based exclusive creation, close-before-no-replace rename
 and identity-based cleanup. Linux retains O_TMPFILE/proc first, and only its
 existing capability branches use the guarded ext-filesystem private-directory
-fallback. See [Linux delivery](linux-delivery.md) for permission/threat assumptions
+fallback. macOS (`apple_deliver`) requires a protected output parent directory
+(`euid` or `root` owner, sticky bit if group/world-writable), creates a random
+`0700` private directory via `arc4random_buf` + `mkdirat`, writes an exclusive
+`0600` `payload` (`O_CREAT|O_EXCL|O_NOFOLLOW`), and publishes with non-replacing
+`linkat`. See [Linux delivery](linux-delivery.md) for permission/threat assumptions
 and possible retained objects when ownership cannot be proved. Final paths are
 never deleted as rollback. A post-publication cleanup/close error can still report
 failure with a delivered output, as before. No power-loss durability or universal
@@ -341,13 +350,17 @@ new release are outside scope.
 
 ## Streaming with a manifest (Unreleased)
 
-~~~text
+```text
 moonbsdiff patch --stream --manifest update.json old.bin update.patch restored.bin
-~~~
+moonbsdiff patch --stream --manifest update.json --public-key publisher.pub --signature update.sig old.bin update.patch restored.bin
+```
 
-Use a schema-1 manifest from a trusted channel. SHA-256 checks that the old file,
-patch and restored file match the content named in the manifest. A manifest can
-describe arbitrary content, so the channel that supplies it determines trust.
+Use a schema-1 manifest from a trusted channel, or pair `--public-key KEY_FILE`
+and `--signature SIG_FILE` to verify a detached Ed25519 signature over the exact
+manifest bytes in memory before opening old/patch inputs, creating private
+copies, or creating temporary/output files. Both signature flags must appear
+together. Without signature verification, SHA-256 checks content identity only;
+see [detached manifest signing](manifest.md#detached-ed25519-manifest-signing-and-verification-unreleased).
 
 The CLI checks the manifest's declared sizes against the configured limits before
 copying. It writes each input to a private temporary file in chunks of at most
@@ -360,9 +373,13 @@ hash error. This operation does not provide an atomic filesystem snapshot.
 Reserve temporary space for the old-file and patch copies plus the staged
 restored file. Windows uses the process temporary directory with exclusive
 creation, denied sharing and deletion on close. Linux uses a protected or sticky
-local /tmp directory and unlinks each exclusive mode-0600 file before writing
-content. The restored file uses the existing staging location and no-replace
-delivery. The platform and ownership limits of that delivery still apply.
+local `/tmp` directory and unlinks each exclusive mode-0600 file before writing
+content. macOS opens `/private/tmp` (`O_RDONLY|O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC`,
+falling back to `$TMPDIR` if `/private/tmp` cannot be opened), verifies
+protected/sticky directory permissions, and unlinks each exclusive mode-0600
+file before writing content. The restored file uses the existing staging
+location and no-replace delivery. The platform and ownership limits of that
+delivery still apply.
 
 Progress text and JSON events show the preparing phase with zero restored bytes.
 The output hash counts the bytes of successful writes in order. Delivery requires
@@ -374,13 +391,16 @@ The existing commit boundary still governs late cancellation for patch.
 
 ## Streaming verification (Unreleased)
 
-~~~sh
+```sh
 moonbsdiff verify --stream --manifest update.json old.bin update.patch
-~~~
+moonbsdiff verify --stream --manifest update.json --public-key publisher.pub --signature update.sig old.bin update.patch
+```
 
-Use this to check recoverability against a trusted schema-1 manifest without
-saving restored bytes. It requires a CLI built with the new verify path, which
-is absent from the public v0.4.0 archives. The command takes exactly two operands
+Use this to check recoverability against a schema-1 manifest without saving
+restored bytes. Pass `--public-key` and `--signature` together to require a
+valid detached Ed25519 signature before opening the old or patch files.
+Streaming verification requires a CLI built with the new verify path, which is
+absent from the public v0.4.0 archives. The command takes exactly two operands
 and requires the manifest. Choose ordinary verify to run the check in memory,
 or patch --stream --manifest when you need a restored file delivered.
 

@@ -37,22 +37,28 @@ fn stream_prepare_manifest(
 }
 
 ///|
-fn stream_read_manifest(
-  path : String,
-  limits : @moonbsdiff.Limits,
-  progress : StreamProgress,
-) -> @manifest.PreparedManifest raise {
-  let data = stream_read_manifest_data(path, progress)
-  stream_prepare_manifest(data, path, limits)
-}
-
-///|
 fn stream_manifest(
   config : CliConfig,
   progress : StreamProgress,
 ) -> @manifest.PreparedManifest? raise {
   guard config.manifest is Some(path) else { return None }
-  Some(stream_read_manifest(path, config.limits, progress))
+  let data = stream_read_manifest_data(path, progress)
+  progress.checkpoint(2)
+  match
+    prepare_optional_signed_manifest(
+      config.operation,
+      path,
+      data,
+      config.limits,
+      config.public_key,
+      config.signature,
+    ) {
+    Ok(prepared) => {
+      progress.checkpoint(2)
+      Some(prepared)
+    }
+    Err(msg) => raise StreamError(msg)
+  }
 }
 
 ///|

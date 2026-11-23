@@ -13,7 +13,10 @@ fn print_usage(operation : String, flags? : String) -> Unit {
         "--target-manifest FILE [--progress text|json] [LIMITS]", "OLD (PATCH MANIFEST)...",
       )
     "verify" =>
-      ("[--stream] --manifest MANIFEST_FILE [LIMITS]", "OLD_FILE PATCH_FILE")
+      (
+        "[--stream] --manifest MANIFEST_FILE [--public-key KEY_FILE --signature SIG_FILE] [LIMITS]",
+        "OLD_FILE PATCH_FILE",
+      )
     "manifest" => ("[LIMITS]", "OLD_FILE NEW_FILE PATCH_FILE MANIFEST_FILE")
     "manifest select" =>
       ("[LIMITS]", "OLD_FILE MANIFEST_FILE [MANIFEST_FILE...]")
@@ -27,9 +30,14 @@ fn print_usage(operation : String, flags? : String) -> Unit {
         "--target-manifest FILE [--local-patch FILE ...] [--max-steps COUNT] [LIMITS]",
         "OLD_FILE [MANIFEST_FILE...]",
       )
+    "manifest keygen" => ("[--json]", "PRIVATE_KEY_FILE PUBLIC_KEY_FILE")
+    "manifest sign" =>
+      ("[--json] --private-key KEY_FILE", "MANIFEST_FILE SIGNATURE_FILE")
+    "manifest verify-sig" =>
+      ("[--json] --public-key KEY_FILE --signature SIG_FILE", "MANIFEST_FILE")
     "install-full" =>
       (
-        "--target-manifest FILE [--max-new-bytes VALUE] [--max-output-bytes VALUE]",
+        "--target-manifest FILE [--public-key KEY_FILE --signature SIG_FILE] [--max-new-bytes VALUE] [--max-output-bytes VALUE]",
         "DOWNLOADED_FILE OUTPUT_FILE",
       )
     "inspect" => ("[--deep] [--json] [--max-patch-bytes VALUE]", "PATCH_FILE")
@@ -46,7 +54,9 @@ fn print_usage(operation : String, flags? : String) -> Unit {
 
 ///|
 fn print_manifest_help() -> Unit {
-  println("moonbsdiff manifest <create|select|plan|plan-local> --help")
+  println(
+    "moonbsdiff manifest <create|select|plan|plan-local|keygen|sign|verify-sig> --help",
+  )
   println(
     "  create      Write a manifest after checking a patch against OLD_FILE and NEW_FILE.",
   )
@@ -55,6 +65,9 @@ fn print_manifest_help() -> Unit {
   )
   println("  plan        Choose a download route to the target.")
   println("  plan-local  Find an offline route using local patch files.")
+  println("  keygen      Generate a detached Ed25519 signing keypair.")
+  println("  sign        Sign a Schema 1 manifest with an Ed25519 private key.")
+  println("  verify-sig  Verify a detached Ed25519 manifest signature.")
 }
 
 ///|
@@ -124,6 +137,12 @@ fn print_command_help(operation : String) -> Unit {
         "  --manifest MANIFEST_FILE   Verify input and restored bytes against a trusted manifest.",
       )
       println(
+        "  --public-key KEY_FILE      Verify detached manifest signature (requires --manifest and --signature).",
+      )
+      println(
+        "  --signature SIG_FILE       Detached Ed25519 signature file for --manifest (requires --public-key).",
+      )
+      println(
         "  --stream                  Apply with bounded file I/O. Ctrl+C requests cancellation.",
       )
       println(
@@ -154,6 +173,12 @@ fn print_command_help(operation : String) -> Unit {
         "  --manifest MANIFEST_FILE  Required. Supplies the expected file identities.",
       )
       println(
+        "  --public-key KEY_FILE     Require detached signature authentication (with --signature).",
+      )
+      println(
+        "  --signature SIG_FILE      Detached Ed25519 signature file (with --public-key).",
+      )
+      println(
         "  --stream                 Hash restored chunks without buffering the full result.",
       )
     }
@@ -170,6 +195,12 @@ fn print_command_help(operation : String) -> Unit {
       )
       println(
         "  --target-manifest FILE   Required. Supplies the expected file identity.",
+      )
+      println(
+        "  --public-key KEY_FILE    Verify detached target manifest signature (with --signature).",
+      )
+      println(
+        "  --signature SIG_FILE     Detached Ed25519 signature file (with --public-key).",
       )
     }
     "manifest" =>
@@ -212,9 +243,40 @@ fn print_command_help(operation : String) -> Unit {
       )
       println("Put candidate MANIFEST_FILE paths after OLD_FILE.")
     }
+    "manifest keygen" => {
+      println(
+        "Generate a detached Ed25519 signing keypair using the OS CSPRNG without overwriting existing files.",
+      )
+      println("  --json  Write key metadata (never the private seed) as JSON.")
+    }
+    "manifest sign" => {
+      println(
+        "Sign an existing Schema 1 manifest file with an Ed25519 private key.",
+      )
+      println(
+        "  --private-key KEY_FILE  Required. Ed25519 private key JSON file.",
+      )
+      println("  --json                  Write signature metadata as JSON.")
+    }
+    "manifest verify-sig" => {
+      println(
+        "Verify a detached Ed25519 signature against a Schema 1 manifest and pinned public key.",
+      )
+      println(
+        "  --public-key KEY_FILE  Required. Pinned Ed25519 public key JSON file.",
+      )
+      println(
+        "  --signature SIG_FILE   Required. Detached manifest signature JSON file.",
+      )
+      println("  --json                 Write verification result as JSON.")
+    }
     _ => abort("missing help for CLI command")
   }
-  print_limit_help(operation)
+  if operation != "manifest keygen" &&
+    operation != "manifest sign" &&
+    operation != "manifest verify-sig" {
+    print_limit_help(operation)
+  }
   println("Place options before paths. Use -- before paths starting with '-'.")
 }
 
@@ -263,7 +325,7 @@ fn print_help() -> Unit {
   )
   print_usage(
     "patch",
-    flags="--stream [--manifest MANIFEST_FILE] [--progress text|json]",
+    flags="--stream [--manifest MANIFEST_FILE [--public-key KEY_FILE --signature SIG_FILE]] [--progress text|json]",
   )
   println(
     "Progress/diagnostics go to stderr. Ctrl+C (Windows also Ctrl+Break) requests cooperative cancellation, exit 130 before commit; no rollback after commit begins.",
@@ -304,7 +366,16 @@ fn print_help() -> Unit {
   println(
     "Verify the downloaded file against the target size and SHA-256 before delivering it without replacement.",
   )
-  print_usage("patch", flags="--manifest MANIFEST_FILE [LIMITS]")
+  print_usage("manifest keygen")
+  print_usage("manifest sign")
+  print_usage("manifest verify-sig")
+  println(
+    "Detached Ed25519 manifest signing and verification (4096-byte key/signature caps; mode 0600 on POSIX, owner DACL on Windows for private keys).",
+  )
+  print_usage(
+    "patch",
+    flags="--manifest MANIFEST_FILE [--public-key KEY_FILE --signature SIG_FILE] [LIMITS]",
+  )
   println(
     "Manifest input: at most 16384 bytes, schema 1, no duplicate/unknown keys. Verify uses memory by default; --stream hashes restored chunks. Neither saves restored output.",
   )
@@ -364,7 +435,7 @@ fn print_help() -> Unit {
     "patch: old/output 1048576 bytes, patch 131072, decoded 2097152, 16384 controls.",
   )
   println(
-    "Linux output prefers O_TMPFILE+/proc; guarded local-ext compatibility may work without them. No durability guarantee.",
+    "Linux output prefers O_TMPFILE+/proc; macOS and guarded local-ext compatibility use 0700 private staging in a protected parent. No durability guarantee.",
   )
   println(
     "Exit codes: 0 success, 2 arguments, 1 operation failure. BSDIFF40 does not identify the old file.",

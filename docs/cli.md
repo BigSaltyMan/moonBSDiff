@@ -19,14 +19,19 @@ below retain their original CLI 0.2.0 contracts.
 
 ## Download, build and commands
 
-[Prebuilt CLI 0.2.0 download, checksums and runtime requirements](cli-install.md)
-are separate from Mooncakes: 0.2.0 is not published there. Source builds below
-require the SDK/compiler; running the prebuilt CLI does not.
+[Prebuilt CLI download, checksums and runtime requirements](cli-install.md)
+are separate from Mooncakes. Published CLI releases through `0.5.4` ship
+Windows and Linux `x86_64` archives; unreleased packaging expands the CI-built
+release matrix to 4 targets (`windows-x86_64`, `linux-x86_64`, `linux-arm64`,
+and `macos-arm64`) and 6 release assets (`4 archives + SHA256SUMS +
+build-info.json`). Intel macOS (`macos-x86_64`) is not built in CI because
+upstream MoonBit `0.10.19` does not publish `darwin-x86_64` native toolchains.
+Source builds below require the SDK/compiler; running the prebuilt CLI does not.
 
-Supported and actually exercised: Windows 11 AMD64 and Ubuntu 24.04/WSL2 Linux
-x86_64, with moon 0.1.20261102 (ea07287), moonc v0.10.19+bee578715,
-moonrun 0.1.20261102 (2026-11-02 builds). Native only; no macOS CLI support is
-claimed. The root library remains pure MoonBit and still checks on JS/Wasm-GC.
+Current CI-built native CLI platform scope covers Windows (`x86_64`), Linux
+(`x86_64` and `arm64`), and macOS (`arm64`), built with `moon 0.1.20261102
+(ea07287)`, `moonc v0.10.19+bee578715`, and `moonrun 0.1.20261102`. The root
+and `manifest` libraries remain pure MoonBit and run on Native, JS, and Wasm-GC.
 
 From the repository root with that isolated toolchain on PATH, Python 3 and a
 native C compiler available:
@@ -39,17 +44,20 @@ python scripts/build_cli.py --check-version
 On Windows initialize the MSVC developer environment first (the verified local
 script is `C:\Program Files\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvars64.bat`).
 The script generates `internal/manifest/version.mbt` from the module's `version`
-field. The CLI and manifest serializer share that version. The script then
-builds `cmd/main` for native and copies the artifact to:
+field in `moon.mod` (currently `0.5.4`). The CLI and manifest serializer share
+that version. The script then builds `cmd/main` for native and copies the
+artifact to:
 
 - Windows: `_build/bin/windows/moonbsdiff.exe`
 - Linux: `_build/bin/linux/moonbsdiff`
+- macOS: `_build/bin/macos/moonbsdiff`
 
-The toolchain names its intermediate artifact `main.exe` on both hosts; the
-build script handles this. Caches are separated as `_build/cli-windows` and
-`_build/cli-linux`. `--release` selects native release; the retained file tests
-use the default debug build. No Python/C reference program is called at runtime;
-Python is used for building, generated-version checking and testing only.
+The toolchain names its intermediate artifact `main.exe` on all hosts; the
+build script handles this. Caches are separated as `_build/cli-windows`,
+`_build/cli-linux`, and `_build/cli-macos`. `--release` selects native release;
+the retained file tests use the default debug build. No Python/C reference
+program is called at runtime; Python is used for building, generated-version
+checking and testing only.
 
 PowerShell examples (quote paths containing spaces or Chinese characters):
 
@@ -60,7 +68,7 @@ PowerShell examples (quote paths containing spaces or Chinese characters):
 & .\_build\bin\windows\moonbsdiff.exe patch ".\old file.bin" ".\update.patch" ".\restored file.bin"
 ```
 
-Linux equivalents:
+Linux and macOS equivalents (`_build/bin/macos/moonbsdiff` on macOS):
 
 ```sh
 ./_build/bin/linux/moonbsdiff --help
@@ -69,7 +77,8 @@ Linux equivalents:
 ./_build/bin/linux/moonbsdiff patch 'old file.bin' 'update.patch' 'restored file.bin'
 ```
 
-The executable reports `moonbsdiff 0.2.0` from generated module metadata.
+The executable reports `moonbsdiff <VERSION>` from generated `moon.mod`
+metadata (historical `0.2.0` outputs reflected that earlier module version).
 CI checks generated source and actual --version against moon.mod to catch drift.
 Our order is **patch OLD PATCH OUTPUT**, different from upstream
 **bspatch OLD NEW PATCH**. Diff/patch operations require exactly three file arguments; inspect takes one, and --show-limits takes none. Exit codes:
@@ -107,9 +116,16 @@ that coincides with a proposed output. Preflight checks path metadata and does
 not reserve filenames. The no-replace check still applies during delivery.
 
 The command reads the old file and builds its `BundleIndex` once. The sorting
-budget is used at index construction. Each target has fresh matching and
-generation budgets and its own size caps. The command reads and processes one
-target at a time. Total runtime and output size grow with the number of targets.
+budget is used at index construction. When inputs share `>= 64` leading/trailing
+bytes, standalone `diff` trims those runs for speed (skipping suffix-array
+construction on identical, pure-insert, and pure-delete updates and sorting only
+the differing middle, trading away matches that copy prefix/suffix blocks into a
+differing middle), while `diff-many` (`DiffIndex::diff`) keeps full-SA matching
+for all inserts and edits and applies the zero-search fast path only for
+identical and pure-deletion pairs; both emit 100% standard BSDIFF40 output. Each
+target has fresh matching and generation budgets and its own size caps. The
+command reads and processes one target at a time. Total runtime and output size
+grow with the number of targets.
 
 Each group delivers its patch first and its manifest second. Exit `0` means all
 groups finished, `2` means invalid arguments or configuration, and `1` means an
@@ -199,14 +215,63 @@ Verify accepts meaningful patch limit overrides, not sorting/matching, --json or
 errors exit 2; read/schema/identity/apply/restoration/delivery errors exit 1 on
 stderr, with empty stdout. Success exits 0 (checked patch is silent).
 [Full input policy, stages and test evidence](manifest.md#bounded-consumption-and-checked-restoration-commit-20)
-distinguish this content check from publisher authentication. There is no signature,
-network fetch or automatic update in this manifest path. The unreleased CLI
-also supports `patch --stream --manifest` and
-[streamed verify](file-apply.md#streaming-verification-unreleased).
+distinguish unsigned content checks from publisher authentication. There is no
+network fetch or automatic update in this manifest path. The CLI also supports
+`patch --stream --manifest`,
+[streamed verify](file-apply.md#streaming-verification-unreleased), and the
+unreleased detached Ed25519 manifest signing commands below.
+
+## Detached Ed25519 manifest signing and verification (Unreleased)
+
+```sh
+moonbsdiff manifest keygen [--json] PRIVATE_KEY_FILE PUBLIC_KEY_FILE
+moonbsdiff manifest sign [--json] --private-key KEY_FILE MANIFEST_FILE SIGNATURE_FILE
+moonbsdiff manifest verify-sig [--json] --public-key KEY_FILE --signature SIG_FILE MANIFEST_FILE
+```
+
+- **Important trust boundary**: Unsigned manifests verify content identity
+  (SHA-256) only. Publisher authentication requires pinning the publisher's
+  trusted `PUBLIC_KEY_FILE` out-of-band and verifying a detached signature.
+- `manifest keygen`: generates an Ed25519 keypair from the OS CSPRNG
+  (`BCryptGenRandom` on Windows, `getrandom` on Linux, `arc4random_buf` on
+  macOS; fail closed). Both files use no-overwrite delivery and output pair
+  preflight, but delivery is non-transactional: `PRIVATE_KEY_FILE` is delivered
+  first and `PUBLIC_KEY_FILE` second; if delivering the second file fails, the
+  CLI exits `1` reporting partial delivery with no rollback. `PRIVATE_KEY_FILE`
+  is written with mode `0600` on POSIX and a protected owner-only DACL
+  (`D:P(A;;FA;;;SID)`) on Windows—store private keys on an NTFS volume, because
+  FAT32 and exFAT ignore Windows ACLs. Private key bytes are never printed to
+  stdout, stderr, or `--json`.
+- `manifest sign`: enforces the `4096`-byte key cap (`max_key_file_bytes`),
+  validates the private key envelope and Schema 1 manifest (`<= 16384` bytes)
+  before signing with domain prefix `moonbsdiff-manifest-ed25519-v1\x00`, and
+  writes `SIGNATURE_FILE` without overwriting.
+- `manifest verify-sig`: enforces `4096`-byte key/signature caps, strict
+  envelopes, strict RFC 8032 canonical point/curve/torsion/non-malleability
+  checks, `key_id`, and `manifest_sha256` against the exact manifest bytes.
+  Exits `0` on valid signature, `1` on verification/format/read failure with
+  empty stdout, and `2` on invalid CLI arguments.
+- **Cryptographic implementation note**: the underlying `mooncrypt` Ed25519
+  implementation uses `BigInt` arithmetic and is not constant-time; it is
+  intended for offline publisher signing rather than exposed secret-key oracle
+  services.
+- **Paired flags on verification/delivery commands**: `--public-key KEY_FILE`
+  and `--signature SIG_FILE` are accepted on `verify` (including `--stream`),
+  `patch` (when `--manifest` is also provided, both in-memory and `--stream`),
+  and `install-full` (verifies `--target-manifest`). Both flags must appear
+  together (following prefix-options, `--`, and no-duplicates rules). Signature
+  verification runs over exact manifest bytes in memory before opening old,
+  patch, or downloaded inputs or creating output/temporary files.
+
+See [detached manifest signing](manifest.md#detached-ed25519-manifest-signing-and-verification-unreleased)
+for envelope schemas and MoonBit APIs.
 
 ## Dependencies and native isolation
 
-No new Mooncakes IO dependency is introduced. Manifest hashing pins the already-resolved mooncrypt 0.4.7 as a direct CLI hashing dependency (Apache-2.0). The pinned toolchain core/env and
+No new Mooncakes IO dependency is introduced. Manifest SHA-256 hashing and
+Ed25519 signing/verification use the already-resolved `mooncrypt 0.4.7`
+(`moonbitstack/mooncrypt/hash/sha2`, `sign/ed25519`, and `spec`, Apache-2.0).
+The pinned toolchain core/env and
 core/encoding/utf8 provide exit/Unix arguments and string encoding. The inspected
 core/async/fs API includes binary files, create modes and `rename(replace?)`;
 we use a small synchronous native C adapter to make descriptor identity, checked
@@ -215,17 +280,18 @@ place, without importing the experimental async runtime into the root package.
 
 The adapter is original BSD-2-Clause code under `cmd/main/native_io.c`; no third-
 party source was copied. Its dependencies are the existing MoonBit native ABI,
-Windows system APIs or Linux libc/kernel interfaces. Core's Apache-2.0 notice
-remains part of the toolchain; moonzip 0.3.5 and all core library dependencies are
-unchanged. `supported_targets = "-all+native"` isolates cmd/main. The root public
-.mbti and core algorithms are unchanged. The CLI exposes no library/debug API.
+Windows system APIs, Linux libc/kernel interfaces, or macOS system interfaces.
+Core's Apache-2.0 notice remains part of the toolchain; moonzip 0.3.5 and all
+core library dependencies are unchanged. `supported_targets = "-all+native"`
+isolates cmd/main. The CLI exposes no library/debug API.
 
-Windows arguments are parsed directly with GetCommandLineW/CommandLineToArgvW
-and copied as UTF-16 MoonBit strings, avoiding the runtime's documented ANSI
-fallback under MinGW. All file paths use UTF-8 -> UTF-16 conversion and wide
-Windows APIs. Linux paths must be representable as Unicode/UTF-8; arbitrary
-invalid-byte filenames are not part of the tested contract. Chinese and space
-paths were actually exercised on both platforms.
+Windows arguments are parsed directly with `GetCommandLineW`/`CommandLineToArgvW`
+with strict UTF-16 surrogate validation and copied as UTF-16 MoonBit strings,
+avoiding the runtime's documented ANSI fallback under MinGW. All file paths use
+UTF-8 -> UTF-16 conversion and wide Windows APIs. Linux (`argc`/`argv` or
+`/proc/self/cmdline`) and macOS (`_NSGetArgc`/`_NSGetArgv`) validate strict
+UTF-8 on CLI arguments (`exit 2` on invalid UTF-8). Chinese and space paths
+were actually exercised on Windows and Linux.
 
 ## Limits and bounded reads
 
@@ -390,8 +456,20 @@ Both paths loop on short writes and treat zero progress, write and writer-close
 errors as failure before commit. Only files created by the current operation
 are cleaned up. If a final identity/directory close fails after commit, the CLI
 reports failure but may leave the complete newly created result; it does not
-attempt a risky path-based rollback. No prior output is replaced. File/dir fsync,
-power-loss durability and all possible filesystem/hostile-parent behaviors are
+attempt a risky path-based rollback. No prior output is replaced.
+
+On **macOS** (`apple_deliver` in `cmd/main/native_io.c`), delivery requires a
+protected parent directory (`euid` or `root` owner, sticky bit if
+group/world-writable), generates names via `arc4random_buf`, creates a `0700`
+private directory and exclusive `0600` `payload` (`O_CREAT|O_EXCL|O_NOFOLLOW`),
+commits via non-replacing `linkat`, and removes only verified private objects.
+Output pair preflight on macOS checks `fpathconf(_PC_CASE_SENSITIVE)` to prevent
+case-insensitive APFS/HFS+ destination aliases. Secret output delivery for
+`manifest keygen` enforces mode `0600` on POSIX (`O_TMPFILE`/compat/macOS) and a
+protected owner-only DACL (`D:P(A;;FA;;;SID)`) on Windows (requiring an NTFS
+volume; FAT32/exFAT ignore Windows ACLs).
+
+File/dir fsync, power-loss durability and all possible filesystem/hostile-parent behaviors are
 not promised. Existing-output safety comes from kernel no-replace semantics,
 not from a check-then-overwriting-rename sequence.
 
@@ -477,17 +555,22 @@ application caps remain unchanged, including the CLI's independent 128 KiB patch
 cap. No automatic mode switch is made. New/decompressed/instruction limits still
 apply and can reject size-compliant files.
 
-This Windows/Linux native layer reads compressed intervals and old file positions
-in at most 4096-byte chunks, pauses final RLE output and writes bounded temporary
-chunks. It does not buffer the whole patch, decoded streams or restored file.
-Single-block bzip2 workspaces remain. All CRC, end and complete-consumption checks
-and input closing finish before writer closing/no-replace publication. A late
-failure cleans only owned temporary objects; existing post-delivery cleanup-error
-semantics remain. It does not guarantee snapshots of concurrently modified input,
-process peak memory, power-loss durability, streaming generation or immediate
-interruption. File-only cooperative cancellation is described below.
-The unreleased `patch --stream --manifest update.json OLD PATCH OUTPUT` uses
-private on-disk copies of both inputs and hashes the output as it is written.
+This Windows/Linux/macOS native layer reads compressed intervals and old file
+positions in at most 4096-byte chunks using the core library's cross-target
+[`apply_stream`](apply.md#cross-target-streaming-application-apply_stream-unreleased)
+engine directly, and writes bounded temporary chunks. It does not buffer the
+whole patch, decoded streams or restored file. Single-block bzip2 workspaces
+remain. All CRC, end and complete-consumption checks and input closing finish
+before writer closing/no-replace publication. A late failure cleans only owned
+temporary objects; existing post-delivery cleanup-error semantics remain. It
+does not guarantee snapshots of concurrently modified input, process peak memory,
+power-loss durability, streaming generation or immediate interruption. File-only
+cooperative cancellation is described below.
+`patch --stream --manifest update.json OLD PATCH OUTPUT` uses private on-disk
+copies of both inputs (Windows temp dir, Linux `/tmp`, or macOS `/private/tmp`
+with `$TMPDIR` fallback, unlinked before writing on POSIX) and hashes the
+output as it is written. Both `patch --stream --manifest` and `verify --stream
+--manifest` also accept paired `--public-key` and `--signature` flags.
 See [verified streaming](file-apply.md#streaming-with-a-manifest-unreleased) for
 disk requirements and publication behavior. Without `--stream`, manifest patch
 and verify use the memory path and check the same bytes they consume.

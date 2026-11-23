@@ -9,9 +9,15 @@ import {
 // Values
 pub fn apply(Bytes, Bytes, Bytes, @moonbsdiff.Limits) -> Result[Bytes, ManifestError]
 
+pub fn apply_signed(Bytes, Bytes, Bytes, ManifestSignature, PublicKey, @moonbsdiff.Limits) -> Result[Bytes, SignedManifestError]
+
 pub fn diff(Bytes, Bytes, @moonbsdiff.Limits) -> Result[PatchBundle, @moonbsdiff.BsdiffError]
 
 pub fn diff_with_options(Bytes, Bytes, @moonbsdiff.Limits, @moonbsdiff.DiffOptions) -> Result[PatchBundle, @moonbsdiff.BsdiffError]
+
+pub let max_key_file_bytes : Int32
+
+pub let max_signature_file_bytes : Int32
 
 pub fn plan(ContentIdentity, ContentIdentity, Array[PreparedManifest], max_steps? : Int64) -> Result[RoutePlan, PlanError]
 
@@ -19,7 +25,17 @@ pub fn plan_update(ContentIdentity, ContentIdentity, Array[PreparedManifest], ma
 
 pub fn prepare(Bytes, @moonbsdiff.Limits) -> Result[PreparedManifest, ManifestError]
 
+pub fn prepare_signed(Bytes, ManifestSignature, PublicKey, @moonbsdiff.Limits) -> Result[PreparedManifest, SignedManifestError]
+
 pub fn prepare_target(Bytes, @moonbsdiff.Limits) -> Result[ContentIdentity, ManifestError]
+
+pub fn validate_manifest_schema(Bytes) -> Result[Unit, ManifestError]
+
+pub fn verify_manifest_signature(Bytes, ManifestSignature, PublicKey) -> Result[Unit, SignatureError]
+
+pub fn verify_manifest_signature_bytes(Bytes, Bytes, Bytes) -> Result[ManifestSignature, SignatureError]
+
+pub fn verify_raw_signature(Bytes, Bytes, PublicKey) -> Result[Unit, SignatureError]
 
 // Errors
 
@@ -75,6 +91,20 @@ pub fn ManifestError::equal(Self, Self) -> Bool
 pub fn ManifestError::not_equal(Self, Self) -> Bool
 pub fn ManifestError::to_repr(Self) -> @debug.Repr
 
+#derive(Eq, @debug.Debug)
+pub struct ManifestSignature {
+  // private fields
+}
+pub fn ManifestSignature::equal(Self, Self) -> Bool
+pub fn ManifestSignature::from_json_bytes(Bytes) -> Result[Self, SignatureError]
+pub fn ManifestSignature::key_id(Self) -> String
+pub fn ManifestSignature::manifest_sha256(Self) -> String
+pub fn ManifestSignature::not_equal(Self, Self) -> Bool
+pub fn ManifestSignature::signature_bytes(Self) -> Bytes
+pub fn ManifestSignature::signature_hex(Self) -> String
+pub fn ManifestSignature::to_json_bytes(Self) -> Bytes
+pub fn ManifestSignature::to_repr(Self) -> @debug.Repr
+
 pub struct PatchBundle {
   patch : Bytes
   manifest : Bytes
@@ -97,10 +127,61 @@ pub struct PreparedManifest {
 }
 pub fn PreparedManifest::restore(Self, Bytes, Bytes) -> Result[Bytes, ManifestError]
 
+pub struct PrivateKey {
+  // private fields
+}
+pub fn PrivateKey::from_json_bytes(Bytes) -> Result[Self, SignatureError]
+pub fn PrivateKey::from_seed(Bytes) -> Result[Self, SignatureError]
+pub fn PrivateKey::key_id(Self) -> String
+pub fn PrivateKey::public_key(Self) -> PublicKey
+pub fn PrivateKey::sign_manifest(Self, Bytes) -> Result[ManifestSignature, SignatureError]
+pub fn PrivateKey::to_json_bytes(Self) -> Bytes
+
+#derive(Eq, @debug.Debug)
+pub struct PublicKey {
+  // private fields
+}
+pub fn PublicKey::equal(Self, Self) -> Bool
+pub fn PublicKey::from_bytes(Bytes) -> Result[Self, SignatureError]
+pub fn PublicKey::from_json_bytes(Bytes) -> Result[Self, SignatureError]
+pub fn PublicKey::key_id(Self) -> String
+pub fn PublicKey::not_equal(Self, Self) -> Bool
+pub fn PublicKey::to_bytes(Self) -> Bytes
+pub fn PublicKey::to_hex(Self) -> String
+pub fn PublicKey::to_json_bytes(Self) -> Bytes
+pub fn PublicKey::to_repr(Self) -> @debug.Repr
+
 pub struct RoutePlan {
   total_patch_bytes : Int64
   candidate_indices : ReadOnlyArray[Int32]
 }
+
+#derive(Eq, @debug.Debug)
+pub(all) enum SignatureError {
+  InvalidKeyLength(expected~ : Int32, actual~ : Int32)
+  InvalidPublicKey(detail~ : String)
+  InvalidSignatureLength(expected~ : Int32, actual~ : Int32)
+  InvalidSignatureFormat(detail~ : String)
+  InvalidEncoding
+  InvalidJson(field~ : String?, detail~ : String)
+  InvalidSchema(field~ : String, detail~ : String)
+  LimitExceeded(field~ : String, value~ : Int64, limit~ : Int64)
+  KeyIdMismatch(expected~ : String, actual~ : String)
+  ManifestHashMismatch(expected~ : String, actual~ : String)
+  VerificationFailed
+}
+pub fn SignatureError::equal(Self, Self) -> Bool
+pub fn SignatureError::not_equal(Self, Self) -> Bool
+pub fn SignatureError::to_repr(Self) -> @debug.Repr
+
+#derive(Eq, @debug.Debug)
+pub(all) enum SignedManifestError {
+  Signature(SignatureError)
+  Manifest(ManifestError)
+}
+pub fn SignedManifestError::equal(Self, Self) -> Bool
+pub fn SignedManifestError::not_equal(Self, Self) -> Bool
+pub fn SignedManifestError::to_repr(Self) -> @debug.Repr
 
 pub(all) enum UpdatePlan {
   UpToDate

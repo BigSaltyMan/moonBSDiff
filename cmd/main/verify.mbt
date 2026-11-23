@@ -53,9 +53,17 @@ fn verified_restore(config : CliConfig) -> Bytes {
     manifest_path,
     @manifest_support.MAX_MANIFEST_BYTES.to_int64(),
   )
-  let prepared = match @manifest.prepare(data, limits) {
+  let prepared = match
+    prepare_optional_signed_manifest(
+      config.operation,
+      manifest_path,
+      data,
+      limits,
+      config.public_key,
+      config.signature,
+    ) {
     Ok(value) => value
-    Err(error) => return manifest_failure(manifest_diagnostic(error))
+    Err(message) => return manifest_failure(message)
   }
   let old = read_input(
     "verified read old (max_old_bytes=\{limits.max_old_bytes})",
@@ -84,7 +92,13 @@ fn verify_command(config : CliConfig) -> Unit {
   } else {
     verified_restore(config) |> ignore
   }
-  println(
-    "Verification succeeded: manifest, inputs and restored content match (not publisher authentication).",
-  )
+  if config.public_key is Some(_) {
+    println(
+      "Verification succeeded: signature, manifest, inputs and restored content match.",
+    )
+  } else {
+    println(
+      "Verification succeeded: manifest, inputs and restored content match (not publisher authentication).",
+    )
+  }
 }

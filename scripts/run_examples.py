@@ -1,6 +1,6 @@
 """Run only the two Commit 14 examples, using fixed independently compiled expectations."""
 import argparse,hashlib,json,pathlib,platform,subprocess,sys,uuid
-from build_cli import version as module_version
+from build_cli import host_platform, version as module_version
 ROOT=pathlib.Path(__file__).resolve().parents[1]
 def sha(raw):return hashlib.sha256(raw).hexdigest()
 def require(ok,what):
@@ -27,7 +27,7 @@ def main():
     if a.cli:cli=a.cli.resolve()
     else:
         command([sys.executable,ROOT/'scripts/build_cli.py'],ROOT)
-        cli=ROOT/'_build/bin'/platform.system().lower()/('moonbsdiff.exe' if platform.system()=='Windows' else 'moonbsdiff')
+        cli=ROOT/'_build/bin'/host_platform()/('moonbsdiff.exe' if platform.system()=='Windows' else 'moonbsdiff')
     require(cli.is_file(),'official CLI executable missing')
     patch=run/'update.patch';restored=run/'restored.wasm'
     # The old identity is checked before both operations, not inferred from BSDIFF40.
