@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.6.0
+
 - **Detached Ed25519 manifest signing & verification (cross-target library & CLI)**:
   - Keep BSDIFF40 patches and Schema 1 manifests unchanged; SHA-256 content-only verification continues to work without signatures, while publisher authentication uses a detached signature file. Unsigned manifests verify content identity only; publisher authentication requires pinning the publisher's trusted `PUBLIC_KEY_FILE` (or `PublicKey`) out-of-band.
   - Add cross-target (Native/JS/Wasm-GC) API in `BigSaltyMan/moonbsdiff/manifest`: `PublicKey`, `PrivateKey` (omitting `Debug`/`Show`), `ManifestSignature`, `SignatureError`, `SignedManifestError`, `max_key_file_bytes` / `max_signature_file_bytes` (`4096`), `verify_raw_signature`, `verify_manifest_signature`, `verify_manifest_signature_bytes`, `validate_manifest_schema`, `prepare_signed`, and `apply_signed`.

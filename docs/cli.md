@@ -44,7 +44,7 @@ python scripts/build_cli.py --check-version
 On Windows initialize the MSVC developer environment first (the verified local
 script is `C:\Program Files\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvars64.bat`).
 The script generates `internal/manifest/version.mbt` from the module's `version`
-field in `moon.mod` (currently `0.5.4`). The CLI and manifest serializer share
+field in `moon.mod` (currently `0.6.0`). The CLI and manifest serializer share
 that version. The script then builds `cmd/main` for native and copies the
 artifact to:
 
