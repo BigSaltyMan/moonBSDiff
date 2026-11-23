@@ -16,7 +16,11 @@ fn inspect_command(config : CliConfig) -> Unit {
     cap,
   )
   let (info, stats) = if config.deep {
-    match @moonbsdiff.inspect_deep(patch, config.limits) {
+    match
+      @moonbsdiff.inspect_deep(patch, {
+        ..config.limits,
+        max_new_bytes: config.limits.max_output_bytes,
+      }) {
       Ok(value) => (value.header, Some(value))
       Err(e) => {
         failure("inspect deep '" + path + "': " + @debug.to_string(e))

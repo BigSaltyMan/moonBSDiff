@@ -46,11 +46,11 @@ fn StreamProgress::emit(
     }
     return
   }
-  let total = match self.total {
-    Some(v) => @json.Json::string("\{v}")
-    None => @json.Json::null()
-  }
   let line = if self.mode == "json" {
+    let total = match self.total {
+      Some(v) => @json.Json::string("\{v}")
+      None => @json.Json::null()
+    }
     let fields : Map[String, @json.Json] = {
       "schema_version": @json.Json::number(1.0),
       "event": @json.Json::string(event),
@@ -70,6 +70,10 @@ fn StreamProgress::emit(
     }
     @json.Json::object(fields).stringify()
   } else {
+    let total_text = match self.total {
+      Some(v) => "\{v}"
+      None => "null"
+    }
     let step = match self.chain_count {
       Some(count) => {
         let current = if self.chain_step == 0 {
@@ -81,7 +85,7 @@ fn StreamProgress::emit(
       }
       None => ""
     }
-    "moonbsdiff: \{event} stage=\{self.stage}\{step} restored_bytes=\{self.restored} total_bytes=\{total.stringify()} output_committed=\{stream_published() != 0} \{message}"
+    "moonbsdiff: \{event} stage=\{self.stage}\{step} restored_bytes=\{self.restored} total_bytes=\{total_text} output_committed=\{stream_published() != 0} \{message}"
   }
   stderr(@utf8.encode((line + "\n")[:]))
 }
@@ -213,7 +217,11 @@ fn stream_operation(config : CliConfig) -> Int32 {
   }
   if state.session > 0 && interrupt_end(state.session) == 0 {
     ok = 0
-    state.detail += "; interrupt handler restoration failed"
+    state.detail = if state.detail == "" {
+      "interrupt handler restoration failed"
+    } else {
+      state.detail + "; interrupt handler restoration failed"
+    }
   }
   let published = stream_published() != 0
   let mut code = if ok != 0 {
@@ -244,7 +252,8 @@ fn stream_operation(config : CliConfig) -> Int32 {
       "\{config.operation} step \{state.chain_step}: "
     }
     let native = if io_failed() != 0 {
-      "; " + @utf8.decode_lossy(io_error()[:])
+      let sep = if state.detail == "" { "" } else { "; " }
+      sep + @utf8.decode_lossy(io_error()[:])
     } else {
       ""
     }

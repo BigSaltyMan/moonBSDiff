@@ -71,11 +71,17 @@ fn chain_preflight(
 ) -> Array[@manifest.PreparedManifest] raise {
   let target_path = config.target_manifest.unwrap()
   let output = if paths.output is Some(target) {
-    let out = path_bytes(target)
+    let all_inputs : Array[String] = [paths.old, target_path]
+    for pair in paths.pairs {
+      let (patch_path, manifest_path) = pair
+      all_inputs.push(patch_path)
+      all_inputs.push(manifest_path)
+    }
     stream_require(
-      io_check(path_bytes(paths.old), path_bytes(target_path), out) != 0,
+      check_output_against(all_inputs, target),
       "output precheck for '\{target}'",
     )
+    let out = path_bytes(target)
     chain_check_output(out, paths.old)
     chain_check_output(out, target_path)
     Some(out)

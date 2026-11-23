@@ -307,6 +307,12 @@ fn stream_prepare_patch(
     Ok(v) => v
     Err(e) => raise StreamError(@debug.to_string(e))
   }
+  if expected is Some(new) {
+    stream_require(
+      info.new_bytes == new.size,
+      "patch header/new size mismatch: header \{info.new_bytes}, manifest \{new.size}",
+    )
+  }
   for
     (field, cap) in [
       ("max_new_bytes", limits.max_new_bytes),
@@ -316,9 +322,6 @@ fn stream_prepare_patch(
       info.new_bytes <= cap,
       "Header ResourceLimitExceeded: \{field} value=\{info.new_bytes} limit=\{cap}",
     )
-  }
-  if expected is Some(new) {
-    stream_require(info.new_bytes == new.size, "patch header/new size mismatch")
   }
   progress.total = Some(info.new_bytes)
   progress.phase("restoring")
@@ -365,7 +368,13 @@ fn stream_restore_output(
     // A signal noticed while a pull raised is confirmed here, never mistaken
     // for a successful EOF or reported as a cancellation after commit began.
     progress.checkpoint(0)
-    raise StreamError(progress.detail)
+    raise StreamError(
+      if progress.detail == "" {
+        "stream output delivery"
+      } else {
+        progress.detail
+      },
+    )
   }
 }
 
@@ -378,17 +387,16 @@ fn stream_run(config : CliConfig, progress : StreamProgress) -> Unit raise {
     None
   }
   if output is Some(target) {
+    let inputs = match config.manifest {
+      Some(m) => [config.files[0], config.files[1], m]
+      None => [config.files[0], config.files[1]]
+    }
     stream_require(
-      io_check(
-        path_bytes(config.files[0]),
-        path_bytes(config.files[1]),
-        path_bytes(target),
-      ) !=
-      0,
+      check_output_against(inputs, target),
       "stream output precheck",
     )
   }
-  let identity = stream_manifest(config, output, progress)
+  let identity = stream_manifest(config, progress)
   progress.checkpoint(2)
   stream_require(
     stream_open(

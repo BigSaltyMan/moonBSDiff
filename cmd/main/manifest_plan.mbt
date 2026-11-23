@@ -76,7 +76,11 @@ fn plan_failure(error : @manifest.PlanError, config : CliConfig) -> Unit {
       let target_path = config.target_manifest.unwrap()
       let restriction = if effective_max_steps is Some(depth) &&
         config.max_steps is Some(requested) {
-        " (effective --max-steps=\{depth}, requested \{requested})"
+        if depth == 0L {
+          " (no usable candidate steps; requested --max-steps=\{requested})"
+        } else {
+          " (effective --max-steps=\{depth}, requested \{requested})"
+        }
       } else {
         ""
       }

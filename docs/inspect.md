@@ -183,9 +183,10 @@ fn print_patch_stats(patch : Bytes) -> Unit {
 
 `DeepPatchInfo` exposes the read-only `header` and four `Int64` statistics.
 The function validates the supplied `Limits` and enforces `max_patch_bytes`,
-`max_output_bytes`, `max_control_instructions` and `max_decompressed_bytes`.
-`Limits::for_apply()` caps patch bytes at 64 KiB, while the CLI defaults to
-128 KiB. `BsdiffError` identifies the affected stream when applicable. A
+`max_output_bytes`, `max_new_bytes`, `max_control_instructions` and
+`max_decompressed_bytes`. `Limits::for_apply()` caps patch bytes at 128 KiB,
+matching the CLI default. `BsdiffError` identifies the affected stream when
+applicable. A
 Diff CRC mismatch has `kind: DecompressionFailed`, `stage: Diff`,
 `block: Some("diff")`, `field: Some("crc")` and `offset: None`.
 

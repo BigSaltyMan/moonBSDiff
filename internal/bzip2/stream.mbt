@@ -15,6 +15,7 @@ pub struct StreamReader {
   priv mut combined : UInt32
   priv mut in_block : Bool
   priv mut ended : Bool
+  priv mut failed : Bool
 }
 
 ///|
@@ -57,6 +58,7 @@ pub fn StreamReader::new(
     combined: 0U,
     in_block: false,
     ended: false,
+    failed: false,
   }
 }
 
@@ -67,9 +69,20 @@ pub fn StreamReader::read(
   self : StreamReader,
   max : Int32,
 ) -> Bytes raise Fault {
-  if max < 1 || max > 4096 {
+  if self.failed || max < 1 || max > 4096 {
     raise Parameter
   }
+  errdefer {
+    self.failed = true
+  }
+  self.read_inner(max)
+}
+
+///|
+fn StreamReader::read_inner(
+  self : StreamReader,
+  max : Int32,
+) -> Bytes raise Fault {
   let out : Array[Byte] = []
   while out.length() < max && !self.ended {
     if self.pending > 0 {
@@ -113,7 +126,10 @@ pub fn StreamReader::read(
     }
     match marker(self.bits) {
       Some(0) => {
-        let (plain, want) = read_rle_block(self.bits, self.level)
+        if self.meter.remaining_output() == 0L {
+          self.meter.reserve(1)
+        }
+        let (plain, want) = read_rle_block(self.bits, self.level, None)
         self.plain = plain
         self.at = 0
         self.want = want
@@ -140,7 +156,13 @@ pub fn StreamReader::read(
         }
         self.ended = true
       }
-      _ => raise Header(at=self.bits.used(), what="invalid bzip2 marker")
+      _ =>
+        raise Header(
+          at=((self.bits.used().to_int64() * 8L - self.bits.held.to_int64()) /
+          8L -
+          6L).to_int(),
+          what="invalid bzip2 marker",
+        )
     }
   }
   Bytes::from_array(out)

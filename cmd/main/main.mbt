@@ -7,6 +7,14 @@ extern "C" fn io_read(path : Bytes, cap : Int32) -> Bytes = "mbsd_read"
 extern "C" fn io_check(a : Bytes, b : Bytes, out : Bytes) -> Int32 = "mbsd_output_check"
 
 ///|
+#borrow(path)
+extern "C" fn io_input_check(path : Bytes) -> Int32 = "mbsd_input_check"
+
+///|
+#borrow(input, out)
+extern "C" fn io_input_alias_check(input : Bytes, out : Bytes) -> Int32 = "mbsd_input_alias_check"
+
+///|
 #borrow(a, b)
 extern "C" fn io_pair_check(a : Bytes, b : Bytes) -> Int32 = "mbsd_pair_check"
 
@@ -27,6 +35,17 @@ extern "C" fn stderr(text : Bytes) -> Unit = "mbsd_stderr"
 ///|
 fn path_bytes(path : String) -> Bytes {
   @utf8.encode(path[:]) + b"\x00"
+}
+
+///|
+fn check_output_against(inputs : Array[String], output : String) -> Bool {
+  let out_bytes = path_bytes(output)
+  for inp in inputs {
+    if io_input_alias_check(path_bytes(inp), out_bytes) == 0 {
+      return false
+    }
+  }
+  io_check(b"\x00", b"\x00", out_bytes) != 0
 }
 
 ///|
@@ -55,6 +74,16 @@ fn cli_args() -> Array[String] {
   let count = native_arg_count()
   if count == -1 {
     @env.args()
+  } else if count == -3 {
+    stderr(
+      @utf8.encode(
+        ("moonbsdiff: command-line arguments: " +
+        @utf8.decode_lossy(io_error()[:]) +
+        "\n")[:],
+      ),
+    )
+    @env.exit(2)
+    []
   } else if count < 0 {
     failure("command-line arguments: " + @utf8.decode_lossy(io_error()[:]))
     []
@@ -140,8 +169,37 @@ struct CliConfig {
 
 ///|
 fn leading_dash(text : String) -> Bool {
-  let raw = @utf8.encode(text[:])
-  raw.length() > 0 && raw[0].to_int() == 45
+  text.length() > 0 && text.code_unit_at(0) == 45
+}
+
+///|
+fn is_known_option(option : String) -> Bool {
+  match option {
+    "--help"
+    | "-h"
+    | "--version"
+    | "--progress"
+    | "--stream"
+    | "--compression-level"
+    | "--manifest"
+    | "--max-steps"
+    | "--local-patch"
+    | "--max-download-bytes"
+    | "--allow-full"
+    | "--target-manifest"
+    | "--deep"
+    | "--json"
+    | "--show-limits"
+    | "--max-old-bytes"
+    | "--max-new-bytes"
+    | "--max-output-bytes"
+    | "--max-patch-bytes"
+    | "--max-expanded-bytes"
+    | "--max-controls"
+    | "--max-sort-work"
+    | "--max-match-work" => true
+    _ => false
+  }
 }
 
 ///|
@@ -223,6 +281,9 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
     }
     if !leading_dash(option) {
       break
+    }
+    if !is_known_option(option) {
+      return Err("unknown option: " + option)
     }
     if operation == "inspect" &&
       option != "--json" &&
@@ -359,6 +420,8 @@ fn parse_cli(args : Array[String]) -> Result[CliConfig, String] {
         }
         false
       }
+      "--help" | "-h" | "--version" =>
+        return Err(option + " is not applicable to " + operation)
       _ => return Err("unknown option: " + option)
     }
     if option != "--local-patch" {
@@ -669,7 +732,12 @@ fn main {
     stream_command(config)
     return
   }
-  if io_check(path_bytes(first), path_bytes(second), path_bytes(output)) == 0 {
+  let inputs = if operation == "patch" && config.manifest is Some(manifest_path) {
+    [first, second, manifest_path]
+  } else {
+    [first, second]
+  }
+  if !check_output_against(inputs, output) {
     failure(
       operation +
       " output '" +
@@ -682,18 +750,7 @@ fn main {
       @utf8.decode_lossy(io_error()[:]),
     )
   }
-  if operation == "patch" && config.manifest is Some(manifest_path) {
-    if io_check(
-        path_bytes(first),
-        path_bytes(manifest_path),
-        path_bytes(output),
-      ) ==
-      0 {
-      failure(
-        "patch output conflicts with input/manifest: " +
-        @utf8.decode_lossy(io_error()[:]),
-      )
-    }
+  if operation == "patch" && config.manifest is Some(_) {
     let restored = verified_restore(config)
     if io_deliver(path_bytes(output), restored) == 0 {
       failure(

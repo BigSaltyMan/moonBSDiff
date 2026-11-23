@@ -41,7 +41,7 @@
  }
 
  ///|
-@@ -27,7 +44,20 @@
+@@ -27,7 +44,21 @@
  fn Bits::take(self : Bits, n : Int32) -> Int32? {
    while self.held < n {
      if self.at >= self.data.length() {
@@ -55,6 +55,7 @@
 +          if chunk.length() == 0 ||
 +            chunk.length() > 4096 ||
 +            chunk.length() > self.total - self.base {
++            self.data = b""[:]
 +            return None
 +          }
 +          self.data = chunk[:]
@@ -63,7 +64,7 @@
      }
      self.acc = (self.acc << 8) | self.data[self.at].to_uint()
      self.at += 1
-@@ -60,66 +90,5 @@
+@@ -60,66 +91,5 @@
  /// How many bytes were read out of the slice, which is where the reader got to
  /// rather than where the last bit it used ended.
  fn Bits::used(self : Bits) -> Int32 {
@@ -178,15 +179,17 @@
      }
      self.group_pos = 50
      self.group = self.selectors[self.group_no]
-@@ -137,19 +138,16 @@
+@@ -137,19 +138,35 @@
  /// Burrows-Wheeler, and then the run-length stage the sort was fed from. The CRC
  /// is checked at the end against the one in the header, because it is over the
  /// bytes after the last stage.
 -fn read_block(
--  bits : Bits,
--  level : Int32,
++fn read_rle_block(
+   bits : Bits,
+   level : Int32,
 -) -> (Bytes, UInt32) raise @moonzip.Refused {
-+fn read_rle_block(bits : Bits, level : Int32) -> (Bytes, UInt32) raise Fault {
++  meter : Meter?,
++) -> (Bytes, UInt32) raise Fault {
    let want_crc = match bits.take_word() {
      Some(v) => v
 -    None => raise @moonzip.Truncated(at=bits.used())
@@ -195,13 +198,28 @@
    let randomised = need(bits, 1) != 0
    let orig_ptr = need(bits, 24)
    let max_block = 100000 * level
++  let rle_limit = match meter {
++    Some(m) => {
++      let rem = m.remaining_output()
++      if rem == 0L {
++        0
++      } else {
++        // Every 5-byte RLE1 run emits at least 4 bytes, so a valid block
++        // emitting <= rem bytes has at most rem + rem / 4 RLE-domain bytes.
++        // Keep a 4 KiB floor so small blocks still report exact byte limits.
++        let bound = Int64::max(4096L, rem + rem / 4L)
++        Int64::min(max_block.to_int64(), bound).to_int()
++      }
++    }
++    None => max_block
++  }
    if orig_ptr < 0 || orig_ptr > max_block + 10 {
 -    raise @moonzip.Header(
 +    raise Header(
        at=bits.used(),
        what="the block's start pointer is outside the block",
      )
-@@ -177,16 +175,13 @@
+@@ -177,16 +194,13 @@
    }
    let n_in_use = seq_to_unseq.length()
    if n_in_use == 0 {
@@ -220,7 +238,7 @@
        at=bits.used(),
        what="a block with the wrong number of code tables",
      )
-@@ -196,7 +191,7 @@
+@@ -196,7 +210,7 @@
    // the data.
    let n_selectors = need(bits, 15)
    if n_selectors < 1 {
@@ -229,7 +247,7 @@
    }
    let selector_mtf = Array::make(n_selectors, 0)
    for i in 0..<n_selectors {
-@@ -204,7 +199,7 @@
+@@ -204,7 +218,7 @@
      while need(bits, 1) == 1 {
        j += 1
        if j >= n_groups {
@@ -238,7 +256,7 @@
        }
      }
      selector_mtf[i] = j
-@@ -233,7 +228,7 @@
+@@ -233,7 +247,7 @@
      for symbol in 0..<alpha {
        while true {
          if curr < 1 || curr > 20 {
@@ -247,7 +265,7 @@
          }
          if need(bits, 1) == 0 {
            break
-@@ -266,7 +261,7 @@
+@@ -266,7 +280,7 @@
    let mut sym = fetcher.next(bits)
    while true {
      if sym < 0 {
@@ -256,7 +274,7 @@
      }
      if sym == eob {
        break
-@@ -276,7 +271,7 @@
+@@ -276,7 +290,7 @@
        let mut weight = 1
        while true {
          if weight >= 2097152 {
@@ -265,7 +283,7 @@
          }
          if sym == 0 {
            run += weight
-@@ -286,15 +281,15 @@
+@@ -286,15 +300,21 @@
          weight = weight * 2
          sym = fetcher.next(bits)
          if sym < 0 {
@@ -281,10 +299,16 @@
 -        raise @moonzip.Code(at=bits.used())
 +      if run > max_block - block.length() {
 +        raise Code(at=bits.used())
++      }
++      if run > rle_limit - block.length() {
++        if meter is Some(m) {
++          m.reject_over_budget(block.length() + run)
++        }
++        raise Code(at=bits.used())
        }
        let byte = seq_to_unseq[mtf[0]]
        for _ in 0..<run {
-@@ -304,7 +299,7 @@
+@@ -304,7 +324,7 @@
      }
      let v = sym - 1
      if v < 0 || v >= mtf.length() {
@@ -293,11 +317,17 @@
      }
      let value = mtf[v]
      let mut k = v
-@@ -314,17 +309,17 @@
+@@ -314,17 +334,23 @@
      }
      mtf[0] = value
      if block.length() >= max_block {
 -      raise @moonzip.Code(at=bits.used())
++      raise Code(at=bits.used())
++    }
++    if block.length() >= rle_limit {
++      if meter is Some(m) {
++        m.reject_over_budget(block.length() + 1)
++      }
 +      raise Code(at=bits.used())
      }
      block.push(seq_to_unseq[value])
@@ -314,7 +344,7 @@
        at=bits.used(),
        what="the block's start pointer is past its end",
      )
-@@ -373,6 +368,18 @@
+@@ -373,6 +399,18 @@
      }
      plain.push(byte.to_byte())
    }
@@ -328,12 +358,12 @@
 +  level : Int32,
 +  meter : Meter,
 +) -> (Bytes, UInt32) raise Fault {
-+  let (plain, want_crc) = read_rle_block(bits, level)
++  let (plain, want_crc) = read_rle_block(bits, level, Some(meter))
 +  let n = plain.length()
    // And the run-length stage: four or more equal bytes were written as four and a
    // count, so four of a kind followed by a byte is not five bytes.
    let out : Array[Byte] = []
-@@ -388,10 +395,15 @@
+@@ -388,10 +426,15 @@
        i += 1
      }
      let mut total = run
@@ -349,7 +379,7 @@
      for _ in 0..<total {
        crc.push_byte(value)
        out.push(byte)
-@@ -399,7 +411,7 @@
+@@ -399,7 +442,7 @@
    }
    let got = crc.finish()
    if got != want_crc {

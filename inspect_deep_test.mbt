@@ -125,3 +125,53 @@ test "inspect deep public shared budget and retry" {
     assert_eq(patch, before)
   }
 }
+
+///|
+test "inspect deep enforces max_new_bytes and matches apply marker offset" {
+  let limits = { ..@moonbsdiff.Limits::for_apply(), max_new_bytes: 5L, }
+  let expected_new_limit = @moonbsdiff.BsdiffError::{
+    kind: ResourceLimitExceeded,
+    stage: Header,
+    block: None,
+    offset: Some(24L),
+    field: Some("max_new_bytes"),
+    value: Some(6L),
+    limit: Some(5L),
+  }
+  match @moonbsdiff.inspect_deep(deep_sample(), limits) {
+    Err(error) => assert_eq(error, expected_new_limit)
+    Ok(_) => abort("max_new_bytes limit ignored by inspect_deep")
+  }
+  assert_eq(
+    @moonbsdiff.apply(b"abcdef", deep_sample(), limits),
+    Err(expected_new_limit),
+  )
+  let empty_bz2 = b"\x42\x5a\x68\x39\x17\x72\x45\x38\x50\x90\x00\x00\x00\x00"
+  let bad_marker = b"BSDIFF40" +
+    b"\x0a\x00\x00\x00\x00\x00\x00\x00" +
+    b"\x0e\x00\x00\x00\x00\x00\x00\x00" +
+    b"\x00\x00\x00\x00\x00\x00\x00\x00" +
+    b"BZh9BADMRK" +
+    empty_bz2 +
+    empty_bz2
+  let expected_marker = @moonbsdiff.BsdiffError::{
+    kind: InvalidField,
+    stage: Control,
+    block: Some("control"),
+    offset: Some(36L),
+    field: Some("invalid bzip2 marker"),
+    value: None,
+    limit: None,
+  }
+  match
+    (
+      @moonbsdiff.apply(b"", bad_marker, limits),
+      @moonbsdiff.inspect_deep(bad_marker, limits),
+    ) {
+    (Err(apply_error), Err(inspect_error)) => {
+      assert_eq(apply_error, expected_marker)
+      assert_eq(inspect_error, apply_error)
+    }
+    _ => abort("invalid bzip2 marker was accepted")
+  }
+}

@@ -47,7 +47,7 @@ fn manifest_create_command(config : CliConfig) -> Unit {
   let output_path = config.files[3]
   let output = path_bytes(output_path)
   // The preflight rejects any existing output entry, including input aliases.
-  if io_check(path_bytes(old_path), path_bytes(new_path), output) == 0 {
+  if !check_output_against([old_path, new_path, patch_path], output_path) {
     failure(
       "manifest create output '\{output_path}': " +
       @utf8.decode_lossy(io_error()[:]),

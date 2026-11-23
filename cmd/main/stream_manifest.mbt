@@ -49,21 +49,9 @@ fn stream_read_manifest(
 ///|
 fn stream_manifest(
   config : CliConfig,
-  output : String?,
   progress : StreamProgress,
 ) -> @manifest.PreparedManifest? raise {
   guard config.manifest is Some(path) else { return None }
-  if output is Some(target) {
-    stream_require(
-      io_check(
-        path_bytes(config.files[0]),
-        path_bytes(path),
-        path_bytes(target),
-      ) !=
-      0,
-      "stream manifest/output precheck",
-    )
-  }
   Some(stream_read_manifest(path, config.limits, progress))
 }
 

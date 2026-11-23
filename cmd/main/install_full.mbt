@@ -7,16 +7,8 @@ extern "C" fn stream_expect_eof(which : Int32) -> Int32 = "mbsd_stream_expect_eo
 
 ///|
 fn copy_full_target(
-  source : Bytes,
   target : @manifest.ContentIdentity,
-  cap : Int64,
 ) -> Unit raise StreamError {
-  stream_require(stream_open_full(source, cap) != 0, "open downloaded file")
-  let size = stream_size(0)
-  stream_require(
-    size == target.size,
-    "downloaded file size mismatch: expected \{target.size}, got \{size}",
-  )
   let hash = @sha2.Hasher::new(kind=@sha2.Sha256)
   let mut written = 0L
   while written < target.size {
@@ -55,7 +47,7 @@ fn install_full_command(config : CliConfig) -> Unit {
         "install-full '\{manifest}': " + manifest_diagnostic(error),
       )
   }
-  if io_check(source, path_bytes(manifest), destination) == 0 {
+  if !check_output_against([config.files[0], manifest], output) {
     failure(
       "install-full output '\{output}': " + @utf8.decode_lossy(io_error()[:]),
     )
@@ -65,13 +57,27 @@ fn install_full_command(config : CliConfig) -> Unit {
     config.limits.max_new_bytes,
     config.limits.max_output_bytes,
   )
+  if stream_open_full(source, cap) == 0 {
+    let error = @utf8.decode_lossy(io_error()[:])
+    stream_abort()
+    failure("install-full '\{config.files[0]}': open downloaded file; " + error)
+    return
+  }
+  let size = stream_size(0)
+  if size != target.size {
+    stream_abort()
+    failure(
+      "install-full '\{output}': downloaded file size mismatch: expected \{target.size}, got \{size}",
+    )
+    return
+  }
   let mut reason = ""
   let ok = stream_deliver(
     destination,
     fn(f) { f() },
     fn() {
       try {
-        copy_full_target(source, target, cap)
+        copy_full_target(target)
         1
       } catch {
         StreamError(message) => {
@@ -88,7 +94,8 @@ fn install_full_command(config : CliConfig) -> Unit {
     } else {
       "delivery returned without publication"
     }
-    let state = if stream_published() != 0 {
+    let state = if stream_published() != 0 &&
+      !detail.has_prefix("output already delivered;") {
       "output already delivered; "
     } else {
       ""

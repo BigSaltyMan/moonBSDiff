@@ -20,6 +20,19 @@ pub fn inspect_deep(
     Err(error) => return Err(error)
     Ok(value) => value
   }
+  if ranges.new_size > limits.max_new_bytes {
+    return Err(
+      format_error(
+        ResourceLimitExceeded,
+        Header,
+        None,
+        Some(24L),
+        Some("max_new_bytes"),
+        Some(ranges.new_size),
+        Some(limits.max_new_bytes),
+      ),
+    )
+  }
   Ok(inspect_streams(patch, ranges, limits)) catch {
     InspectionFailed(error) => Err(error)
   }

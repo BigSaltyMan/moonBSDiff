@@ -54,6 +54,17 @@ fn diff_many_preflight(files : Array[String]) -> Result[Unit, (Int32, String)] {
       }
     }
   }
+  if io_input_check(paths[0]) == 0 {
+    return Err((1, "preflight input '\{files[0]}': " + diff_many_io_error()))
+  }
+  for idx = 1; idx < files.length(); idx = idx + 3 {
+    let group = (idx - 1) / 3 + 1
+    if io_input_check(paths[idx]) == 0 {
+      return Err(
+        (group, "preflight input '\{files[idx]}': " + diff_many_io_error()),
+      )
+    }
+  }
   Ok(())
 }
 

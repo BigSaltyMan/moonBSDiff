@@ -84,3 +84,123 @@ test "stream pull: source refill, paused runs, strict end, budget" {
   assert_true(limited)
   assert_eq(budget.emitted, 6L)
 }
+
+///|
+test "stream pull: fault latch and zero-remaining block bound" {
+  // Truncated stream delivered across two chunks: first read fails Truncated,
+  // second read must stay latched as Parameter without replaying buffered data.
+  let truncated = b"BZh91AY&SY"
+  let chunks = [truncated[:5].to_owned(), truncated[5:].to_owned()]
+  let mut chunk_index = 0
+  let mut source_calls = 0
+  let trunc_reader = StreamReader::new(
+    truncated.length(),
+    fn() {
+      source_calls += 1
+      if chunk_index < chunks.length() {
+        let part = chunks[chunk_index]
+        chunk_index += 1
+        part
+      } else {
+        b""
+      }
+    },
+    16,
+    Budget::{ remaining: 16L, emitted: 0L, },
+  )
+  let mut saw_truncated = false
+  try trunc_reader.read(1) |> ignore catch {
+    Truncated(at=10) => saw_truncated = true
+    _ => ()
+  }
+  assert_true(saw_truncated)
+  assert_true(trunc_reader.failed)
+  let calls_after_fault = source_calls
+  let mut saw_parameter = false
+  try trunc_reader.read(1) |> ignore catch {
+    Parameter => saw_parameter = true
+    _ => ()
+  }
+  assert_true(saw_parameter)
+  assert_eq(source_calls, calls_after_fault)
+
+  // Single-block stream with 4352 distinct adjacent bytes (> 4096 RLE bytes).
+  let writer = Writer::new(level=1)
+  let packed = writer.push(
+      Bytes::from_array(Array::makei(4352, i => (i % 256).to_byte()))[:],
+    ) +
+    writer.finish()
+
+  // Zero cap must fail before decoding the block.
+  let mut at_cap = 0
+  let cap_budget = Budget::{ remaining: 100L, emitted: 0L, }
+  let cap_reader = StreamReader::new(
+    packed.length(),
+    fn() {
+      let n = Int32::min(4096, packed.length() - at_cap)
+      let part = packed[at_cap:at_cap + n].to_owned()
+      at_cap += n
+      part
+    },
+    0,
+    cap_budget,
+  )
+  let mut saw_cap_limit = false
+  try cap_reader.read(1) |> ignore catch {
+    Limit(field="block_output_bytes", value=1L, limit=0L) =>
+      saw_cap_limit = true
+    _ => ()
+  }
+  assert_true(saw_cap_limit)
+  assert_eq(cap_reader.plain.length(), 0)
+  assert_false(cap_reader.in_block)
+  assert_true(cap_reader.failed)
+  assert_eq(cap_budget.emitted, 0L)
+
+  // Zero remaining shared budget must also fail before decoding the block.
+  let mut at_rem = 0
+  let zero_budget = Budget::{ remaining: 0L, emitted: 0L, }
+  let rem_reader = StreamReader::new(
+    packed.length(),
+    fn() {
+      let n = Int32::min(4096, packed.length() - at_rem)
+      let part = packed[at_rem:at_rem + n].to_owned()
+      at_rem += n
+      part
+    },
+    100,
+    zero_budget,
+  )
+  let mut saw_rem_limit = false
+  try rem_reader.read(1) |> ignore catch {
+    Limit(field="decompressed_remaining", value=1L, limit=0L) =>
+      saw_rem_limit = true
+    _ => ()
+  }
+  assert_true(saw_rem_limit)
+  assert_eq(rem_reader.plain.length(), 0)
+  assert_false(rem_reader.in_block)
+  assert_true(rem_reader.failed)
+  assert_eq(zero_budget.emitted, 0L)
+
+  // One-shot decode rejects > 4096 RLE bytes early without decoding the block.
+  let one_budget = Budget::{ remaining: 1L, emitted: 0L, }
+  let mut saw_decode_cap_limit = false
+  try decode(packed[:], 1, one_budget) |> ignore catch {
+    Limit(field="block_output_bytes", value~, limit=1L) =>
+      saw_decode_cap_limit = value > 4096L
+    _ => ()
+  }
+  assert_true(saw_decode_cap_limit)
+  assert_eq(one_budget.emitted, 0L)
+
+  let rem_only_budget = Budget::{ remaining: 1L, emitted: 0L, }
+  let mut saw_decode_rem_limit = false
+  try decode(packed[:], 100000, rem_only_budget) |> ignore catch {
+    Limit(field="decompressed_remaining", value~, limit=1L) =>
+      saw_decode_rem_limit = value > 4096L
+    _ => ()
+  }
+  assert_true(saw_decode_rem_limit)
+  assert_eq(rem_only_budget.emitted, 0L)
+}

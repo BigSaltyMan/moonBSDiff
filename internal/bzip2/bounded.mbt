@@ -51,6 +51,30 @@ fn Meter::reserve(self : Meter, count : Int32) -> Unit raise Fault {
 }
 
 ///|
+fn Meter::remaining_output(self : Meter) -> Int64 {
+  Int64::min((self.cap - self.produced).to_int64(), self.budget.remaining)
+}
+
+///|
+fn Meter::reject_over_budget(self : Meter, needed : Int32) -> Unit raise Fault {
+  let count = Int32::max(1, needed)
+  let cap_rem = self.cap - self.produced
+  if cap_rem.to_int64() <= self.budget.remaining {
+    raise Limit(
+      field="block_output_bytes",
+      value=self.produced.to_int64() + count.to_int64(),
+      limit=self.cap.to_int64(),
+    )
+  } else {
+    raise Limit(
+      field="decompressed_remaining",
+      value=count.to_int64(),
+      limit=self.budget.remaining,
+    )
+  }
+}
+
+///|
 pub(all) struct Decoded {
   output : Bytes
   consumed_bits : Int64

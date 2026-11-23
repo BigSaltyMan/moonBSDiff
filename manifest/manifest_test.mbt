@@ -143,3 +143,17 @@ test "manifest public byte cap, strict keys, and declared limits" {
     Ok(b"012345XYZ9abcdefghij"),
   )
 }
+
+///|
+test "manifest public rejects UTF-8 BOM as InvalidEncoding" {
+  let limits = @moonbsdiff.Limits::for_apply()
+  let with_bom = b"\xef\xbb\xbf" + @utf8.encode(upstream_replace_manifest()[:])
+  match @manifest.prepare(with_bom, limits) {
+    Err(error) => assert_eq(error, @manifest.InvalidEncoding)
+    Ok(_) => abort("UTF-8 BOM manifest was accepted by prepare")
+  }
+  match @manifest.prepare_target(with_bom, limits) {
+    Err(error) => assert_eq(error, @manifest.InvalidEncoding)
+    Ok(_) => abort("UTF-8 BOM manifest was accepted by prepare_target")
+  }
+}

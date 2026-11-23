@@ -11,21 +11,21 @@
     "bzip2.mbt": "ad9601ca50d02fee238924f8ab0a7c5e0c06e2534d4d4877f1c92f995599a830"
   },
   "adapted_files": {
-    "bits.mbt": "ef9134d64ac8dabc35c120158b70937fb92ccae7574f607cbdc3f71156ea27e6",
-    "bounded.mbt": "8509deddbc234babd2b398f6d5e060a6bacc75f6cafc41bd2e59820c28ec7564",
+    "bits.mbt": "32c5b6ce5fe0b16a281e0fea44b730351f65207aa4f80f8c9234009493c93a0d",
+    "bounded.mbt": "187db6c3d0d2332ec632fc13e78241bddede935a2076fa7fa71b186b782056aa",
     "bzip2.mbt": "7972d0b5f949a46defbbcf5f04e49ea739fe44563c8b3ef9f68045698ac26f16",
     "crc.mbt": "baff55ebf8723ee27ad3b7a773eafb0f4e31ab8cbf90c220135bd9a32bae5ef4",
-    "decode.mbt": "8666834a135faea4b87236452b7de9d425ad0a437a7cc425eabce41d8ba91d24",
+    "decode.mbt": "8add1240b3423951432b17a9e3e3af48ba4fb561f606407dbf440c6c7490b621",
     "LICENSE": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
     "moon.pkg": "f55457e90e133b551bb83a9ac6b3f26b4d21e6678155f918c885105a723bf059",
     "rand.mbt": "9c05bdd91d74a3afedc80a3db748106da93c781a88322faa12f0b50ec268dbdf",
-    "stream.mbt": "5196242609866c5d603b1f174a85ef989de6eaa2c5be806f66578383a626e546",
+    "stream.mbt": "f10747cd8db6485a9dfca6dc29b15599b2fb17e0a2ca0c43809f1fbf710fd454",
     "writer.mbt": "acf9d58d36426f282b7fb1588574d9fdd01ff9b07a5d19fee6d468d12ce492d2",
     "encode.mbt": "1130caf8998e75fc5e52988bda73651d6d5c0462cc914ca990e2bf46fcc9366a",
     "bwt.mbt": "fa8ba45ac8544c4530ee614f9c945ca718ef4142a87b73b370447e9426ed099a",
     "sink.mbt": "f190919d1fc7bc2806d290624060ccb8896d55282103598656c6909e3b266d12"
   },
-  "adaptation_patch_sha256": "e0645642698baab584e0e40b0723b6f71e8bdac3712f7c30b96aeb1bc09f02a8",
+  "adaptation_patch_sha256": "71ebd059800176b47311180b3d9477f5de41b352ebe90e30360ba0b7935520ac",
   "encoder_sources": {
     "writer.mbt": {
       "upstream": "stream.mbt",

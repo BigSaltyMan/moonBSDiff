@@ -138,7 +138,11 @@ fn Fetcher::next(self : Fetcher, bits : Bits) -> Int32 raise Fault {
 /// Burrows-Wheeler, and then the run-length stage the sort was fed from. The CRC
 /// is checked at the end against the one in the header, because it is over the
 /// bytes after the last stage.
-fn read_rle_block(bits : Bits, level : Int32) -> (Bytes, UInt32) raise Fault {
+fn read_rle_block(
+  bits : Bits,
+  level : Int32,
+  meter : Meter?,
+) -> (Bytes, UInt32) raise Fault {
   let want_crc = match bits.take_word() {
     Some(v) => v
     None => raise Truncated(at=bits.used())
@@ -146,6 +150,21 @@ fn read_rle_block(bits : Bits, level : Int32) -> (Bytes, UInt32) raise Fault {
   let randomised = need(bits, 1) != 0
   let orig_ptr = need(bits, 24)
   let max_block = 100000 * level
+  let rle_limit = match meter {
+    Some(m) => {
+      let rem = m.remaining_output()
+      if rem == 0L {
+        0
+      } else {
+        // Every 5-byte RLE1 run emits at least 4 bytes, so a valid block
+        // emitting <= rem bytes has at most rem + rem / 4 RLE-domain bytes.
+        // Keep a 4 KiB floor so small blocks still report exact byte limits.
+        let bound = Int64::max(4096L, rem + rem / 4L)
+        Int64::min(max_block.to_int64(), bound).to_int()
+      }
+    }
+    None => max_block
+  }
   if orig_ptr < 0 || orig_ptr > max_block + 10 {
     raise Header(
       at=bits.used(),
@@ -291,6 +310,12 @@ fn read_rle_block(bits : Bits, level : Int32) -> (Bytes, UInt32) raise Fault {
       if run > max_block - block.length() {
         raise Code(at=bits.used())
       }
+      if run > rle_limit - block.length() {
+        if meter is Some(m) {
+          m.reject_over_budget(block.length() + run)
+        }
+        raise Code(at=bits.used())
+      }
       let byte = seq_to_unseq[mtf[0]]
       for _ in 0..<run {
         block.push(byte)
@@ -309,6 +334,12 @@ fn read_rle_block(bits : Bits, level : Int32) -> (Bytes, UInt32) raise Fault {
     }
     mtf[0] = value
     if block.length() >= max_block {
+      raise Code(at=bits.used())
+    }
+    if block.length() >= rle_limit {
+      if meter is Some(m) {
+        m.reject_over_budget(block.length() + 1)
+      }
       raise Code(at=bits.used())
     }
     block.push(seq_to_unseq[value])
@@ -378,7 +409,7 @@ fn read_block(
   level : Int32,
   meter : Meter,
 ) -> (Bytes, UInt32) raise Fault {
-  let (plain, want_crc) = read_rle_block(bits, level)
+  let (plain, want_crc) = read_rle_block(bits, level, Some(meter))
   let n = plain.length()
   // And the run-length stage: four or more equal bytes were written as four and a
   // count, so four of a kind followed by a byte is not five bytes.

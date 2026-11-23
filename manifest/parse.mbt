@@ -132,6 +132,9 @@ fn parse_manifest(
   data : Bytes,
   limits : @moonbsdiff.Limits,
 ) -> PreparedManifest raise ManifestFault {
+  if data is [0xef, 0xbb, 0xbf, ..] {
+    raise Rejected(InvalidEncoding)
+  }
   let text = @utf8.decode(data[:], ignore_bom=false) catch {
     _ => raise Rejected(InvalidEncoding)
   }

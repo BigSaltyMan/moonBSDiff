@@ -233,8 +233,8 @@ The restoring phase event between start and progress is omitted above only to
 keep this excerpt short. Text mode uses the same state, for example:
 
 ```text
-moonbsdiff: progress stage=restoring restored_bytes=8192 total_bytes="8192" output_committed=false Temporary bytes; final validation/delivery still pending
-moonbsdiff: complete stage=complete restored_bytes=8192 total_bytes="8192" output_committed=true All checks and delivery completed
+moonbsdiff: progress stage=restoring restored_bytes=8192 total_bytes=8192 output_committed=false Temporary bytes; final validation/delivery still pending
+moonbsdiff: complete stage=complete restored_bytes=8192 total_bytes=8192 output_committed=true All checks and delivery completed
 ```
 
 ### Notification, checkpoints and irreversible boundary

@@ -53,6 +53,7 @@ fn Bits::take(self : Bits, n : Int32) -> Int32? {
           if chunk.length() == 0 ||
             chunk.length() > 4096 ||
             chunk.length() > self.total - self.base {
+            self.data = b""[:]
             return None
           }
           self.data = chunk[:]

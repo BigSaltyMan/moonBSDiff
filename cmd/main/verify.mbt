@@ -9,6 +9,7 @@ fn manifest_diagnostic(error : @manifest.ManifestError) -> String {
       let object = match field {
         "max_old_bytes" => "old"
         "max_patch_bytes" => "patch"
+        "max_manifest_bytes" => "manifest"
         _ => "new"
       }
       "manifest limits: \{object}/\{field} declared size \{value} exceeds limit \{limit}"

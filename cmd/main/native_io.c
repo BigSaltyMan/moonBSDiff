@@ -23,13 +23,19 @@
 #else
 #include <unistd.h>
 #include <fcntl.h>
+#include <strings.h>
 #include <sys/stat.h>
+#include <sys/ioctl.h>
 #ifdef MBSD_IO_TEST
 #include <dirent.h>
 #endif
 #include <sys/random.h>
 #include <sys/vfs.h>
+#include <linux/fs.h>
 #include <linux/magic.h>
+#ifndef FS_CASEFOLD_FL
+#define FS_CASEFOLD_FL 0x40000000
+#endif
 #endif
 
 #ifdef _WIN32
@@ -47,7 +53,13 @@ static void mark_delivery(moonbit_bytes_t data) {
   delivery_committed=1;
   if(!data) stream_mark_published();
 }
-static char problem[256];
+static char problem[512];
+static void annotate_delivered_problem(void) {
+  if(delivery_committed && problem[0] && strncmp(problem,"output already delivered;",25)!=0) {
+    char original[512];memcpy(original,problem,sizeof(original));
+    snprintf(problem,sizeof(problem),"output already delivered; %.475s",original);
+  }
+}
 /* A private source snapshot enables these fault points at compile time. */
 #ifdef MBSD_IO_TEST
 #define IO_TEST(...) __VA_ARGS__
@@ -100,11 +112,102 @@ static int windows_write(HANDLE file,const void *data,DWORD requested,DWORD *don
 }
 static wchar_t *wide(const char *s) {
   int n=MultiByteToWideChar(CP_UTF8,MB_ERR_INVALID_CHARS,s,-1,NULL,0);
-  if(n<=0 || n>32768) { fail("UTF-8 path conversion",GetLastError()); return NULL; }
+  if(n<=0) { fail("UTF-8 path conversion",GetLastError()); return NULL; }
+  if(n>32768) { fail("UTF-8 path too long",ERROR_FILENAME_EXCED_RANGE); return NULL; }
   wchar_t *p=malloc((size_t)n*sizeof(wchar_t));
   if(!p) { fail("path allocation",ERROR_NOT_ENOUGH_MEMORY); return NULL; }
-  if(!MultiByteToWideChar(CP_UTF8,MB_ERR_INVALID_CHARS,s,-1,p,n)) { fail("UTF-8 path conversion",GetLastError()); free(p); return NULL; }
+  if(!MultiByteToWideChar(CP_UTF8,MB_ERR_INVALID_CHARS,s,-1,p,n)) { DWORD e=GetLastError(); free(p); fail("UTF-8 path conversion",e); return NULL; }
   return p;
+}
+static int valid_utf16(const wchar_t *s) {
+  for(size_t i=0;s[i];i++) {
+    uint16_t w=(uint16_t)s[i];
+    if(w>=0xD800u && w<=0xDBFFu) {
+      uint16_t next=(uint16_t)s[i+1];
+      if(next<0xDC00u || next>0xDFFFu) return 0;
+      i++;
+    } else if(w>=0xDC00u && w<=0xDFFFu) return 0;
+  }
+  return 1;
+}
+#ifndef LOAD_LIBRARY_SEARCH_SYSTEM32
+#define LOAD_LIBRARY_SEARCH_SYSTEM32 0x00000800
+#endif
+static void win_random_hex(wchar_t out[33]) {
+  unsigned char token[16]={0};
+  int got=0;
+  typedef LONG (WINAPI *bcrypt_random)(void*,unsigned char*,ULONG,ULONG);
+  HMODULE dll=LoadLibraryExW(L"bcrypt.dll",NULL,LOAD_LIBRARY_SEARCH_SYSTEM32);
+  if(dll) {
+    bcrypt_random gen=(bcrypt_random)GetProcAddress(dll,"BCryptGenRandom");
+    if(gen && gen(NULL,token,(ULONG)sizeof(token),0x00000002UL)==0) got=1;
+    FreeLibrary(dll);
+  }
+  if(!got) {
+    uint64_t a=((uint64_t)GetCurrentProcessId()<<32)^(uint64_t)GetTickCount64();
+    uint64_t b=(uint64_t)(++sequence)*0x9E3779B97F4A7C15ULL;
+    memcpy(token,&a,8); memcpy(token+8,&b,8);
+  }
+  static const wchar_t hex[]=L"0123456789abcdef";
+  for(size_t i=0;i<16;i++) { out[i*2]=hex[token[i]>>4]; out[i*2+1]=hex[token[i]&15]; }
+  out[32]=0;
+}
+static int win_validate_output_path(const wchar_t *raw) {
+  size_t len=wcslen(raw);
+  if(!len) { fail("invalid output name",ERROR_INVALID_NAME); return 0; }
+  if(raw[len-1]==L'\\' || raw[len-1]==L'/') { fail("invalid output name",ERROR_INVALID_NAME); return 0; }
+  int extended=(len>=4 && raw[0]==L'\\' && raw[1]==L'\\' && raw[2]==L'?' && raw[3]==L'\\');
+  const wchar_t *leaf=raw;
+  for(const wchar_t *q=raw;*q;q++) if(*q==L'\\' || *q==L'/') leaf=q+1;
+  if(!*leaf) { fail("invalid output name",ERROR_INVALID_NAME); return 0; }
+  const wchar_t *colon_scan=leaf;
+  if(leaf==raw && ((raw[0]>=L'A' && raw[0]<=L'Z') || (raw[0]>=L'a' && raw[0]<=L'z')) && raw[1]==L':') colon_scan=raw+2;
+  if(wcschr(colon_scan,L':')) { fail("alternate data streams are unsupported",ERROR_INVALID_NAME); return 0; }
+  if(extended) {
+    size_t llen=wcslen(leaf);
+    if(llen && (leaf[llen-1]==L'.' || leaf[llen-1]==L' ')) {
+      fail("extended path trailing dot or space is unsupported",ERROR_INVALID_NAME);
+      return 0;
+    }
+  }
+  return 1;
+}
+#else
+static int linux_argc;
+static char **linux_argv;
+__attribute__((constructor)) static void mbsd_capture_argv(int argc,char **argv,char **envp) {
+  (void)envp;
+  if(argc>0 && argv) { linux_argc=argc; linux_argv=argv; }
+}
+static int valid_utf8(const unsigned char *s,size_t n) {
+  size_t i=0;
+  while(i<n) {
+    unsigned char c=s[i];
+    if(c<0x80u) { i++; }
+    else if(c>=0xC2u && c<=0xDFu) {
+      if(i+1>=n || (s[i+1]&0xC0u)!=0x80u) return 0;
+      i+=2;
+    } else if(c==0xE0u) {
+      if(i+2>=n || s[i+1]<0xA0u || s[i+1]>0xBFu || (s[i+2]&0xC0u)!=0x80u) return 0;
+      i+=3;
+    } else if((c>=0xE1u && c<=0xECu) || (c>=0xEEu && c<=0xEFu)) {
+      if(i+2>=n || (s[i+1]&0xC0u)!=0x80u || (s[i+2]&0xC0u)!=0x80u) return 0;
+      i+=3;
+    } else if(c==0xEDu) {
+      if(i+2>=n || s[i+1]<0x80u || s[i+1]>0x9Fu || (s[i+2]&0xC0u)!=0x80u) return 0;
+      i+=3;
+    } else if(c==0xF0u) {
+      if(i+3>=n || s[i+1]<0x90u || s[i+1]>0xBFu || (s[i+2]&0xC0u)!=0x80u || (s[i+3]&0xC0u)!=0x80u) return 0;
+      i+=4;
+    } else if(c>=0xF1u && c<=0xF3u) {
+      if(i+3>=n || (s[i+1]&0xC0u)!=0x80u || (s[i+2]&0xC0u)!=0x80u || (s[i+3]&0xC0u)!=0x80u) return 0;
+      i+=4;
+    } else if(c==0xF4u) {
+      if(i+3>=n || s[i+1]<0x80u || s[i+1]>0x8Fu || (s[i+2]&0xC0u)!=0x80u || (s[i+3]&0xC0u)!=0x80u) return 0;
+      i+=4;
+    } else return 0;
+  }
+  return 1;
 }
 #endif
 /* Windows arguments must not depend on the runtime's MinGW ANSI fallback. */
@@ -113,16 +216,66 @@ static LPWSTR *cli_argv;
 static int cli_argc;
 #endif
 MOONBIT_FFI_EXPORT int32_t mbsd_arg_count(void) {
+  problem[0]=0;
 #ifdef _WIN32
+  if(cli_argv) { LocalFree(cli_argv); cli_argv=NULL; cli_argc=0; }
   typedef LPWSTR *(WINAPI *parse_args)(LPCWSTR,int*);
-  HMODULE dll=LoadLibraryW(L"shell32.dll");
+  HMODULE dll=LoadLibraryExW(L"shell32.dll",NULL,LOAD_LIBRARY_SEARCH_SYSTEM32);
   if(!dll) { fail("load command-line parser",GetLastError()); return -2; }
   parse_args parse=(parse_args)GetProcAddress(dll,"CommandLineToArgvW");
   if(parse) cli_argv=parse(GetCommandLineW(),&cli_argc);
   if(!cli_argv) fail("parse Unicode command line",GetLastError());
   FreeLibrary(dll);
-  return cli_argv?cli_argc:-2;
+  if(!cli_argv) return -2;
+  for(int i=0;i<cli_argc;i++) {
+    if(!valid_utf16(cli_argv[i])) {
+      LocalFree(cli_argv); cli_argv=NULL; cli_argc=0;
+      fail("unpaired UTF-16 surrogate in command-line argument",ERROR_NO_UNICODE_TRANSLATION);
+      return -3;
+    }
+  }
+  if(cli_argc<=0) { LocalFree(cli_argv); cli_argv=NULL; cli_argc=0; return 0; }
+  return cli_argc;
 #else
+  if(linux_argc>0 && linux_argv) {
+    for(int i=0;i<linux_argc;i++) {
+      if(linux_argv[i] && !valid_utf8((const unsigned char*)linux_argv[i],strlen(linux_argv[i]))) {
+        fail("command-line arguments must be valid UTF-8",EILSEQ);
+        return -3;
+      }
+    }
+  } else {
+    int fd=open("/proc/self/cmdline",O_RDONLY|O_CLOEXEC);
+    if(fd>=0) {
+      unsigned char *buf=NULL; size_t used=0,cap=0;
+      for(;;) {
+        unsigned char tmp[4096]; ssize_t got=read(fd,tmp,sizeof(tmp));
+        if(got<0 && errno==EINTR) continue;
+        if(got<=0) break;
+        if(used+(size_t)got>cap) {
+          size_t next=cap?cap*2:4096; while(next<used+(size_t)got) next*=2;
+          unsigned char *grown=realloc(buf,next);
+          if(!grown) { free(buf); close(fd); fail("read command line",ENOMEM); return -2; }
+          buf=grown; cap=next;
+        }
+        memcpy(buf+used,tmp,(size_t)got); used+=(size_t)got;
+      }
+      close(fd);
+      if(buf) {
+        size_t pos=0;
+        while(pos<used) {
+          size_t end=pos; while(end<used && buf[end]) end++;
+          if(!valid_utf8(buf+pos,end-pos)) {
+            free(buf);
+            fail("command-line arguments must be valid UTF-8",EILSEQ);
+            return -3;
+          }
+          pos=end+1;
+        }
+        free(buf);
+      }
+    }
+  }
   return -1;
 #endif
 }
@@ -132,7 +285,7 @@ MOONBIT_FFI_EXPORT moonbit_string_t mbsd_arg(int32_t i) {
   int n=(int)wcslen(cli_argv[i]);
   moonbit_string_t result=moonbit_make_string_raw(n);
   memcpy(result,cli_argv[i],(size_t)n*sizeof(uint16_t));
-  if(i==cli_argc-1) { LocalFree(cli_argv); cli_argv=NULL; }
+  if(i==cli_argc-1) { LocalFree(cli_argv); cli_argv=NULL; cli_argc=0; }
   return result;
 #else
   (void)i; return moonbit_make_string(0,0);
@@ -148,10 +301,16 @@ MOONBIT_FFI_EXPORT moonbit_bytes_t mbsd_read(moonbit_bytes_t name,int32_t cap) {
 #ifdef _WIN32
   wchar_t *path=wide((char*)name); if(!path) return bytes(NULL,0);
   HANDLE f=CreateFileW(path,GENERIC_READ,FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE,NULL,OPEN_EXISTING,FILE_ATTRIBUTE_NORMAL,NULL);
+  DWORD open_err=GetLastError();
   free(path);
-  if(f==INVALID_HANDLE_VALUE) { fail("open input",GetLastError()); return bytes(NULL,0); }
+  if(f==INVALID_HANDLE_VALUE) { fail("open input",open_err); return bytes(NULL,0); }
   LARGE_INTEGER size;
-  if(GetFileType(f)!=FILE_TYPE_DISK || !GetFileSizeEx(f,&size)) fail("stat regular input",GetLastError());
+  DWORD ftype=GetFileType(f);
+  if(ftype!=FILE_TYPE_DISK) {
+    DWORD type_err=(ftype==FILE_TYPE_UNKNOWN)?GetLastError():ERROR_INVALID_FUNCTION;
+    fail("input must be a regular disk file",type_err?type_err:ERROR_INVALID_FUNCTION);
+  }
+  else if(!GetFileSizeEx(f,&size)) fail("stat regular input",GetLastError());
   else if(IO_TEST(fault!=8 &&) size.QuadPart>cap) limit_fail("input size",cap);
 #else
   int f=open((char*)name,O_RDONLY|O_CLOEXEC|O_NONBLOCK);
@@ -202,10 +361,70 @@ MOONBIT_FFI_EXPORT moonbit_bytes_t mbsd_read(moonbit_bytes_t name,int32_t cap) {
   free(buffer); return result;
 }
 
+MOONBIT_FFI_EXPORT int32_t mbsd_input_check(moonbit_bytes_t name) {
+  problem[0]=0;
+#ifdef _WIN32
+  wchar_t *path=wide((char*)name); if(!path) return 0;
+  HANDLE f=CreateFileW(path,FILE_READ_ATTRIBUTES,FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE,NULL,OPEN_EXISTING,FILE_ATTRIBUTE_NORMAL,NULL);
+  DWORD open_err=GetLastError();
+  free(path);
+  if(f==INVALID_HANDLE_VALUE) { fail("open input",open_err); return 0; }
+  LARGE_INTEGER size;
+  DWORD ftype=GetFileType(f);
+  if(ftype!=FILE_TYPE_DISK) {
+    DWORD type_err=(ftype==FILE_TYPE_UNKNOWN)?GetLastError():ERROR_INVALID_FUNCTION;
+    fail("input must be a regular disk file",type_err?type_err:ERROR_INVALID_FUNCTION);
+  } else if(!GetFileSizeEx(f,&size)) fail("stat regular input",GetLastError());
+  if(!CloseHandle(f)) fail("close input",GetLastError());
+#else
+  int f=open((char*)name,O_RDONLY|O_CLOEXEC|O_NONBLOCK);
+  if(f<0) { fail("open input",errno); return 0; }
+  struct stat st;
+  if(fstat(f,&st)<0) fail("stat input",errno);
+  else if(!S_ISREG(st.st_mode)) fail("input must be a regular file",EINVAL);
+  if(close(f)<0) fail("close input",errno);
+#endif
+  return !problem[0];
+}
+
+MOONBIT_FFI_EXPORT int32_t mbsd_input_alias_check(moonbit_bytes_t input,moonbit_bytes_t out) {
+  problem[0]=0;
+#ifdef _WIN32
+  wchar_t *p=wide((char*)out); if(!p) return 0;
+  if(!win_validate_output_path(p)) { free(p); return 0; }
+  DWORD attrs=GetFileAttributesW(p);
+  if(attrs!=INVALID_FILE_ATTRIBUTES) {
+    HANDLE target=CreateFileW(p,FILE_READ_ATTRIBUTES,FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE,NULL,OPEN_EXISTING,FILE_FLAG_BACKUP_SEMANTICS,NULL);
+    BY_HANDLE_FILE_INFORMATION ti;
+    int valid=target!=INVALID_HANDLE_VALUE && GetFileInformationByHandle(target,&ti);
+    if(valid) {
+      wchar_t *q=wide((char*)input);
+      if(q) {
+        HANDLE source=CreateFileW(q,FILE_READ_ATTRIBUTES,FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE,NULL,OPEN_EXISTING,FILE_FLAG_BACKUP_SEMANTICS,NULL);
+        free(q);
+        if(source!=INVALID_HANDLE_VALUE) {
+          BY_HANDLE_FILE_INFORMATION si;
+          if(GetFileInformationByHandle(source,&si) && si.dwVolumeSerialNumber==ti.dwVolumeSerialNumber && si.nFileIndexHigh==ti.nFileIndexHigh && si.nFileIndexLow==ti.nFileIndexLow) fail("output is the same file as an input",ERROR_ALREADY_EXISTS);
+          if(!CloseHandle(source)) fail("close identity input",GetLastError());
+        }
+      }
+    }
+    if(target!=INVALID_HANDLE_VALUE && !CloseHandle(target)) fail("close identity output",GetLastError());
+  }
+  free(p);
+#else
+  struct stat t,s;
+  if(stat((char*)out,&t)==0 && stat((char*)input,&s)==0 && t.st_dev==s.st_dev && t.st_ino==s.st_ino)
+    fail("output is the same file as an input",EEXIST);
+#endif
+  return !problem[0];
+}
+
 MOONBIT_FFI_EXPORT int32_t mbsd_output_check(moonbit_bytes_t a,moonbit_bytes_t b,moonbit_bytes_t out) {
   problem[0]=0;
 #ifdef _WIN32
   wchar_t *p=wide((char*)out); if(!p) return 0;
+  if(!win_validate_output_path(p)) { free(p); return 0; }
   DWORD attrs=GetFileAttributesW(p);
   if(attrs!=INVALID_FILE_ATTRIBUTES) {
     HANDLE target=CreateFileW(p,FILE_READ_ATTRIBUTES,FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE,NULL,OPEN_EXISTING,FILE_FLAG_BACKUP_SEMANTICS,NULL);
@@ -244,10 +463,51 @@ MOONBIT_FFI_EXPORT int32_t mbsd_output_check(moonbit_bytes_t a,moonbit_bytes_t b
  * targets/inputs are rejected separately by mbsd_output_check. Parent handles
  * follow directory aliases. No write probe or destination reservation is made. */
 #ifdef _WIN32
-static HANDLE pair_parent(moonbit_bytes_t name,wchar_t full[32768],wchar_t **leaf) {
+static wchar_t win_ascii_upper(wchar_t c) { return (c>=L'a' && c<=L'z')?(wchar_t)(c-L'a'+L'A'):c; }
+static int win_is_short_alias_one(const wchar_t *short_name,const wchar_t *long_name) {
+  const wchar_t *tilde=wcschr(short_name,L'~');
+  if(!tilde || tilde==short_name) return 0;
+  size_t prefix_len=(size_t)(tilde-short_name);
+  if(prefix_len>6) return 0;
+  const wchar_t *q=tilde+1;
+  if(*q<L'1' || *q>L'9') return 0;
+  while(*q>=L'0' && *q<=L'9') q++;
+  if((size_t)(q-short_name)>8 || (*q && *q!=L'.')) return 0;
+  const wchar_t *short_ext=(*q==L'.')?(q+1):L"";
+  size_t short_ext_len=wcslen(short_ext);
+  if(short_ext_len>3 || wcschr(short_ext,L'.')) return 0;
+  const wchar_t *long_dot=wcsrchr(long_name,L'.');
+  const wchar_t *long_ext=long_dot?(long_dot+1):L"";
+  size_t long_base_len=long_dot?(size_t)(long_dot-long_name):wcslen(long_name);
+  int long_needs_short=(long_base_len>8 || wcslen(long_ext)>3 || (long_dot && wcschr(long_name,L'.')!=long_dot) || wcschr(long_name,L' ')!=NULL);
+  if(!long_needs_short) return 0;
+  /* Strip spaces/dots from long base as NTFS does when synthesizing 8.3 prefixes. */
+  size_t matched=0;
+  for(size_t i=0;i<long_base_len && matched<prefix_len;i++) {
+    wchar_t c=long_name[i];
+    if(c==L' ' || c==L'.') continue;
+    if(win_ascii_upper(c)!=win_ascii_upper(short_name[matched])) return 0;
+    matched++;
+  }
+  if(matched!=prefix_len) return 0;
+  size_t ext_matched=0;
+  for(const wchar_t *e=long_ext;*e && ext_matched<3;e++) {
+    if(*e==L' ') continue;
+    if(ext_matched>=short_ext_len || win_ascii_upper(*e)!=win_ascii_upper(short_ext[ext_matched])) return 0;
+    ext_matched++;
+  }
+  return ext_matched==short_ext_len;
+}
+static int win_maybe_short_name_alias(const wchar_t *a,const wchar_t *b) {
+  return win_is_short_alias_one(a,b) || win_is_short_alias_one(b,a);
+}
+static HANDLE pair_parent(moonbit_bytes_t name,wchar_t *full,wchar_t **leaf) {
   wchar_t *p=wide((char*)name); if(!p) return INVALID_HANDLE_VALUE;
-  DWORD n=GetFullPathNameW(p,32768,full,NULL); free(p);
-  if(!n || n>=32768) { fail("resolve output pair",GetLastError()); return INVALID_HANDLE_VALUE; }
+  DWORD n=GetFullPathNameW(p,32768,full,NULL);
+  DWORD err=GetLastError();
+  free(p);
+  if(!n) { fail("resolve output pair",err); return INVALID_HANDLE_VALUE; }
+  if(n>=32768) { fail("resolve output pair",ERROR_FILENAME_EXCED_RANGE); return INVALID_HANDLE_VALUE; }
   wchar_t *slash=wcsrchr(full,L'\\');
   if(!slash || !slash[1]) { fail("invalid output pair name",ERROR_INVALID_NAME); return INVALID_HANDLE_VALUE; }
   *leaf=slash+1;
@@ -271,15 +531,34 @@ static int pair_parent(moonbit_bytes_t name,const char **leaf) {
   size_t n=slash?(size_t)(slash-path):1;
   char *parent=malloc(n+2); if(!parent) { fail("output pair parent allocation",ENOMEM); return -1; }
   if(!slash) strcpy(parent,"."); else if(!n) strcpy(parent,"/"); else { memcpy(parent,path,n); parent[n]=0; }
-  int fd=open(parent,O_PATH|O_DIRECTORY|O_CLOEXEC); free(parent);
-  if(fd<0) fail("open output pair parent",errno);
+  int fd=open(parent,O_RDONLY|O_DIRECTORY|O_CLOEXEC);
+  int err=errno;
+  free(parent);
+  if(fd<0) fail("open output pair parent",err);
   return fd;
+}
+static int is_case_insensitive_dir(int fd) {
+  struct statfs fs;
+  if(fstatfs(fd,&fs)==0) {
+    unsigned long t=(unsigned long)fs.f_type;
+    if(t==0x4d44UL /* MSDOS/FAT */ || t==0x2011BAB0UL /* EXFAT */ ||
+       t==0x5346544eUL /* NTFS */ || t==0x65735546UL /* FUSE/ntfs-3g */ ||
+       t==0xFF534D42UL /* CIFS */ || t==0xFE534D42UL /* SMB2 */ ||
+       t==0x517BUL /* SMB */ || t==0x01021997UL /* V9FS/WSL DrvFs */)
+      return 1;
+  }
+  int flags=0;
+  if(ioctl(fd,FS_IOC_GETFLAGS,&flags)==0 && (flags & FS_CASEFOLD_FL)) return 1;
+  return 0;
 }
 #endif
 MOONBIT_FFI_EXPORT int32_t mbsd_pair_check(moonbit_bytes_t a,moonbit_bytes_t b) {
   problem[0]=0;
 #ifdef _WIN32
-  wchar_t full_a[32768],full_b[32768],*leaf_a=NULL,*leaf_b=NULL;
+  wchar_t *full_a=malloc(32768*sizeof(wchar_t));
+  wchar_t *full_b=malloc(32768*sizeof(wchar_t));
+  if(!full_a || !full_b) { free(full_a); free(full_b); fail("output pair allocation",ERROR_NOT_ENOUGH_MEMORY); return 0; }
+  wchar_t *leaf_a=NULL,*leaf_b=NULL;
   HANDLE pa=pair_parent(a,full_a,&leaf_a),pb=pair_parent(b,full_b,&leaf_b);
   if(pa!=INVALID_HANDLE_VALUE && pb!=INVALID_HANDLE_VALUE) {
     BY_HANDLE_FILE_INFORMATION ia,ib;
@@ -289,18 +568,22 @@ MOONBIT_FFI_EXPORT int32_t mbsd_pair_check(moonbit_bytes_t a,moonbit_bytes_t b) 
       /* Conservatively reject case aliases even in case-sensitive Windows dirs. */
       int equal=CompareStringOrdinal(leaf_a,-1,leaf_b,-1,TRUE);
       if(!equal) fail("compare output pair names",GetLastError());
-      else if(equal==CSTR_EQUAL) fail("patch and manifest have the same target",ERROR_ALREADY_EXISTS);
+      else if(equal==CSTR_EQUAL || win_maybe_short_name_alias(leaf_a,leaf_b)) fail("paths resolve to the same target",ERROR_ALREADY_EXISTS);
     }
   }
   if(pa!=INVALID_HANDLE_VALUE && !CloseHandle(pa)) fail("close output pair parent",GetLastError());
   if(pb!=INVALID_HANDLE_VALUE && !CloseHandle(pb)) fail("close output pair parent",GetLastError());
+  free(full_a); free(full_b);
 #else
   const char *leaf_a=NULL,*leaf_b=NULL;
   int pa=pair_parent(a,&leaf_a),pb=pair_parent(b,&leaf_b);
   if(pa>=0 && pb>=0) {
     struct stat ia,ib;
     if(fstat(pa,&ia)<0 || fstat(pb,&ib)<0) fail("output pair parent identity",errno);
-    else if(ia.st_dev==ib.st_dev && ia.st_ino==ib.st_ino && !strcmp(leaf_a,leaf_b)) fail("patch and manifest have the same target",EEXIST);
+    else if(ia.st_dev==ib.st_dev && ia.st_ino==ib.st_ino) {
+      int same=!strcmp(leaf_a,leaf_b) || (is_case_insensitive_dir(pa) && !strcasecmp(leaf_a,leaf_b));
+      if(same) fail("paths resolve to the same target",EEXIST);
+    }
   }
   if(pa>=0 && close(pa)<0) fail("close output pair parent",errno);
   if(pb>=0 && close(pb)<0) fail("close output pair parent",errno);
@@ -318,7 +601,7 @@ static int same_inode(const struct stat *a,const struct stat *b) {
 static int private_entry(int dir,const char *name,int held,const struct stat *created) {
   struct stat named,current;
   return fstat(held,&current)==0 && S_ISDIR(current.st_mode) && current.st_uid==geteuid() &&
-    (current.st_mode&07777)==0700 && same_inode(&current,created) &&
+    (current.st_mode&05777)==0700 && same_inode(&current,created) &&
     fstatat(dir,name,&named,AT_SYMLINK_NOFOLLOW)==0 && same_inode(&named,created);
 }
 static int payload_entry(int dir,const struct stat *created) {
@@ -355,7 +638,7 @@ static int compat_deliver(int dir,const char *leaf,moonbit_bytes_t data) {
      ((parent.st_mode&0022) && !(parent.st_mode&S_ISVTX))) {
     fail("compatibility requires local ext permissions and protected output parent",EPERM);return 0;
   }
-  int made=0,known_dir=0,payload=0,private_fd=-1,writer=-1,keeper=-1;
+  int made=0,known_dir=0,payload_made=0,payload=0,private_fd=-1,writer=-1,keeper=-1;
   char name[80]={0};
   for(unsigned attempt=0;attempt<128;attempt++) {
     IO_TEST(if(compat_mutate==1 && !attempt) strcpy(name,".moonbsdiff-compat-collision"); else)
@@ -368,7 +651,7 @@ static int compat_deliver(int dir,const char *leaf,moonbit_bytes_t data) {
   if(fstatat(dir,name,&ds,AT_SYMLINK_NOFOLLOW)<0) fail("created private directory identity",errno);
   else {
     known_dir=1;
-    if(!S_ISDIR(ds.st_mode) || ds.st_uid!=geteuid() || (ds.st_mode&07777)!=0700) fail("private directory permissions",EPERM);
+    if(!S_ISDIR(ds.st_mode) || ds.st_uid!=geteuid() || (ds.st_mode&05777)!=0700) fail("private directory permissions",EPERM);
   }
   if(!problem[0]) {
     private_fd=openat(dir,name,O_RDONLY|O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC);
@@ -378,10 +661,13 @@ static int compat_deliver(int dir,const char *leaf,moonbit_bytes_t data) {
   if(!problem[0]) {
     writer=openat(private_fd,"payload",O_WRONLY|O_CREAT|O_EXCL|O_NOFOLLOW|O_CLOEXEC,0600);
     if(writer<0) fail("exclusive private payload creation",errno);
-    else if(fstat(writer,&ps)<0) fail("private payload identity",errno);
     else {
-      payload=1;
-      if(!S_ISREG(ps.st_mode) || ps.st_uid!=geteuid() || (ps.st_mode&07777)!=0600 || ps.st_nlink!=1) fail("private payload permissions",EPERM);
+      payload_made=1;
+      if(fstat(writer,&ps)<0) fail("private payload identity",errno);
+      else {
+        payload=1;
+        if(!S_ISREG(ps.st_mode) || ps.st_uid!=geteuid() || (ps.st_mode&07777)!=0600 || ps.st_nlink!=1) fail("private payload permissions",EPERM);
+      }
     }
   }
   if(!problem[0]) {
@@ -433,11 +719,11 @@ static int compat_deliver(int dir,const char *leaf,moonbit_bytes_t data) {
   IO_TEST(if(compat_mutate==5 && committed) { fail("injected compatibility cleanup",EIO);clean=0; })
   if(private_fd>=0) {
     if(!private_entry(dir,name,private_fd,&ds)) clean=0;
-    if(clean && payload) {
-      if(!payload_entry(private_fd,&ps)) clean=0;
+    if(clean && payload_made) {
+      if(!payload || !payload_entry(private_fd,&ps)) clean=0;
       else if(unlinkat(private_fd,"payload",0)<0) { fail("cleanup owned private payload",errno);clean=0; }
     }
-  } else if(payload) clean=0;
+  } else if(payload_made) clean=0;
   if(clean && made && known_dir) {
     struct stat named;
     if(fstatat(dir,name,&named,AT_SYMLINK_NOFOLLOW)<0 || !same_inode(&named,&ds)) clean=0;
@@ -446,10 +732,7 @@ static int compat_deliver(int dir,const char *leaf,moonbit_bytes_t data) {
   if(!clean) { fail("private cleanup ownership uncertain",ESTALE);retained(name); }
   if(keeper>=0 && close(keeper)<0) fail("close private identity reference",errno);
   if(private_fd>=0 && close(private_fd)<0) fail("close private directory",errno);
-  if(committed && problem[0]) {
-    char original[256];memcpy(original,problem,sizeof(original));
-    snprintf(problem,sizeof(problem),"output already delivered; %.225s",original);
-  }
+  if(committed && problem[0]) annotate_delivered_problem();
   return !problem[0];
 }
 static int anonymous_unavailable(int error) {
@@ -463,22 +746,32 @@ MOONBIT_FFI_EXPORT int32_t mbsd_deliver(moonbit_bytes_t name,moonbit_bytes_t dat
   delivery_committed=0; problem[0]=0; size_t n=data?Moonbit_array_length(data):0,at=0;
 #ifdef _WIN32
   wchar_t *relative=wide((char*)name); if(!relative) return 0;
-  wchar_t full[32768],temp[32768];
-  DWORD length=GetFullPathNameW(relative,32768,full,NULL); free(relative);
-  if(!length || length>=32768) { fail("resolve output",GetLastError()); return 0; }
+  if(!win_validate_output_path(relative)) { free(relative); return 0; }
+  wchar_t *full=malloc(32768*sizeof(wchar_t));
+  wchar_t *temp=malloc(32768*sizeof(wchar_t));
+  if(!full || !temp) { free(relative); free(full); free(temp); fail("output path allocation",ERROR_NOT_ENOUGH_MEMORY); return 0; }
+  DWORD length=GetFullPathNameW(relative,32768,full,NULL);
+  DWORD resolve_err=GetLastError();
+  free(relative);
+  if(!length) { free(full); free(temp); fail("resolve output",resolve_err); return 0; }
+  if(length>=32768) { free(full); free(temp); fail("resolve output",ERROR_FILENAME_EXCED_RANGE); return 0; }
   wchar_t *slash=wcsrchr(full,L'\\');
-  if(!slash || slash-full>32000) { fail("output parent",ERROR_INVALID_NAME); return 0; }
+  if(!slash || !slash[1] || slash-full>32000) { free(full); free(temp); fail("output parent",ERROR_INVALID_NAME); return 0; }
   size_t parent=(size_t)(slash-full)+1;
   HANDLE writer=INVALID_HANDLE_VALUE,keeper=INVALID_HANDLE_VALUE;
   for(unsigned attempt=0;attempt<128;attempt++) {
     memcpy(temp,full,parent*sizeof(wchar_t));
     IO_TEST(if(fault==1 && attempt==0) wcscpy(temp+parent,L".moonbsdiff-collision.tmp"); else)
-    swprintf(temp+parent,32768-parent,L".moonbsdiff-%lu-%u.tmp",(unsigned long)GetCurrentProcessId(),++sequence);
-    writer=CreateFileW(temp,GENERIC_WRITE|DELETE|FILE_READ_ATTRIBUTES,FILE_SHARE_READ,NULL,CREATE_NEW,FILE_ATTRIBUTE_NORMAL,NULL);
+    {
+      wchar_t hex[33];
+      win_random_hex(hex);
+      swprintf(temp+parent,32768-parent,L".moonbsdiff-%ls.tmp",hex);
+    }
+    writer=CreateFileW(temp,GENERIC_WRITE|DELETE|FILE_READ_ATTRIBUTES,0,NULL,CREATE_NEW,FILE_ATTRIBUTE_NORMAL,NULL);
     if(writer!=INVALID_HANDLE_VALUE) break;
-    DWORD e=GetLastError(); if(e!=ERROR_FILE_EXISTS && e!=ERROR_ALREADY_EXISTS) { fail("exclusive temporary creation",e); return 0; }
+    DWORD e=GetLastError(); if(e!=ERROR_FILE_EXISTS && e!=ERROR_ALREADY_EXISTS) { free(full); free(temp); fail("exclusive temporary creation",e); return 0; }
   }
-  if(writer==INVALID_HANDLE_VALUE) { fail("temporary name collisions exhausted",ERROR_FILE_EXISTS); return 0; }
+  if(writer==INVALID_HANDLE_VALUE) { free(full); free(temp); fail("temporary name collisions exhausted",ERROR_FILE_EXISTS); return 0; }
   if(!DuplicateHandle(GetCurrentProcess(),writer,GetCurrentProcess(),&keeper,DELETE|FILE_READ_ATTRIBUTES, FALSE,0)) fail("retain temporary identity",GetLastError());
   if(!data && !problem[0]) stream_populate(writer);
   while(!problem[0] && at<n) {
@@ -511,6 +804,8 @@ MOONBIT_FFI_EXPORT int32_t mbsd_deliver(moonbit_bytes_t name,moonbit_bytes_t dat
     if(problem[0]) { FILE_DISPOSITION_INFO del={TRUE}; if(!SetFileInformationByHandle(keeper,FileDispositionInfo,&del,sizeof(del))) fail("cleanup temporary",GetLastError()); }
     if(!CloseHandle(keeper)) fail("close temporary identity",GetLastError());
   }
+  free(full); free(temp);
+  annotate_delivered_problem();
 #else
   const char *path=(char*)name,*slash=strrchr(path,'/'),*leaf=slash?slash+1:path;
   size_t parent_len=slash?(size_t)(slash-path):1;
@@ -518,8 +813,10 @@ MOONBIT_FFI_EXPORT int32_t mbsd_deliver(moonbit_bytes_t name,moonbit_bytes_t dat
   if(!parent) { fail("parent allocation",ENOMEM); return 0; }
   if(slash) { if(!parent_len) strcpy(parent,"/"); else { memcpy(parent,path,parent_len); parent[parent_len]=0; } } else strcpy(parent,".");
   if(!*leaf || !strcmp(leaf,".") || !strcmp(leaf,"..")) { free(parent); fail("invalid output name",EINVAL); return 0; }
-  int dir=open(parent,O_RDONLY|O_DIRECTORY|O_CLOEXEC); free(parent);
-  if(dir<0) { fail("open output directory",errno); return 0; }
+  int dir=open(parent,O_RDONLY|O_DIRECTORY|O_CLOEXEC);
+  int open_err=errno;
+  free(parent);
+  if(dir<0) { fail("open output directory",open_err); return 0; }
   /* O_TMPFILE creates a fresh unnamed inode. O_EXCL must not be used here:
    * Linux defines O_TMPFILE|O_EXCL to forbid its later linking. */
   int writer,keeper=-1;
@@ -530,6 +827,7 @@ MOONBIT_FFI_EXPORT int32_t mbsd_deliver(moonbit_bytes_t name,moonbit_bytes_t dat
     if(anonymous_unavailable(error)) compat_deliver(dir,leaf,data);
     else fail("anonymous temporary creation",error);
     if(close(dir)<0) fail("close output directory",errno);
+    annotate_delivered_problem();
     return !problem[0];
   }
   char reference[80]; snprintf(reference,sizeof(reference),"/proc/self/fd/%d",writer);
@@ -543,6 +841,7 @@ MOONBIT_FFI_EXPORT int32_t mbsd_deliver(moonbit_bytes_t name,moonbit_bytes_t dat
     else if(error==ENOENT || error==ENOTDIR) compat_deliver(dir,leaf,data);
     else fail("retain temporary identity",error);
     if(close(dir)<0) fail("close output directory",errno);
+    annotate_delivered_problem();
     return !problem[0];
   }
   if(!data && !problem[0]) stream_populate(writer);
@@ -567,6 +866,7 @@ MOONBIT_FFI_EXPORT int32_t mbsd_deliver(moonbit_bytes_t name,moonbit_bytes_t dat
   }
   if(keeper>=0 && close(keeper)<0) fail("close temporary identity",errno);
   if(close(dir)<0) fail("close output directory",errno);
+  annotate_delivered_problem();
 #endif
   return !problem[0];
 }
@@ -787,50 +1087,80 @@ static void stream_close_file(StreamFile *file,const char *label) {
   *file=STREAM_INVALID;
 }
 static void stream_close_inputs(void) {
-  for(int i=0;i<2;i++) stream_close_file(&stream_inputs[i],"close stream input");
+  for(int i=0;i<2;i++) {
+    stream_close_file(&stream_inputs[i],"close stream input");
+    stream_sizes[i]=0;
+  }
   stream_close_file(&stream_copy,"close private input copy");
 }
 static void stream_open_file(int i,moonbit_bytes_t path,int64_t cap,const char *limit) {
   if(cap<1 || cap>INT32_MAX) { fail("stream input cap",EINVAL);return; }
 #ifdef _WIN32
   wchar_t *name=wide((char*)path);if(!name) return;
-  stream_inputs[i]=CreateFileW(name,GENERIC_READ,FILE_SHARE_READ,NULL,OPEN_EXISTING,FILE_ATTRIBUTE_NORMAL,NULL);free(name);
+  stream_inputs[i]=CreateFileW(name,GENERIC_READ,FILE_SHARE_READ,NULL,OPEN_EXISTING,FILE_ATTRIBUTE_NORMAL,NULL);
+  DWORD open_err=GetLastError();
+  free(name);
+  if(stream_inputs[i]==INVALID_HANDLE_VALUE) { fail("open/size stream input",open_err);return; }
   LARGE_INTEGER size;
-  if(stream_inputs[i]==INVALID_HANDLE_VALUE || GetFileType(stream_inputs[i])!=FILE_TYPE_DISK || !GetFileSizeEx(stream_inputs[i],&size)) { fail("open/size stream input",GetLastError());return; }
+  DWORD ftype=GetFileType(stream_inputs[i]);
+  if(ftype!=FILE_TYPE_DISK) {
+    DWORD type_err=(ftype==FILE_TYPE_UNKNOWN)?GetLastError():ERROR_INVALID_FUNCTION;
+    stream_close_file(&stream_inputs[i],"close non-disk stream input");
+    fail("stream input must be a regular disk file",type_err?type_err:ERROR_INVALID_FUNCTION);
+    return;
+  }
+  if(!GetFileSizeEx(stream_inputs[i],&size)) {
+    DWORD size_err=GetLastError();
+    stream_close_file(&stream_inputs[i],"close unsized stream input");
+    fail("open/size stream input",size_err);
+    return;
+  }
   stream_sizes[i]=size.QuadPart;
 #else
   stream_inputs[i]=open((char*)path,O_RDONLY|O_CLOEXEC|O_NONBLOCK);
   struct stat st;
-  if(stream_inputs[i]<0 || fstat(stream_inputs[i],&st)<0) { fail("open/size stream input",errno);return; }
-  if(!S_ISREG(st.st_mode)) { fail("stream input must be a regular file",EINVAL);return; }
+  if(stream_inputs[i]<0) { fail("open/size stream input",errno);return; }
+  if(fstat(stream_inputs[i],&st)<0) { int e=errno; stream_close_file(&stream_inputs[i],"close unsized stream input"); fail("open/size stream input",e);return; }
+  if(!S_ISREG(st.st_mode)) { stream_close_file(&stream_inputs[i],"close non-regular stream input"); fail("stream input must be a regular file",EINVAL);return; }
   stream_sizes[i]=st.st_size;
 #endif
   if(stream_sizes[i]<0 || stream_sizes[i]>cap) limit_fail(limit,(int)cap);
 }
 MOONBIT_FFI_EXPORT int32_t mbsd_stream_open(moonbit_bytes_t old,moonbit_bytes_t patch,int64_t oldcap,int64_t patchcap) {
   problem[0]=0;
+  if(stream_inputs[0]!=STREAM_INVALID || stream_inputs[1]!=STREAM_INVALID || stream_copy!=STREAM_INVALID) {
+    fail("stream input handles already open",EBUSY);return 0;
+  }
   stream_open_file(0,old,oldcap,"max_old_bytes");
   if(!problem[0]) stream_open_file(1,patch,patchcap,"max_patch_bytes");
   if(problem[0]) stream_close_inputs();
   return !problem[0];
 }
-/* Called inside the delivery producer, which closes the download before publishing. */
+/* Called before delivery to open and check the full download once. */
 MOONBIT_FFI_EXPORT int32_t mbsd_stream_open_full(moonbit_bytes_t path,int64_t cap) {
+  problem[0]=0;
+  if(stream_inputs[0]!=STREAM_INVALID || stream_inputs[1]!=STREAM_INVALID || stream_copy!=STREAM_INVALID) {
+    fail("stream input handles already open",EBUSY);return 0;
+  }
   stream_open_file(0,path,cap,"full target");
+  if(problem[0]) stream_close_inputs();
   return !problem[0];
 }
 /* A verified intermediate handle is already installed as old input. */
 MOONBIT_FFI_EXPORT int32_t mbsd_stream_open_next_patch(moonbit_bytes_t patch,int64_t cap) {
   if(stream_inputs[0]==STREAM_INVALID || stream_inputs[1]!=STREAM_INVALID || stream_copy!=STREAM_INVALID)
     fail("stream chain input state",EINVAL);
-  if(!problem[0]) stream_open_file(1,patch,cap,"max_patch_bytes");
+  if(!problem[0]) {
+    stream_open_file(1,patch,cap,"max_patch_bytes");
+    if(problem[0]) { stream_close_file(&stream_inputs[1],"close rejected next patch"); stream_sizes[1]=0; }
+  }
   return !problem[0];
 }
 MOONBIT_FFI_EXPORT int64_t mbsd_stream_size(int32_t which) { return which>=0 && which<2?stream_sizes[which]:-1; }
 MOONBIT_FFI_EXPORT moonbit_bytes_t mbsd_stream_read(int32_t which,int64_t offset,int32_t count) {
   uint8_t buffer[4096];size_t at=0;
   if(problem[0]) return bytes(NULL,0);
-  if(which<0 || which>1 || offset<0 || count<0 || count>4096 || offset>stream_sizes[which] || count>stream_sizes[which]-offset) {
+  if(which<0 || which>1 || stream_inputs[which]==STREAM_INVALID || offset<0 || count<0 || count>4096 || offset>stream_sizes[which] || count>stream_sizes[which]-offset) {
     fail("stream read range",EINVAL);return bytes(NULL,0);
   }
   while(at<(size_t)count) {
@@ -864,20 +1194,26 @@ MOONBIT_FFI_EXPORT moonbit_bytes_t mbsd_stream_read(int32_t which,int64_t offset
  * Windows denies sharing and removes on handle close. Linux unlinks the entry
  * in a trusted, anchored /tmp before writing any content. */
 MOONBIT_FFI_EXPORT int32_t mbsd_stream_copy_begin(void) {
+  if(stream_copy!=STREAM_INVALID) { fail("private input copy already open",EBUSY);return 0; }
 #ifdef _WIN32
-  wchar_t path[32768];
+  wchar_t *path=malloc(32768*sizeof(wchar_t));
+  if(!path) { fail("input copy path allocation",ERROR_NOT_ENOUGH_MEMORY);return 0; }
   DWORD n=GetTempPathW(32768,path);
-  if(!n || n>32000) { fail("resolve input copy directory",GetLastError());return 0; }
+  if(!n) { DWORD e=GetLastError(); free(path); fail("resolve input copy directory",e);return 0; }
+  if(n>32000) { free(path); fail("resolve input copy directory",ERROR_BUFFER_OVERFLOW);return 0; }
   for(int attempt=0;attempt<128;attempt++) {
-    swprintf(path+n,32768-n,L".moonbsdiff-input-%lu-%u.tmp",(unsigned long)GetCurrentProcessId(),++sequence);
+    wchar_t hex[33];
+    win_random_hex(hex);
+    swprintf(path+n,32768-n,L".moonbsdiff-input-%ls.tmp",hex);
     stream_copy=CreateFileW(path,GENERIC_READ|GENERIC_WRITE|DELETE,0,NULL,CREATE_NEW,
                            FILE_ATTRIBUTE_TEMPORARY|FILE_FLAG_DELETE_ON_CLOSE,NULL);
-    if(stream_copy!=STREAM_INVALID) return 1;
+    if(stream_copy!=STREAM_INVALID) { free(path); return 1; }
     DWORD error=GetLastError();
     if(error!=ERROR_FILE_EXISTS && error!=ERROR_ALREADY_EXISTS) {
-      fail("create private input copy",error);return 0;
+      free(path); fail("create private input copy",error);return 0;
     }
   }
+  free(path);
   fail("input copy name collisions exhausted",ERROR_FILE_EXISTS);
 #else
   int dir=open("/tmp",O_RDONLY|O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC);
@@ -987,7 +1323,7 @@ MOONBIT_FFI_EXPORT int32_t mbsd_stream_use_intermediate(int64_t expected) {
 
 MOONBIT_FFI_EXPORT int32_t mbsd_stream_write(moonbit_bytes_t data) {
   size_t n=Moonbit_array_length(data),at=0;
-  if(n>4096) { fail("stream output chunk",EINVAL);return 0; }
+  if(n>4096 || stream_writer==STREAM_INVALID) { fail("stream output chunk",EINVAL);return 0; }
   while(!problem[0] && at<n) {
     size_t amount=n-at;
     IO_TEST(if(fault==9 && amount>2) amount=2;)
@@ -1012,6 +1348,7 @@ static int stream_populate(int writer) {
 #endif
   stream_writer=writer;
   int ok=stream_call && stream_call(stream_context);
+  stream_writer=STREAM_INVALID;
   /* Even an input-close failure must precede publication. */
   stream_close_inputs();
   if(!ok) {
@@ -1035,6 +1372,7 @@ MOONBIT_FFI_EXPORT int32_t mbsd_stream_published(void) { return stream_committed
 MOONBIT_FFI_EXPORT int32_t mbsd_stream_deliver(moonbit_bytes_t path,int32_t (*call)(void*),void *context,void *gate) {
   stream_call=call;stream_context=context;stream_gate=gate;IO_TEST(stream_written=0;)stream_committed=0;stream_stopped=0;
   int ok=mbsd_deliver(path,NULL);
+  stream_writer=STREAM_INVALID;
   stream_close_inputs(); /* creation failure can occur before populate */
   stream_call=NULL;stream_context=NULL;stream_gate=NULL;stream_stopped=0;
   return ok && !problem[0];
@@ -1163,10 +1501,15 @@ MOONBIT_FFI_EXPORT int32_t mbsd_interrupt_commit(int32_t token) {
 #else
   sigset_t mask,previous;sigemptyset(&mask);sigaddset(&mask,SIGINT);
   if(sigprocmask(SIG_BLOCK,&mask,&previous)<0) { fail("block SIGINT for commit",errno);return -1; }
+  if(interrupt_live!=token || interrupt_sealed) {
+    sigprocmask(SIG_SETMASK,&previous,NULL);
+    fail("interrupt commit session mismatch",EINVAL);
+    return -1;
+  }
   IO_TEST(interrupt_test_checkpoint(52);) /* private blocked/pending signal regression */
   sigset_t pending;
   if(sigpending(&pending)<0) { int e=errno;sigprocmask(SIG_SETMASK,&previous,NULL);fail("query pending SIGINT",e);return -1; }
-  int ready=interrupt_live==token && !interrupt_sealed && interrupt_notified!=token && !sigismember(&pending,SIGINT);
+  int ready=interrupt_notified!=token && !sigismember(&pending,SIGINT);
   if(ready) interrupt_sealed=1;
   if(sigprocmask(SIG_SETMASK,&previous,NULL)<0) { fail("restore commit signal mask",errno);return -1; }
   return ready;
