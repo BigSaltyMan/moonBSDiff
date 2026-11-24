@@ -1,0 +1,215 @@
+{
+  "schema": 1,
+  "module": "BigSaltyMan/moonbsdiff",
+  "version": "0.6.0",
+  "source_sha": "e362c180885566a9ddedf7f3d774fda5ac95324c",
+  "tag": "v0.6.0",
+  "tag_target_sha": "e362c180885566a9ddedf7f3d774fda5ac95324c",
+  "tag_object_sha": "e6341c0cdfca8f9a2a7f5173736148233c0f5e4b",
+  "ci": {
+    "url": "https://github.com/BigSaltyMan/moonBSDiff/actions/runs/45355255462",
+    "run_id": 45355255462,
+    "event": "push",
+    "jobs": {
+      "native": {
+        "url": "https://github.com/BigSaltyMan/moonBSDiff/actions/runs/45355255462/job/138311361677",
+        "conclusion": "success"
+      },
+      "CLI (windows-x86_64)": {
+        "url": "https://github.com/BigSaltyMan/moonBSDiff/actions/runs/45355255462/job/138311361587",
+        "conclusion": "success"
+      },
+      "CLI (linux-x86_64)": {
+        "url": "https://github.com/BigSaltyMan/moonBSDiff/actions/runs/45355255462/job/138311361762",
+        "conclusion": "success"
+      },
+      "CLI (linux-arm64)": {
+        "url": "https://github.com/BigSaltyMan/moonBSDiff/actions/runs/45355255462/job/138311361568",
+        "conclusion": "success"
+      },
+      "CLI (macos-arm64)": {
+        "url": "https://github.com/BigSaltyMan/moonBSDiff/actions/runs/45355255462/job/138311361941",
+        "conclusion": "success"
+      },
+      "Collect source-bound CLI release assets": {
+        "url": "https://github.com/BigSaltyMan/moonBSDiff/actions/runs/45355255462/job/138312704086",
+        "conclusion": "success"
+      },
+      "Real BSDiff reference interoperability": {
+        "url": "https://github.com/BigSaltyMan/moonBSDiff/actions/runs/45355255462/job/138311361724",
+        "conclusion": "success"
+      },
+      "Native larger-input policies (256 KiB then 1 MiB)": {
+        "url": "https://github.com/BigSaltyMan/moonBSDiff/actions/runs/45355255462/job/138311361768",
+        "conclusion": "success"
+      }
+    },
+    "artifacts": [
+      {
+        "id": 14902076719,
+        "name": "cli-release-e362c180885566a9ddedf7f3d774fda5ac95324c",
+        "sha256": "54ee2ca757580bdbdfd06914a4b17bcf239645741c5994a0625777355d5dd9f3",
+        "files": [
+          "SHA256SUMS",
+          "build-info.json",
+          "moonbsdiff-0.6.0-linux-arm64.tar.gz",
+          "moonbsdiff-0.6.0-linux-x86_64.tar.gz",
+          "moonbsdiff-0.6.0-macos-arm64.tar.gz",
+          "moonbsdiff-0.6.0-windows-x86_64.zip"
+        ]
+      },
+      {
+        "id": 14902846105,
+        "name": "mooncakes-candidate-e362c180885566a9ddedf7f3d774fda5ac95324c",
+        "sha256": "f803701fd1e3320abd7fe4b12284d228a64c915635b8a9a33bdb84fc9b90b315",
+        "files": [
+          "BigSaltyMan-moonbsdiff-0.6.0.zip",
+          "audit.json",
+          "consumer.json"
+        ]
+      }
+    ]
+  },
+  "toolchain": "moon 0.1.20261102 (ea07287 2026-11-02) ~/.moon/bin/moon\nmoonc v0.10.19+bee578715 (2026-11-02) ~/.moon/bin/moonc\nmoonrun 0.1.20261102 (ea07287 2026-11-02) ~/.moon/bin/moonrun",
+  "mooncakes": {
+    "source_sha": "e362c180885566a9ddedf7f3d774fda5ac95324c",
+    "version": "0.6.0",
+    "package_url": "https://download.mooncakes.io/user/BigSaltyMan/moonbsdiff/0.6.0.zip",
+    "metadata_url": "https://mooncakes.io/api/v0/manifest/BigSaltyMan/moonbsdiff/0.6.0",
+    "package_sha256": "a88e9b0939225c7cf4b4e2a0140b9f8c855743fac4fa6720ccea7d6d494e68de",
+    "size_bytes": 98660,
+    "members": 52,
+    "ci_lf_sha256": "7f79eb35e9470576f16c9523b35ef457d4d130c0c27db770eb45c4538e8ac28f",
+    "ci_lf_size_bytes": 98220,
+    "byte_equal_windows_audit": true,
+    "member_bytes_equal_after_crlf_normalization": true,
+    "crlf_only_text_member_count": 30,
+    "published_member_map_sha256": "51ef3c112b3f6f9d6eecd24119459b8263f1aa6d90fad656f4d66b855a01d44d",
+    "ci_lf_canonical_member_map_sha256": "3325d1bbc45c27746b061a2e4879f238fd2b7e358f0148b88246d72e60271373"
+  },
+  "candidate_consumer_ci": {
+    "mode": "candidate",
+    "probe": "scripts/release_consumer_060.mbt.in",
+    "targets": [
+      "native",
+      "js",
+      "wasm-gc"
+    ],
+    "package_sha256": "7f79eb35e9470576f16c9523b35ef457d4d130c0c27db770eb45c4538e8ac28f",
+    "observations": {
+      "native": [
+        "manifest 0.6.0 probe: candidate=1 patch_bytes=162 target_bytes=1045 apply_patch_cap=131072"
+      ],
+      "js": [
+        "manifest 0.6.0 probe: candidate=1 patch_bytes=162 target_bytes=1045 apply_patch_cap=131072"
+      ],
+      "wasm-gc": [
+        "manifest 0.6.0 probe: candidate=1 patch_bytes=162 target_bytes=1045 apply_patch_cap=131072"
+      ]
+    }
+  },
+  "public_consumer": {
+    "mode": "registry",
+    "platform": "Windows-11-10.0.26300-SP0",
+    "probe": "scripts/release_consumer_060.mbt.in",
+    "targets": [
+      "native",
+      "js",
+      "wasm-gc"
+    ],
+    "version": "0.6.0",
+    "package_sha256": "a88e9b0939225c7cf4b4e2a0140b9f8c855743fac4fa6720ccea7d6d494e68de",
+    "dependency_tree": "releasecheck/consumer@0.1.0 (local C:\\Users\\85953\\AppData\\Local\\Temp\\moonbsdiff-consumer-oaifghjt\\consumer):\n\u2514\u2500 BigSaltyMan/moonbsdiff -> BigSaltyMan/moonbsdiff@0.6.0\n   \u251c\u2500 moonbitstack/mooncrypt -> moonbitstack/mooncrypt@0.4.7\n   \u2502  \u251c\u2500 moonbitstack/moonbase -> moonbitstack/moonbase@0.4.2\n   \u2502  \u251c\u2500 moonbitstack/moondate -> moonbitstack/moondate@0.1.0\n   \u2502  \u2514\u2500 moonbitstack/moonseed -> moonbitstack/moonseed@0.1.0\n   \u2514\u2500 moonbitstack/moonzip -> moonbitstack/moonzip@0.3.5\n      \u251c\u2500 moonbitstack/moonbase -> moonbitstack/moonbase@0.4.2\n      \u2514\u2500 moonbitstack/mooncrypt -> moonbitstack/mooncrypt@0.4.7 (*)\n",
+    "observations": {
+      "native": [
+        "manifest 0.6.0 probe: candidate=1 patch_bytes=162 target_bytes=1045 apply_patch_cap=131072"
+      ],
+      "js": [
+        "manifest 0.6.0 probe: candidate=1 patch_bytes=162 target_bytes=1045 apply_patch_cap=131072"
+      ],
+      "wasm-gc": [
+        "manifest 0.6.0 probe: candidate=1 patch_bytes=162 target_bytes=1045 apply_patch_cap=131072"
+      ]
+    }
+  },
+  "github_release": {
+    "source_sha": "e362c180885566a9ddedf7f3d774fda5ac95324c",
+    "run_id": 45355255462,
+    "tag": "v0.6.0",
+    "tag_object_sha": "e6341c0cdfca8f9a2a7f5173736148233c0f5e4b",
+    "release_url": "https://github.com/BigSaltyMan/moonBSDiff/releases/tag/v0.6.0",
+    "draft": false,
+    "prerelease": false,
+    "assets": [
+      {
+        "name": "SHA256SUMS",
+        "url": "https://github.com/BigSaltyMan/moonBSDiff/releases/download/v0.6.0/SHA256SUMS",
+        "sha256": "c733dea84c70b1ad9364d19af0142bb42f1d0b86dc867185a1d6275fda4498a9",
+        "size_bytes": 491,
+        "byte_equal_ci": true
+      },
+      {
+        "name": "build-info.json",
+        "url": "https://github.com/BigSaltyMan/moonBSDiff/releases/download/v0.6.0/build-info.json",
+        "sha256": "54383061c17476b34bfcee56cfc93af507be76e5ea8cf0f589bec96789c86cf8",
+        "size_bytes": 13867,
+        "byte_equal_ci": true
+      },
+      {
+        "name": "moonbsdiff-0.6.0-linux-arm64.tar.gz",
+        "url": "https://github.com/BigSaltyMan/moonBSDiff/releases/download/v0.6.0/moonbsdiff-0.6.0-linux-arm64.tar.gz",
+        "sha256": "af02db989e50d172ecd747dc113488dae1336d0e6f4083f0a1d8bee101a44ee7",
+        "size_bytes": 459501,
+        "byte_equal_ci": true
+      },
+      {
+        "name": "moonbsdiff-0.6.0-linux-x86_64.tar.gz",
+        "url": "https://github.com/BigSaltyMan/moonBSDiff/releases/download/v0.6.0/moonbsdiff-0.6.0-linux-x86_64.tar.gz",
+        "sha256": "08103621997ad536ef5ee3c6b0653591c6b1989c71a0fbbcfe2a8e141d1ef78a",
+        "size_bytes": 508013,
+        "byte_equal_ci": true
+      },
+      {
+        "name": "moonbsdiff-0.6.0-macos-arm64.tar.gz",
+        "url": "https://github.com/BigSaltyMan/moonBSDiff/releases/download/v0.6.0/moonbsdiff-0.6.0-macos-arm64.tar.gz",
+        "sha256": "cb6765a2ace89d26a39f424020f838a2b8bd3a2231ba9c41e8aaa09d3aad7cee",
+        "size_bytes": 389869,
+        "byte_equal_ci": true
+      },
+      {
+        "name": "moonbsdiff-0.6.0-windows-x86_64.zip",
+        "url": "https://github.com/BigSaltyMan/moonBSDiff/releases/download/v0.6.0/moonbsdiff-0.6.0-windows-x86_64.zip",
+        "sha256": "78ef6137a3b4273f9b5ebd54f1e1686b6db89e06dbb731a66d2affa2ef47f9e1",
+        "size_bytes": 369868,
+        "byte_equal_ci": true
+      }
+    ]
+  },
+  "public_cli_verification": {
+    "windows_x86_64": {
+      "platform": "Windows-11-10.0.26300-SP0",
+      "archive": "moonbsdiff-0.6.0-windows-x86_64.zip",
+      "archive_sha256": "78ef6137a3b4273f9b5ebd54f1e1686b6db89e06dbb731a66d2affa2ef47f9e1",
+      "executable_sha256": "b3b92709787b9cf7c3dfeaf24ea2805af995e4ea190e840bc2c19f4abf4cf5dc",
+      "version": "moonbsdiff 0.6.0",
+      "update_demo": "PASS"
+    },
+    "linux_x86_64": {
+      "platform": "Linux 6.6.87.2-microsoft-standard-WSL2 x86_64 | ldd (Ubuntu GLIBC 2.39-0ubuntu8.9) 2.39",
+      "archive": "moonbsdiff-0.6.0-linux-x86_64.tar.gz",
+      "archive_sha256": "08103621997ad536ef5ee3c6b0653591c6b1989c71a0fbbcfe2a8e141d1ef78a",
+      "executable_sha256": "9be1c1466d95c72e5248259c9d6a0d66b372372390579451a71e37fb44ba5267",
+      "version": "moonbsdiff 0.6.0"
+    },
+    "linux_arm64": {
+      "archive": "moonbsdiff-0.6.0-linux-arm64.tar.gz",
+      "archive_sha256": "af02db989e50d172ecd747dc113488dae1336d0e6f4083f0a1d8bee101a44ee7",
+      "executable_sha256": "cf09491485c6164caadce61105752f9fea00804eae0e39c31b005918c4d19095"
+    },
+    "macos_arm64": {
+      "archive": "moonbsdiff-0.6.0-macos-arm64.tar.gz",
+      "archive_sha256": "cb6765a2ace89d26a39f424020f838a2b8bd3a2231ba9c41e8aaa09d3aad7cee",
+      "executable_sha256": "a46df07c8896a42392778650f69a065d83613f5e72d5976237e3cf590cde9fc1"
+    }
+  }
+}

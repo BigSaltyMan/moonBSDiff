@@ -1,14 +1,13 @@
 # Downloadable MoonBSDiff CLI
 
 See [GitHub Releases](https://github.com/BigSaltyMan/moonBSDiff/releases) for
-published archives. Releases `v0.5.0` through `v0.5.4` ship 4 assets (Windows
-and Linux `x86_64`, `SHA256SUMS`, `build-info.json`); see the
+published archives. Starting with `v0.6.0`, releases ship 6 assets across 4
+CI-built native targets (4 archives, `SHA256SUMS`, and `build-info.json`, with
+`<VERSION>` matching `moon.mod`); earlier releases `v0.5.0` through `v0.5.4`
+shipped 4 assets (Windows and Linux `x86_64`, `SHA256SUMS`, `build-info.json`).
+See the [0.6.0 release record](release-0.6.0.md),
 [0.5.4 release record](release-0.5.4.md), [0.5.0 release record](release-0.5.0.md),
-and [0.4.0 record](release-0.4.0.md) for historical package and CLI identities.
-
-Unreleased CLI packaging expands the CI-built release matrix from 2 to 4 native
-targets (6 release assets total: 4 archives, `SHA256SUMS`, and
-`build-info.json`, with `<VERSION>` matching `moon.mod`):
+and [0.4.0 record](release-0.4.0.md) for published package and CLI identities.
 
 - `moonbsdiff-<VERSION>-windows-x86_64.zip`
 - `moonbsdiff-<VERSION>-linux-x86_64.tar.gz`
@@ -78,9 +77,9 @@ release identities through a channel appropriate to your use.
 
 ## Runtime and filesystem scope
 
-Four CI-built native targets are supported by release packaging:
-`windows-x86_64`, `linux-x86_64`, `linux-arm64`, and `macos-arm64` (published
-`0.5.4` archives covered `windows-x86_64` and `linux-x86_64` only; Intel macOS
+Four CI-built native targets are shipped starting with `0.6.0`:
+`windows-x86_64`, `linux-x86_64`, `linux-arm64`, and `macos-arm64` (earlier
+`0.5.x` archives covered `windows-x86_64` and `linux-x86_64` only; Intel macOS
 `macos-x86_64` is not built in CI because upstream MoonBit `0.10.19` does not
 publish `darwin-x86_64` native toolchains). Read the selected platform's
 `runtime` entry in `build-info.json`: it records actual compiler, host/runner

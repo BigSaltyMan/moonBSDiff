@@ -2,7 +2,9 @@
 
 ## Unreleased
 
-## 0.6.0
+## 0.6.0 — 2026-11-24
+
+See [0.6.0 release evidence](docs/release-0.6.0.md) for exact source, package, and CLI identities.
 
 - **Detached Ed25519 manifest signing & verification (cross-target library & CLI)**:
   - Keep BSDIFF40 patches and Schema 1 manifests unchanged; SHA-256 content-only verification continues to work without signatures, while publisher authentication uses a detached signature file. Unsigned manifests verify content identity only; publisher authentication requires pinning the publisher's trusted `PUBLIC_KEY_FILE` (or `PublicKey`) out-of-band.
