@@ -122,6 +122,7 @@ class AuditTests(unittest.TestCase):
         critical_members = [
             "LICENSE",
             "README.md",
+            "README.zh-CN.md",
             "moon.mod",
             "pkg.generated.mbti",
             "manifest/pkg.generated.mbti",

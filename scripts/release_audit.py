@@ -28,6 +28,7 @@ FORBIDDEN_PACKAGE_SUFFIXES = (
 ALLOWED_ROOT_METADATA = frozenset({
     "moon.mod",
     "README.md",
+    "README.zh-CN.md",
     "LICENSE",
     "CHANGELOG.md",
 })
@@ -47,6 +48,7 @@ ALLOWED_BZIP2_PROVENANCE = frozenset({
 REQUIRED_PACKAGE_MEMBERS = (
     "LICENSE",
     "README.md",
+    "README.zh-CN.md",
     "CHANGELOG.md",
     "moon.mod",
     "moon.pkg",
