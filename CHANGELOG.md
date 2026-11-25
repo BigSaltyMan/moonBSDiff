@@ -2,7 +2,9 @@
 
 ## Unreleased
 
-## 0.7.0
+## 0.7.0 — 2026-11-25
+
+See [0.7.0 release evidence](docs/release-0.7.0.md) for exact source, package, and CLI identities.
 
 - **Linear-time `O(n)` SA-IS suffix-array engine**:
   - Upgrade internal `build_suffix_array` / `build_suffix_array_view` (`suffix_array.mbt`) from `O(n log n)` prefix-doubling to linear-time `O(n)` SA-IS (Suffix Array Induced Sorting) while preserving exact BSDIFF40 suffix order, byte-identical patches, and bounded `SortBudget` accounting across all recursive levels (`4.49x`–`4.92x` less `sort_work` and `4.33x`–`6.05x` faster SA construction on 256 KiB / 1 MiB periodic inputs). See [docs/suffix-array.md](docs/suffix-array.md).
