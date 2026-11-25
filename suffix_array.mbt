@@ -1,5 +1,7 @@
-// Original prefix-doubling/counting-sort implementation. qsufsort result contract
-// is the reference; see docs/suffix-array.md for the deliberate algorithm change.
+// Linear-time O(n) SA-IS (Suffix Array Induced Sorting) implementation.
+// Output contract: returns `sa` of length `n + 1` where `sa[0] == n` (empty
+// sentinel suffix) and `data[sa[i]:] < data[sa[i + 1]:]` strictly for all
+// `0 <= i < n`.
 
 ///|
 priv struct SortBudget {
@@ -94,32 +96,252 @@ fn SortBudget::reserve(
 }
 
 ///|
-fn suffix_first_pass(
-  source : Array[Int32],
-  dest : Array[Int32],
-  rank : Array[Int32],
-  counts : Array[Int32],
-  keys : Int32,
+fn is_lms(is_s : Array[Bool], pos : Int32) -> Bool {
+  pos > 0 && is_s[pos] && !is_s[pos - 1]
+}
+
+///|
+fn lms_substrings_equal(
+  s : Array[Int32],
+  is_s : Array[Bool],
+  m : Int32,
+  a : Int32,
+  b : Int32,
+) -> Bool {
+  if a == m - 1 || b == m - 1 {
+    return a == b
+  }
+  let mut d = 0
+  while true {
+    let ia = a + d
+    let ib = b + d
+    if s[ia] != s[ib] || is_s[ia] != is_s[ib] {
+      return false
+    }
+    if d > 0 {
+      let a_end = is_lms(is_s, ia)
+      let b_end = is_lms(is_s, ib)
+      if a_end || b_end {
+        return a_end && b_end
+      }
+    }
+    d = d + 1
+  }
+  false
+}
+
+///|
+fn bucket_heads(bkt_size : Array[Int32], bkt : Array[Int32], k : Int32) -> Unit {
+  let mut sum = 0
+  for c in 0..<k {
+    bkt[c] = sum
+    sum = sum + bkt_size[c]
+  }
+}
+
+///|
+fn bucket_tails(bkt_size : Array[Int32], bkt : Array[Int32], k : Int32) -> Unit {
+  let mut sum = 0
+  for c in 0..<k {
+    sum = sum + bkt_size[c]
+    bkt[c] = sum - 1
+  }
+}
+
+///|
+fn induce_sort(
+  s : Array[Int32],
+  sa : Array[Int32],
+  is_s : Array[Bool],
+  bkt_size : Array[Int32],
+  bkt : Array[Int32],
+  m : Int32,
+  k : Int32,
 ) -> Unit {
-  for key in 0..<keys {
-    counts[key] = 0
+  // Induce L-type suffixes from left to right.
+  bucket_heads(bkt_size, bkt, k)
+  for i in 0..<m {
+    let pos = sa[i]
+    if pos > 0 {
+      let prev = pos - 1
+      if !is_s[prev] {
+        let sym = s[prev]
+        let slot = bkt[sym]
+        sa[slot] = prev
+        bkt[sym] = slot + 1
+      }
+    }
   }
-  for pos in source {
-    let key = rank[pos]
-    counts[key] = counts[key] + 1
+  // Induce S-type suffixes from right to left.
+  bucket_tails(bkt_size, bkt, k)
+  let mut i = m - 1
+  while i >= 0 {
+    let pos = sa[i]
+    if pos > 0 {
+      let prev = pos - 1
+      if is_s[prev] {
+        let sym = s[prev]
+        let slot = bkt[sym]
+        sa[slot] = prev
+        bkt[sym] = slot - 1
+      }
+    }
+    i = i - 1
   }
-  let mut total = 0
-  for key in 0..<keys {
-    let count = counts[key]
-    counts[key] = total
-    total = total + count
+}
+
+///|
+// Recursive SA-IS core. Precondition: `m >= 2`, `k >= 2`, `s[m - 1] == 0` is
+// the unique smallest sentinel, and `1 <= s[i] < k` for all `0 <= i < m - 1`.
+fn sais_rec(
+  s : Array[Int32],
+  m : Int32,
+  k : Int32,
+  precomputed_bkt_size : Array[Int32]?,
+  budget : SortBudget,
+) -> Result[Array[Int32], BsdiffError] {
+  let m64 = m.to_int64()
+  let k64 = k.to_int64()
+  let bkt_size = match precomputed_bkt_size {
+    Some(existing) => existing
+    None => {
+      // Recursive level setup: allocate sa (m), is_s (m), bkt_size (k),
+      // bkt (k), and count symbol frequencies into bkt_size (m).
+      match budget.reserve(3L * m64 + 2L * k64) {
+        Err(e) => return Err(e)
+        Ok(_) => ()
+      }
+      let counts = Array::make(k, 0)
+      for i in 0..<m {
+        let sym = s[i]
+        counts[sym] = counts[sym] + 1
+      }
+      counts
+    }
   }
-  for pos in source {
-    let key = rank[pos]
-    let slot = counts[key]
-    dest[slot] = pos
-    counts[key] = slot + 1
+  let sa = Array::make(m, -1)
+  let is_s = Array::make(m, false)
+  let bkt = Array::make(k, 0)
+  // Classify S/L types (m) and collect LMS positions in text order (m).
+  match budget.reserve(2L * m64) {
+    Err(e) => return Err(e)
+    Ok(_) => ()
   }
+  is_s[m - 1] = true
+  is_s[m - 2] = false
+  let mut idx = m - 3
+  while idx >= 0 {
+    let cur = s[idx]
+    let nxt = s[idx + 1]
+    is_s[idx] = if cur < nxt {
+      true
+    } else if cur > nxt {
+      false
+    } else {
+      is_s[idx + 1]
+    }
+    idx = idx - 1
+  }
+  let lms_pos : Array[Int32] = []
+  for pos in 1..<m {
+    if is_s[pos] && !is_s[pos - 1] {
+      lms_pos.push(pos)
+    }
+  }
+  let lms_count = lms_pos.length()
+  let lms_count64 = lms_count.to_int64()
+  // First induced sort: place LMS at bucket tails (k + lms_count),
+  // induce L (k + m), and induce S (k + m).
+  match budget.reserve(2L * m64 + 3L * k64 + lms_count64) {
+    Err(e) => return Err(e)
+    Ok(_) => ()
+  }
+  bucket_tails(bkt_size, bkt, k)
+  for pos in lms_pos {
+    let sym = s[pos]
+    let slot = bkt[sym]
+    sa[slot] = pos
+    bkt[sym] = slot - 1
+  }
+  induce_sort(s, sa, is_s, bkt_size, bkt, m, k)
+  if lms_count == 1 {
+    return Ok(sa)
+  }
+  // Name LMS substrings in induced order: allocate lms_names (half), scan sa
+  // (m), and compare adjacent LMS substrings (at most m + lms_count visits).
+  let half = (m - 1) / 2 + 1
+  match budget.reserve(2L * m64 + lms_count64 + half.to_int64()) {
+    Err(e) => return Err(e)
+    Ok(_) => ()
+  }
+  let lms_names = Array::make(half, -1)
+  lms_names[(m - 1) / 2] = 0
+  let mut prev_lms = m - 1
+  let mut name = 0
+  for i in 1..<m {
+    let pos = sa[i]
+    if is_lms(is_s, pos) {
+      if !lms_substrings_equal(s, is_s, m, prev_lms, pos) {
+        name = name + 1
+      }
+      lms_names[pos / 2] = name
+      prev_lms = pos
+    }
+  }
+  let k1 = name + 1
+  // Order LMS suffixes: directly extract if all names are distinct, else recurse.
+  let sorted_lms = if k1 == lms_count {
+    match budget.reserve(m64 + lms_count64) {
+      Err(e) => return Err(e)
+      Ok(_) => ()
+    }
+    let ordered = Array::make(lms_count, 0)
+    let mut out = 0
+    for i in 0..<m {
+      let pos = sa[i]
+      if is_lms(is_s, pos) {
+        ordered[out] = pos
+        out = out + 1
+      }
+    }
+    ordered
+  } else {
+    match budget.reserve(2L * lms_count64) {
+      Err(e) => return Err(e)
+      Ok(_) => ()
+    }
+    let s1 = Array::makei(lms_count, j => lms_names[lms_pos[j] / 2])
+    let sa1 = match sais_rec(s1, lms_count, k1, None, budget) {
+      Err(e) => return Err(e)
+      Ok(v) => v
+    }
+    match budget.reserve(2L * lms_count64) {
+      Err(e) => return Err(e)
+      Ok(_) => ()
+    }
+    Array::makei(lms_count, j => lms_pos[sa1[j]])
+  }
+  // Final induced sort: reset sa (m), scatter sorted LMS right-to-left
+  // (k + lms_count), induce L (k + m), and induce S (k + m).
+  match budget.reserve(3L * m64 + 3L * k64 + lms_count64) {
+    Err(e) => return Err(e)
+    Ok(_) => ()
+  }
+  for i in 0..<m {
+    sa[i] = -1
+  }
+  bucket_tails(bkt_size, bkt, k)
+  let mut j = lms_count - 1
+  while j >= 0 {
+    let pos = sorted_lms[j]
+    let sym = s[pos]
+    let slot = bkt[sym]
+    sa[slot] = pos
+    bkt[sym] = slot - 1
+    j = j - 1
+  }
+  induce_sort(s, sa, is_s, bkt_size, bkt, m, k)
+  Ok(sa)
 }
 
 ///|
@@ -134,7 +356,7 @@ fn build_suffix_array_view(
     Err(e) => return Err(e)
     Ok(v) => v
   }
-  // Initialization visits: four N-element arrays and the count buckets.
+  // Initialization visits: top-level N-element arrays and byte bucket tables.
   let initial = if size == 1 {
     1L
   } else {
@@ -148,141 +370,43 @@ fn build_suffix_array_view(
   if n == 0 {
     return Ok([0])
   }
-  let sa = Array::make(size, 0)
-  let scratch = Array::make(size, 0)
-  let mut rank = Array::makei(size, i => {
-    if i == n {
-      0
-    } else {
-      data[i].to_int() + 1
-    }
-  })
-  let mut next = Array::make(size, 0)
-  let counts = Array::make(buckets, 0)
-  // Initial length-1 counting sort + dense reranking:
-  // `counts` is already zeroed from allocation, so count (N) + prefix sum (257)
-  // + scatter (N) + dense reranking (N) costs 3N + 257 visits.
-  // Post-condition (base invariant for step = 1): `sa` is sorted by 1-byte
-  // prefixes and `rank` holds dense equivalence classes in 0..<keys with
-  // `rank[n] == 0` unique (`sa[0] == n`). If all suffixes are already distinct
-  // (`classes == size`), return immediately without doubling.
-  match budget.reserve(3L * size.to_int64() + 257L) {
+  // Alphabet compaction + frequency counting + symbol mapping / unique fast-path:
+  // count `data` (n), compact 256 byte slots (256), and either scatter `sa` or
+  // populate dense `s` (size).
+  match budget.reserve(2L * size.to_int64() + 256L) {
     Err(e) => return Err(e)
     Ok(_) => ()
   }
-  for pos in 0..<size {
-    let key = rank[pos]
-    counts[key] = counts[key] + 1
+  let raw_counts = Array::make(256, 0)
+  for i in 0..<n {
+    let byte_val = data[i].to_int()
+    raw_counts[byte_val] = raw_counts[byte_val] + 1
   }
-  let mut total = 0
-  for key in 0..<257 {
-    let count = counts[key]
-    counts[key] = total
-    total = total + count
-  }
-  for pos in 0..<size {
-    let key = rank[pos]
-    let slot = counts[key]
-    sa[slot] = pos
-    counts[key] = slot + 1
-  }
-  let mut prev_init_rank = rank[sa[0]]
-  next[sa[0]] = 0
-  let mut init_classes = 1
-  for i in 1..<size {
-    let b = sa[i]
-    let rb = rank[b]
-    if prev_init_rank != rb {
-      init_classes = init_classes + 1
-      prev_init_rank = rb
+  let remap = Array::make(256, 0)
+  let bkt_size : Array[Int32] = [1]
+  let mut sigma = 0
+  for byte_val in 0..<256 {
+    let count = raw_counts[byte_val]
+    if count > 0 {
+      sigma = sigma + 1
+      remap[byte_val] = sigma
+      bkt_size.push(count)
     }
-    next[b] = init_classes - 1
   }
-  if init_classes == size {
+  if sigma == n {
+    let sa = Array::make(size, 0)
+    sa[0] = n
+    for i in 0..<n {
+      sa[remap[data[i].to_int()]] = i
+    }
     return Ok(sa)
   }
-  let old_rank = rank
-  rank = next
-  next = old_rank
-  let mut keys = init_classes
-  let mut step = 1
-  // Doubling invariant: before each round, `sa` is sorted by `step`-byte
-  // prefixes and `rank` holds their dense classes in 0..<keys. Ordering the
-  // second key linearly (sentinels `pos > n - step` first, then `sa[i] - step`
-  // in ascending `sa` order) followed by one stable counting sort on `rank`
-  // produces the exact `2 * step`-byte prefix order.
-  while step < size {
-    // Linear second-key placement costs `step + N` loop visits, single stable
-    // first-key counting pass costs `2N + 2K`, and dense reranking costs `N`.
-    match
-      budget.reserve(
-        4L * size.to_int64() + step.to_int64() + 2L * keys.to_int64(),
-      ) {
-      Err(e) => return Err(e)
-      Ok(_) => ()
-    }
-    let mut out = 0
-    for pos in (size - step)..<size {
-      scratch[out] = pos
-      out = out + 1
-    }
-    for i in 0..<size {
-      let pos = sa[i]
-      if pos >= step {
-        scratch[out] = pos - step
-        out = out + 1
-      }
-    }
-    suffix_first_pass(scratch, sa, rank, counts, keys)
-    let mut a = sa[0]
-    let mut ra = rank[a]
-    next[a] = 0
-    let mut classes = 1
-    for i in 1..<size {
-      let b = sa[i]
-      let rb = rank[b]
-      let diff = if ra != rb {
-        true
-      } else {
-        let sa2 = if step <= n - a { rank[a + step] } else { 0 }
-        let sb2 = if step <= n - b { rank[b + step] } else { 0 }
-        sa2 != sb2
-      }
-      if diff {
-        classes = classes + 1
-      }
-      next[b] = classes - 1
-      a = b
-      ra = rb
-    }
-    if classes == size {
-      return Ok(sa)
-    }
-    // A full-length prefix must distinguish every suffix. Check before doubling.
-    if step >= size - step {
-      return Err(
-        sorting_error(
-          InvalidField,
-          "suffix_progress",
-          step.to_int64(),
-          Some(size.to_int64()),
-        ),
-      )
-    }
-    let old = rank
-    rank = next
-    next = old
-    keys = classes
-    step = step + step
+  let s = Array::make(size, 0)
+  for i in 0..<n {
+    s[i] = remap[data[i].to_int()]
   }
-  Err(
-    sorting_error(
-      InvalidField,
-      "suffix_progress",
-      step.to_int64(),
-      Some(size.to_int64()),
-    ),
-  )
+  s[n] = 0
+  sais_rec(s, size, sigma + 1, Some(bkt_size), budget)
 }
 
 ///|

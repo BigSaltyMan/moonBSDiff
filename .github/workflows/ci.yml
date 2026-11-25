@@ -114,9 +114,10 @@ jobs:
           for target in js wasm-gc; do
             python3 scripts/check_acceptance.py --test-log "apply-$target.log" -- moon test apply_test.mbt apply_vectors_test.mbt apply_boundaries_test.mbt apply_resources_test.mbt apply_stream_test.mbt --target "$target" --deny-warn
             grep -E 'Total tests: [1-9][0-9]*, passed: [1-9][0-9]*, failed: 0' "apply-$target.log"
-            python3 scripts/check_acceptance.py --test-log "inspect-deep-$target.log" -- moon test inspect_deep_test.mbt --target "$target" --deny-warn
+            python3 scripts/check_acceptance.py --test-log "inspect-deep-$target.log" -- moon test inspect_deep_test.mbt analyze_test.mbt --target "$target" --deny-warn
+            grep -E 'Total tests: [1-9][0-9]*, passed: [1-9][0-9]*, failed: 0' "inspect-deep-$target.log"
             python3 scripts/check_acceptance.py --test-log "manifest-$target.log" -- moon test manifest --filter 'manifest public*' --target "$target" --deny-warn
-            python3 scripts/check_acceptance.py --test-log "manifest-sig-$target.log" -- moon test manifest/signature_test.mbt --target "$target" --deny-warn
+            python3 scripts/check_acceptance.py --test-log "manifest-sig-$target.log" -- moon test manifest/signature_test.mbt manifest/catalog_test.mbt manifest/dir_bundle_test.mbt --target "$target" --deny-warn
             grep -E 'Total tests: [1-9][0-9]*, passed: [1-9][0-9]*, failed: 0' "manifest-sig-$target.log"
           done
 
@@ -171,6 +172,9 @@ jobs:
             grep -E 'Total tests: [1-9][0-9]*, passed: [1-9][0-9]*, failed: 0' "diff-resource-$target.log"
           done
 
+      - name: Differentiated Web Studio build and Node ESM verification
+        run: python3 scripts/test_web_studio.py -v
+
   cli-native:
     name: CLI (${{ matrix.target }})
     strategy:
@@ -223,6 +227,9 @@ jobs:
           python3 scripts/test_cli_diff_many.py --exe _build/bin/linux/moonbsdiff
           python3 scripts/test_cli_patch_chain.py --exe _build/bin/linux/moonbsdiff
           python3 scripts/test_cli_redteam.py --exe _build/bin/linux/moonbsdiff
+          python3 scripts/test_cli_analyze.py --exe _build/bin/linux/moonbsdiff
+          python3 scripts/test_cli_catalog.py --exe _build/bin/linux/moonbsdiff
+          python3 scripts/test_cli_dir.py --exe _build/bin/linux/moonbsdiff
           python3 scripts/check_acceptance.py --test-log _build/stream-delivery-linux.log -- python3 scripts/native_test.py stream linux_compat
       - name: Real unprivileged ext4 delivery without proc (private mount namespace)
         if: runner.os == 'Linux'
@@ -247,6 +254,9 @@ jobs:
           python3 scripts/test_cli_diff_many.py --exe _build/bin/macos/moonbsdiff
           python3 scripts/test_cli_patch_chain.py --exe _build/bin/macos/moonbsdiff
           python3 scripts/test_cli_redteam.py --exe _build/bin/macos/moonbsdiff
+          python3 scripts/test_cli_analyze.py --exe _build/bin/macos/moonbsdiff
+          python3 scripts/test_cli_catalog.py --exe _build/bin/macos/moonbsdiff
+          python3 scripts/test_cli_dir.py --exe _build/bin/macos/moonbsdiff
           python3 scripts/check_acceptance.py --test-log _build/stream-delivery-macos.log -- python3 scripts/native_test.py stream
       - name: Memory library and fixed Wasm update examples (once, Linux only)
         if: matrix.target == 'linux-x86_64'
@@ -261,7 +271,7 @@ jobs:
           $vs = & "${env:ProgramFiles(x86)}/Microsoft Visual Studio/Installer/vswhere.exe" -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
           if (-not $vs) { throw 'MSVC build tools not found' }
           $dev = Join-Path $vs 'VC/Auxiliary/Build/vcvars64.bat'
-          cmd /c "call `"$dev`" >nul && python scripts/build_cli.py && python scripts/test_cli.py --exe _build/bin/windows/moonbsdiff.exe && python scripts/test_cli_limits.py --exe _build/bin/windows/moonbsdiff.exe && python scripts/test_cli_inspect.py --exe _build/bin/windows/moonbsdiff.exe && python scripts/test_cli_inspect_deep.py --exe _build/bin/windows/moonbsdiff.exe && python scripts/test_cli_manifest.py --exe _build/bin/windows/moonbsdiff.exe && python scripts/test_cli_signature.py --exe _build/bin/windows/moonbsdiff.exe && python scripts/test_cli_verify.py --exe _build/bin/windows/moonbsdiff.exe && python scripts/test_cli_options.py --exe _build/bin/windows/moonbsdiff.exe && python scripts/test_cli_stream.py --exe _build/bin/windows/moonbsdiff.exe && python scripts/test_cli_stream_manifest.py --exe _build/bin/windows/moonbsdiff.exe && python scripts/test_cli_verify_stream.py --exe _build/bin/windows/moonbsdiff.exe && python scripts/test_cli_progress.py --exe _build/bin/windows/moonbsdiff.exe && python scripts/test_cli_diff_many.py --exe _build/bin/windows/moonbsdiff.exe && python scripts/test_cli_patch_chain.py --exe _build/bin/windows/moonbsdiff.exe && python scripts/test_cli_redteam.py --exe _build/bin/windows/moonbsdiff.exe && python scripts/check_acceptance.py --test-log _build/stream-delivery-windows.log -- python scripts/native_test.py stream"
+          cmd /c "call `"$dev`" >nul && python scripts/build_cli.py && python scripts/test_cli.py --exe _build/bin/windows/moonbsdiff.exe && python scripts/test_cli_limits.py --exe _build/bin/windows/moonbsdiff.exe && python scripts/test_cli_inspect.py --exe _build/bin/windows/moonbsdiff.exe && python scripts/test_cli_inspect_deep.py --exe _build/bin/windows/moonbsdiff.exe && python scripts/test_cli_manifest.py --exe _build/bin/windows/moonbsdiff.exe && python scripts/test_cli_signature.py --exe _build/bin/windows/moonbsdiff.exe && python scripts/test_cli_verify.py --exe _build/bin/windows/moonbsdiff.exe && python scripts/test_cli_options.py --exe _build/bin/windows/moonbsdiff.exe && python scripts/test_cli_stream.py --exe _build/bin/windows/moonbsdiff.exe && python scripts/test_cli_stream_manifest.py --exe _build/bin/windows/moonbsdiff.exe && python scripts/test_cli_verify_stream.py --exe _build/bin/windows/moonbsdiff.exe && python scripts/test_cli_progress.py --exe _build/bin/windows/moonbsdiff.exe && python scripts/test_cli_diff_many.py --exe _build/bin/windows/moonbsdiff.exe && python scripts/test_cli_patch_chain.py --exe _build/bin/windows/moonbsdiff.exe && python scripts/test_cli_redteam.py --exe _build/bin/windows/moonbsdiff.exe && python scripts/test_cli_analyze.py --exe _build/bin/windows/moonbsdiff.exe && python scripts/test_cli_catalog.py --exe _build/bin/windows/moonbsdiff.exe && python scripts/test_cli_dir.py --exe _build/bin/windows/moonbsdiff.exe && python scripts/check_acceptance.py --test-log _build/stream-delivery-windows.log -- python scripts/native_test.py stream"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Create and consume a manifest for a fixed upstream patch
         env:
@@ -287,6 +297,13 @@ jobs:
           CLI_EXE: ${{ runner.os == 'Windows' && '_build/bin/windows/moonbsdiff.exe' || (runner.os == 'macOS' && '_build/bin/macos/moonbsdiff' || '_build/bin/linux/moonbsdiff') }}
         run: |
           "$PYTHON_BIN" scripts/run_update_demo.py --cli "$CLI_EXE"
+        shell: bash
+      - name: Run the 0.7.0 end-to-end acceptance demo
+        env:
+          PYTHON_BIN: ${{ runner.os == 'Windows' && 'python' || 'python3' }}
+          CLI_EXE: ${{ runner.os == 'Windows' && '_build/bin/windows/moonbsdiff.exe' || (runner.os == 'macOS' && '_build/bin/macos/moonbsdiff' || '_build/bin/linux/moonbsdiff') }}
+        run: |
+          "$PYTHON_BIN" scripts/run_070_acceptance.py --cli "$CLI_EXE" --skip-web
         shell: bash
       - name: Package and validate POSIX release archive once
         if: runner.os == 'Linux' || runner.os == 'macOS'

@@ -1,0 +1,173 @@
+///|
+fn main {
+  let prefix = Bytes::make(1024, 0x41)
+  let old = prefix + b"release consumer\x00v1"
+  let expected = prefix + b"release consumer\x00v2!\xff"
+  let generation_limits = @moonbsdiff.Limits::for_diff()
+  let apply_limits = @moonbsdiff.Limits::for_apply()
+  if apply_limits.max_patch_bytes != RELEASE_APPLY_PATCH_CAP {
+    abort("unexpected default apply patch cap")
+  }
+  let forward = @manifest.diff(old, expected, generation_limits).unwrap()
+  let reverse = @manifest.diff(expected, old, generation_limits).unwrap()
+  if forward.patch[:8].to_owned() != b"BSDIFF40" {
+    abort("manifest.diff did not return a BSDIFF40 patch")
+  }
+  // Exercise 0.7.0 analyze_patch preflight forensics + required_limits round-trip.
+  let analysis = @moonbsdiff.analyze_patch(forward.patch, apply_limits).unwrap()
+  if analysis.deep.header.new_bytes != expected.length().to_int64() ||
+    analysis.required_limits.validate() is Err(_) {
+    abort("analyze_patch returned invalid analysis or required_limits")
+  }
+  let tight_restored = @moonbsdiff.apply(
+    old,
+    forward.patch,
+    analysis.required_limits,
+  ).unwrap()
+  if tight_restored != expected {
+    abort("apply with analyze_patch required_limits failed")
+  }
+  // Exercise 0.6.0 detached Ed25519 signing + apply_signed across native/js/wasm-gc.
+  let seed = Bytes::makei(32, i => (i + 1).to_byte())
+  let sk = @manifest.PrivateKey::from_seed(seed).unwrap()
+  let pk = sk.public_key()
+  let sig = sk.sign_manifest(forward.manifest).unwrap()
+  let parsed_pk = @manifest.PublicKey::from_json_bytes(pk.to_json_bytes()).unwrap()
+  let parsed_sig = @manifest.ManifestSignature::from_json_bytes(
+    sig.to_json_bytes(),
+  ).unwrap()
+  let signed_restored = @manifest.apply_signed(
+    old,
+    forward.patch,
+    forward.manifest,
+    parsed_sig,
+    parsed_pk,
+    apply_limits,
+  ).unwrap()
+  if signed_restored != expected {
+    abort("apply_signed differs from predefined target")
+  }
+  // Exercise 0.7.0 TrustStore + signed ReleaseCatalog + anti-downgrade routing.
+  let seed2 = Bytes::makei(32, i => (i + 33).to_byte())
+  let sk2 = @manifest.PrivateKey::from_seed(seed2).unwrap()
+  let pk2 = sk2.public_key()
+  let store = @manifest.TrustStore::from_keys([parsed_pk, pk2]).unwrap()
+  let start = @manifest.ContentIdentity::of_bytes(old)
+  let end_id = @manifest.ContentIdentity::of_bytes(expected)
+  let patch_id = @manifest.ContentIdentity::of_bytes(forward.patch)
+  let catalog = @manifest.ReleaseCatalog::new(
+    "stable",
+    1L,
+    1L,
+    [
+      { version: 1L, label: "v1", content: start },
+      { version: 2L, label: "v2", content: end_id },
+    ],
+    [
+      {
+        from_version: 1L,
+        to_version: 2L,
+        patch: patch_id,
+        manifest_sha256: None,
+        uri: Some("patches/v1-to-v2.patch"),
+      },
+    ],
+  ).unwrap()
+  let catalog_bytes = catalog.to_json_bytes()
+  let cat_sig = sk2.sign_catalog(catalog_bytes).unwrap()
+  let verified_cat = store
+    .verify_catalog(catalog_bytes, cat_sig, min_catalog_version=1L)
+    .unwrap()
+  match
+    verified_cat.plan_update(1L, start, 2L, apply_limits, max_steps=1L) {
+    Ok(Patches(croute)) =>
+      if croute.patch_indices.length() != 1 ||
+        croute.total_patch_bytes != forward.patch.length().to_int64() {
+        abort("catalog plan_update returned wrong route")
+      }
+    _ => abort("catalog plan_update did not return Patches")
+  }
+  // Exercise 0.7.0 cross-target dir_diff + Ed25519 dir_apply_signed.
+  let old_dir : Array[@manifest.DirFileEntry] = [
+    { path: "app/bin.dat", bytes: old },
+    { path: "keep.txt", bytes: b"unchanged" },
+  ]
+  let new_dir : Array[@manifest.DirFileEntry] = [
+    { path: "app/bin.dat", bytes: expected },
+    { path: "keep.txt", bytes: b"unchanged" },
+  ]
+  let dir_bundle = @manifest.dir_diff(old_dir, new_dir, generation_limits).unwrap()
+  let dir_sig = sk.sign_dir_manifest(dir_bundle.manifest_bytes).unwrap()
+  let dir_blobs : Array[@manifest.DirBlob] = []
+  for blob in dir_bundle.blobs {
+    dir_blobs.push(blob)
+  }
+  let (restored_dir, dir_summary, signer_pk) = @manifest.dir_apply_signed(
+    old_dir,
+    dir_bundle.manifest_bytes,
+    dir_sig,
+    [parsed_pk, pk2],
+    dir_blobs,
+    apply_limits,
+  ).unwrap()
+  if restored_dir.length() != 2 ||
+    dir_summary.new_tree_sha256 != dir_bundle.manifest.new_tree_sha256 ||
+    signer_pk != parsed_pk {
+    abort("dir_apply_signed verification mismatch")
+  }
+  // Exercise 0.6.0 cross-target apply_stream in bounded chunks.
+  let streamed_buf : Array[Byte] = []
+  let stream_result : Result[
+    @moonbsdiff.DeepPatchInfo,
+    @moonbsdiff.StreamApplyError[Unit],
+  ] = @moonbsdiff.apply_stream(
+    old.length().to_int64(),
+    forward.patch.length().to_int64(),
+    apply_limits,
+    read_old_at=(offset, count) => {
+      let start = offset.to_int()
+      let end = Int32::min(old.length(), start + count)
+      Ok(old[start:end].to_owned())
+    },
+    read_patch_at=(offset, count) => {
+      let start = offset.to_int()
+      let end = Int32::min(forward.patch.length(), start + count)
+      Ok(forward.patch[start:end].to_owned())
+    },
+    write_output=chunk => {
+      for b in chunk {
+        streamed_buf.push(b)
+      }
+      Ok(())
+    },
+  )
+  let stream_info = stream_result.unwrap()
+  if Bytes::from_array(streamed_buf) != expected ||
+    stream_info.header.new_bytes != expected.length().to_int64() {
+    abort("apply_stream differs from predefined target")
+  }
+  let target = @manifest.prepare(forward.manifest, apply_limits).unwrap()
+  let reverse_manifest = @manifest.prepare(reverse.manifest, apply_limits).unwrap()
+  let candidates = [reverse_manifest, target]
+  let patches = [reverse.patch, forward.patch]
+  let route = match
+    @manifest.plan_update(start, target.new, candidates, max_steps=1L) {
+    Ok(Patches(route)) => route
+    _ => abort("manifest.plan_update did not select patches")
+  }
+  if route.candidate_indices.length() != 1 ||
+    route.candidate_indices[0] != 1 ||
+    route.total_patch_bytes != forward.patch.length().to_int64() ||
+    route.total_patch_bytes >= expected.length().to_int64() {
+    abort("manifest.plan_update chose the wrong candidate or cost")
+  }
+  let index = route.candidate_indices[0]
+  let restored = candidates[index].restore(old, patches[index]).unwrap()
+  if restored != expected {
+    abort("manifest restore differs from predefined target")
+  }
+  println(
+    "manifest \{RELEASE_VERSION} probe: candidate=\{index} patch_bytes=\{route.total_patch_bytes} target_bytes=\{expected.length()} apply_patch_cap=\{apply_limits.max_patch_bytes}",
+  )
+  println("restored bytes equal predefined new bytes: PASS")
+}

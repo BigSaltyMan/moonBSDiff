@@ -50,7 +50,7 @@ fn stream_manifest(
       path,
       data,
       config.limits,
-      config.public_key,
+      config.public_keys,
       config.signature,
     ) {
     Ok(prepared) => {

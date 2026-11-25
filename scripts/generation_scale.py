@@ -23,6 +23,7 @@ from build_cli import ROOT
 
 KINDS = ['sparse', 'periodic', 'random']
 SIZES = {'256k': 262144, '1m': 1048576}
+SPARSE_TRIMMED_256K = SIZES['256k'] - SIZES['256k'] // 7
 RECORD = ROOT / 'testdata/generation/scales.json'
 
 
@@ -108,8 +109,9 @@ def verify(report, current=False):
         require(row['sort_initialization_work'] == 5*(n+1) and
                 row['sort_round_work'] == row['sort_work']-5*(n+1) > 0 and
                 type(row['invocation_max_rss_kib']) is int and row['invocation_max_rss_kib'] > 0, 'invalid initialization/round/RSS evidence')
+    probe_n = SPARSE_TRIMMED_256K if current else SIZES['256k']
     require(report['low_quota_probe'] == dict(stage='256k', case='sparse', public_failure='Sorting/sort_remaining',
-                                            value=5*(262144+1), limit=1, fresh_public_call=True), 'missing rejection/recovery proof')
+                                            value=5*(probe_n+1), limit=1, fresh_public_call=True), 'missing rejection/recovery proof')
     return report
 
 
@@ -239,7 +241,7 @@ def measure(stage, output, prior):
                   timing='core monotonic microseconds around one generate_patch (actual diff body) and one public apply, excluding input/hash/assertion/diagnostics; process perf_counter includes moon runner/startup/input construction/diagnostics and one small failure/recovery probe in first case; build excluded',
                   accounting='total budgets observed directly; phase components derived from actual block lengths and unchanged declared reservation formulas, scan is the remainder',
                   memory=dict(invocation_max_rss='GNU time %M kernel maximum RSS for moon test invocation including runner/child and diagnostics; not simultaneous subtree sum or API-only peak', sampled_rss='not measured', api_peak='not measured'),
-                  low_quota_probe=dict(stage='256k', case='sparse', public_failure='Sorting/sort_remaining', value=5*(262144+1), limit=1, fresh_public_call=True),
+                  low_quota_probe=dict(stage='256k', case='sparse', public_failure='Sorting/sort_remaining', value=5*(SPARSE_TRIMMED_256K+1), limit=1, fresh_public_call=True),
                   measurements=(previous['measurements'] if previous else [])+rows)
     verify(report, current=True)
     write(output, report)

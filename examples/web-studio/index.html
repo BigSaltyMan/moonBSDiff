@@ -1,0 +1,460 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MoonBSDiff Studio — Forensic &amp; Verifiable Update Workbench</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-logo" aria-hidden="true">
+          <svg viewBox="0 0 36 36" width="36" height="36" fill="none">
+            <rect x="1.5" y="1.5" width="33" height="33" rx="9" fill="#0f172a" stroke="#38bdf8" stroke-width="1.5"/>
+            <path d="M9 24L18 9L27 24H9Z" stroke="#38bdf8" stroke-width="2" stroke-linejoin="round"/>
+            <circle cx="18" cy="19" r="3" fill="#34d399"/>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <div class="brand-title-row">
+            <h1>MoonBSDiff Studio</h1>
+            <span class="version-chip" id="engine-badge">Loading MoonBit JS Core...</span>
+          </div>
+          <p class="brand-sub" data-i18n="subtitle">Forensic &amp; Verifiable Update Workbench — 100% Client-Side MoonBit JS Core</p>
+        </div>
+      </div>
+      <div class="topbar-actions">
+        <span class="pill pill-info" data-i18n="zero_backend_badge">Zero Backend • Real Ed25519 + BSDIFF40</span>
+        <button type="button" class="btn btn-ghost" id="lang-toggle" aria-label="Switch Language">中文 / EN</button>
+      </div>
+    </header>
+
+    <div id="boot-banner" class="boot-banner hidden" role="alert"></div>
+
+    <nav class="tabbar" role="tablist" aria-label="Workbench Modules">
+      <button type="button" class="tab-btn active" id="tab-graph" role="tab" aria-selected="true" aria-controls="panel-graph" data-tab="graph">
+        <span class="tab-index">01</span>
+        <span class="tab-copy">
+          <strong data-i18n="tab_graph_title">Update Graph &amp; Red-Team Lab</strong>
+          <small data-i18n="tab_graph_sub">Ed25519 Catalog • Key Rotation • Dijkstra Routing</small>
+        </span>
+      </button>
+      <button type="button" class="tab-btn" id="tab-xray" role="tab" aria-selected="false" aria-controls="panel-xray" data-tab="xray">
+        <span class="tab-index">02</span>
+        <span class="tab-copy">
+          <strong data-i18n="tab_xray_title">BSDIFF40 X-Ray &amp; Bomb Auditor</strong>
+          <small data-i18n="tab_xray_sub">3-Stream Forensics • Risk Flags • Min Limits</small>
+        </span>
+      </button>
+      <button type="button" class="tab-btn" id="tab-stream" role="tab" aria-selected="false" aria-controls="panel-stream" data-tab="stream">
+        <span class="tab-index">03</span>
+        <span class="tab-copy">
+          <strong data-i18n="tab_stream_title">4 KiB Stream Oscilloscope</strong>
+          <small data-i18n="tab_stream_sub">Bounded Chunks • Callback Trace • Fail-Closed Abort</small>
+        </span>
+      </button>
+      <button type="button" class="tab-btn" id="tab-dir" role="tab" aria-selected="false" aria-controls="panel-dir" data-tab="dir">
+        <span class="tab-index">04</span>
+        <span class="tab-copy">
+          <strong data-i18n="tab_dir_title">Directory Delta Explorer</strong>
+          <small data-i18n="tab_dir_sub">Rename 0 B • Auto Fallback • Signed tree_sha256</small>
+        </span>
+      </button>
+    </nav>
+
+    <main class="workspace">
+      <!-- TAB 1: UPDATE GRAPH & RED-TEAM LAB -->
+      <section class="tab-panel active" id="panel-graph" role="tabpanel" aria-labelledby="tab-graph">
+        <div class="panel-grid graph-layout">
+          <div class="card card-controls">
+            <div class="card-header">
+              <h2 data-i18n="graph_policy_heading">Catalog Policy &amp; Routing Controls</h2>
+              <span class="mono-tag">TrustStore + ReleaseCatalog</span>
+            </div>
+            <div class="control-row two-col">
+              <label class="field">
+                <span data-i18n="lbl_current_ver">Current Release</span>
+                <select id="graph-current">
+                  <option value="1" selected>v1.0.0 (#1)</option>
+                  <option value="2">v1.1.0 (#2)</option>
+                  <option value="3">v1.2.0 (#3)</option>
+                  <option value="4">v2.0.0 (#4)</option>
+                </select>
+              </label>
+              <label class="field">
+                <span data-i18n="lbl_target_ver">Target Release</span>
+                <select id="graph-target">
+                  <option value="1">v1.0.0 (#1)</option>
+                  <option value="2">v1.1.0 (#2)</option>
+                  <option value="3">v1.2.0 (#3)</option>
+                  <option value="4" selected>v2.0.0 (#4)</option>
+                </select>
+              </label>
+            </div>
+
+            <div class="control-row">
+              <label class="field">
+                <div class="field-top">
+                  <span data-i18n="lbl_max_steps">Max Hops (max_steps)</span>
+                  <strong class="mono" id="graph-max-steps-val">3</strong>
+                </div>
+                <input type="range" id="graph-max-steps" min="1" max="4" step="1" value="3">
+              </label>
+            </div>
+
+            <div class="control-row">
+              <div class="field">
+                <div class="field-top">
+                  <label class="inline-check">
+                    <input type="checkbox" id="graph-budget-enabled">
+                    <span data-i18n="lbl_budget_cap">Enforce Download Budget</span>
+                  </label>
+                  <strong class="mono" id="graph-budget-val">Unlimited</strong>
+                </div>
+                <input type="range" id="graph-budget" min="200" max="12000" step="100" value="1200" disabled>
+              </div>
+            </div>
+
+            <div class="control-row two-col">
+              <label class="inline-check toggle-card">
+                <input type="checkbox" id="graph-allow-full" checked>
+                <span data-i18n="lbl_allow_full">Allow Full-File Fallback</span>
+              </label>
+              <label class="field">
+                <span data-i18n="lbl_min_cat">Anti-Replay Floor</span>
+                <input type="number" id="graph-min-catalog" min="1" max="20" step="1" value="5">
+              </label>
+            </div>
+
+            <div class="divider"></div>
+            <div class="card-subheader">
+              <h3 data-i18n="graph_redteam_heading">Red-Team &amp; Rotation Scenarios</h3>
+            </div>
+            <div class="attack-grid" id="graph-attack-buttons">
+              <button type="button" class="attack-btn active" data-attack="none" data-i18n="atk_none">Normal Verified Update</button>
+              <button type="button" class="attack-btn" data-attack="key_rotation" data-i18n="atk_rotation">Zero-Downtime Key Rotation</button>
+              <button type="button" class="attack-btn danger" data-attack="poison_fake_patch" data-i18n="atk_poison">Poison Fake Patch Edge</button>
+              <button type="button" class="attack-btn danger" data-attack="downgrade_v1" data-i18n="atk_downgrade">Downgrade Attack → v1.0</button>
+              <button type="button" class="attack-btn danger" data-attack="replay_old_catalog" data-i18n="atk_replay">Replay Old Catalog (v3)</button>
+              <button type="button" class="attack-btn danger" data-attack="tamper_hop" data-i18n="atk_tamper">Tamper Hop Payload</button>
+            </div>
+          </div>
+
+          <div class="card card-main">
+            <div class="card-header">
+              <h2 data-i18n="graph_dag_heading">Signed Release DAG &amp; Active Route</h2>
+              <div class="trust-badges" id="graph-trust-badges"></div>
+            </div>
+
+            <div id="graph-verdict" class="verdict-banner"></div>
+
+            <div class="svg-stage">
+              <svg id="graph-svg" viewBox="0 0 760 270" role="img" aria-label="Signed release graph"></svg>
+            </div>
+
+            <div class="kpi-strip" id="graph-kpis"></div>
+
+            <div class="subcard">
+              <h3 data-i18n="graph_hops_heading">Cryptographic Hop Verification Ledger</h3>
+              <div id="graph-hops-table" class="table-wrap"></div>
+            </div>
+
+            <details class="code-details">
+              <summary data-i18n="graph_catalog_json">Inspect Real Signed ReleaseCatalog JSON</summary>
+              <pre id="graph-catalog-preview" class="code-block"></pre>
+            </details>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 2: BSDIFF40 X-RAY & BOMB AUDITOR -->
+      <section class="tab-panel" id="panel-xray" role="tabpanel" aria-labelledby="tab-xray">
+        <div class="panel-grid xray-layout">
+          <div class="card card-controls">
+            <div class="card-header">
+              <h2 data-i18n="xray_input_heading">Patch Source &amp; Sandbox Limits</h2>
+              <span class="mono-tag">analyze_patch()</span>
+            </div>
+
+            <div class="preset-list" id="xray-presets">
+              <button type="button" class="preset-btn active" data-preset="healthy_update">
+                <strong data-i18n="preset_healthy">Healthy Firmware Update</strong>
+                <small data-i18n="preset_healthy_desc">8 KiB structured edit • Low risk</small>
+              </button>
+              <button type="button" class="preset-btn" data-preset="fastpath_prefix_suffix">
+                <strong data-i18n="preset_fastpath">Fast-Path Prefix / Suffix</strong>
+                <small data-i18n="preset_fastpath_desc">4 KiB identical flanks • 2 controls</small>
+              </button>
+              <button type="button" class="preset-btn warn" data-preset="decompression_bomb">
+                <strong data-i18n="preset_bomb">Bzip2 Decompression Bomb</strong>
+                <small data-i18n="preset_bomb_desc">~140 B → 100 KiB (&gt;700× expansion)</small>
+              </button>
+              <button type="button" class="preset-btn" data-preset="incompressible_random">
+                <strong data-i18n="preset_random">Incompressible Random</strong>
+                <small data-i18n="preset_random_desc">Patch ≥ Output + High Extra Share</small>
+              </button>
+              <button type="button" class="preset-btn" data-preset="reordered_blocks">
+                <strong data-i18n="preset_reorder">Reordered Blocks (Neg Seeks)</strong>
+                <small data-i18n="preset_reorder_desc">24 reversed chunks • negative seek_offset</small>
+              </button>
+              <button type="button" class="preset-btn danger" data-preset="truncated_corrupt">
+                <strong data-i18n="preset_trunc">Truncated / Corrupt Patch</strong>
+                <small data-i18n="preset_trunc_desc">Structured BsdiffError::TruncatedData</small>
+              </button>
+            </div>
+
+            <div class="dropzone" id="xray-dropzone">
+              <input type="file" id="xray-file-input" class="sr-only">
+              <p class="drop-title" data-i18n="xray_drop_title">Drop ANY real .patch file here</p>
+              <p class="drop-sub" data-i18n="xray_drop_sub">or click to browse — analyzed locally via MoonBit JS</p>
+              <button type="button" class="btn btn-secondary btn-sm" id="xray-browse-btn" data-i18n="xray_browse">Select .patch File</button>
+            </div>
+
+            <div class="divider"></div>
+            <div class="card-subheader">
+              <h3 data-i18n="xray_limits_heading">Resource Limit Policy</h3>
+            </div>
+            <div class="pill-buttons" id="xray-limit-presets">
+              <button type="button" class="chip-btn active" data-limit="generous" data-i18n="lim_generous">Generous Audit</button>
+              <button type="button" class="chip-btn" data-limit="tight" data-i18n="lim_tight">Tight Sandbox (8 KiB)</button>
+              <button type="button" class="chip-btn" data-limit="balanced" data-i18n="lim_balanced">Balanced</button>
+            </div>
+
+            <div class="control-row two-col compact">
+              <label class="field">
+                <span>max_patch_bytes</span>
+                <input type="number" id="xray-max-patch" value="131072" min="1" step="1">
+              </label>
+              <label class="field">
+                <span>max_output_bytes</span>
+                <input type="number" id="xray-max-output" value="1048576" min="1" step="1">
+              </label>
+              <label class="field">
+                <span>max_decompressed_bytes</span>
+                <input type="number" id="xray-max-decomp" value="2097152" min="1" step="1">
+              </label>
+              <label class="field">
+                <span>max_control_instructions</span>
+                <input type="number" id="xray-max-controls" value="16384" min="1" step="1">
+              </label>
+            </div>
+            <div class="action-row">
+              <button type="button" class="btn btn-primary btn-sm" id="xray-apply-custom-limits" data-i18n="xray_reanalyze">Re-Analyze with Limits</button>
+              <button type="button" class="btn btn-ghost btn-sm" id="xray-download-patch" data-i18n="xray_download">Download .patch</button>
+            </div>
+          </div>
+
+          <div class="card card-main">
+            <div class="card-header">
+              <h2 data-i18n="xray_report_heading">BSDIFF40 Structural X-Ray &amp; Risk Audit</h2>
+              <span id="xray-risk-pill" class="pill">—</span>
+            </div>
+
+            <div id="xray-error-box" class="verdict-banner hidden"></div>
+
+            <div id="xray-content">
+              <div class="subcard">
+                <div class="subcard-top">
+                  <h3 data-i18n="xray_bar_heading">Segmented Wire Layout (32 B Header + 3 Bzip2 Streams)</h3>
+                  <span class="mono muted" id="xray-wire-total"></span>
+                </div>
+                <div class="xray-bar" id="xray-segmented-bar"></div>
+                <div class="xray-legend" id="xray-legend"></div>
+              </div>
+
+              <div class="kpi-strip" id="xray-kpis"></div>
+
+              <div class="subcard">
+                <h3 data-i18n="xray_flags_heading">Preflight Security Risk Flags</h3>
+                <div id="xray-flags-list"></div>
+              </div>
+
+              <div class="subcard">
+                <div class="subcard-top">
+                  <h3 data-i18n="xray_controls_heading">Decoded Control Tuples (add / extra / seek)</h3>
+                  <span class="mono muted" id="xray-seek-summary"></span>
+                </div>
+                <div id="xray-controls-table" class="table-wrap"></div>
+              </div>
+
+              <div class="snippet-grid">
+                <div class="subcard">
+                  <div class="subcard-top">
+                    <h3 data-i18n="xray_mbt_heading">Minimum Required MoonBit Limits</h3>
+                    <button type="button" class="btn btn-ghost btn-xs copy-btn" data-copy-target="xray-mbt-code" data-i18n="btn_copy">Copy</button>
+                  </div>
+                  <pre id="xray-mbt-code" class="code-block"></pre>
+                </div>
+                <div class="subcard">
+                  <div class="subcard-top">
+                    <h3 data-i18n="xray_cli_heading">Hardened CLI Preflight Command</h3>
+                    <button type="button" class="btn btn-ghost btn-xs copy-btn" data-copy-target="xray-cli-code" data-i18n="btn_copy">Copy</button>
+                  </div>
+                  <pre id="xray-cli-code" class="code-block"></pre>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 3: 4 KiB STREAM OSCILLOSCOPE -->
+      <section class="tab-panel" id="panel-stream" role="tabpanel" aria-labelledby="tab-stream">
+        <div class="panel-grid stream-layout">
+          <div class="card card-controls">
+            <div class="card-header">
+              <h2 data-i18n="stream_controls_heading">Streaming Engine Controls</h2>
+              <span class="mono-tag">apply_stream()</span>
+            </div>
+
+            <label class="field">
+              <span data-i18n="stream_preset_lbl">Stream Payload Scenario</span>
+              <select id="stream-preset">
+                <option value="firmware_20k" selected data-i18n="stream_opt_fw">Firmware 20 KiB (5× 4 KiB chunks)</option>
+                <option value="mixed_insert_24k" data-i18n="stream_opt_mixed">Mixed Insert 24 KiB (diff + extra streams)</option>
+                <option value="reorder_seek_16k" data-i18n="stream_opt_reorder">Reordered 16 KiB (non-sequential seeks)</option>
+              </select>
+            </label>
+
+            <div class="control-row">
+              <label class="field">
+                <div class="field-top">
+                  <span data-i18n="stream_abort_lbl">Abort After Chunk N (Fail-Closed Test)</span>
+                  <strong class="mono" id="stream-abort-val">0 (Complete)</strong>
+                </div>
+                <input type="range" id="stream-abort" min="0" max="5" step="1" value="0">
+              </label>
+            </div>
+
+            <div class="divider"></div>
+            <div class="card-subheader">
+              <h3 data-i18n="stream_playback_heading">Oscilloscope Playback</h3>
+            </div>
+            <div class="playback-bar">
+              <button type="button" class="btn btn-primary btn-sm" id="stream-play" data-i18n="btn_play">Play</button>
+              <button type="button" class="btn btn-secondary btn-sm" id="stream-step-back">−1</button>
+              <button type="button" class="btn btn-secondary btn-sm" id="stream-step-fwd">+1</button>
+              <button type="button" class="btn btn-ghost btn-sm" id="stream-reset" data-i18n="btn_reset">Reset</button>
+            </div>
+            <div class="control-row">
+              <label class="field">
+                <div class="field-top">
+                  <span data-i18n="stream_cursor_lbl">Frame / Chunk Cursor</span>
+                  <strong class="mono" id="stream-cursor-val">0 / 0</strong>
+                </div>
+                <input type="range" id="stream-cursor" min="0" max="0" step="1" value="0">
+              </label>
+            </div>
+
+            <div class="divider"></div>
+            <div class="live-counters" id="stream-counters"></div>
+          </div>
+
+          <div class="card card-main">
+            <div class="card-header">
+              <h2 data-i18n="stream_scope_heading">Bounded 4 KiB Chunk Waveform &amp; Stage Pipeline</h2>
+              <span id="stream-status-pill" class="pill">—</span>
+            </div>
+
+            <div class="stage-pipeline" id="stream-pipeline"></div>
+            <div id="stream-verdict" class="verdict-banner"></div>
+
+            <div class="svg-stage">
+              <svg id="stream-svg" viewBox="0 0 760 220" role="img" aria-label="Stream chunk oscilloscope"></svg>
+            </div>
+
+            <div class="kpi-strip" id="stream-kpis"></div>
+
+            <div class="subcard">
+              <div class="subcard-top">
+                <h3 data-i18n="stream_trace_heading">Real Callback Event Trace (read_old_at / read_patch_at / write_output)</h3>
+                <span class="mono muted" id="stream-event-count"></span>
+              </div>
+              <div id="stream-events-table" class="table-wrap scroll-tall"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 4: DIRECTORY DELTA EXPLORER -->
+      <section class="tab-panel" id="panel-dir" role="tabpanel" aria-labelledby="tab-dir">
+        <div class="panel-grid dir-layout">
+          <div class="card card-controls">
+            <div class="card-header">
+              <h2 data-i18n="dir_controls_heading">Directory Trees &amp; Tamper Tests</h2>
+              <span class="mono-tag">dir_diff + dir_apply_signed</span>
+            </div>
+
+            <div class="action-col">
+              <button type="button" class="btn btn-primary btn-sm" id="dir-use-preset" data-i18n="dir_btn_preset">Load Mini App v1 → v2 Preset</button>
+              <div class="folder-pickers">
+                <label class="folder-box">
+                  <span data-i18n="dir_pick_old">Old Folder (v1)</span>
+                  <input type="file" id="dir-old-input" webkitdirectory multiple>
+                  <small id="dir-old-status" class="mono muted">Preset active</small>
+                </label>
+                <label class="folder-box">
+                  <span data-i18n="dir_pick_new">New Folder (v2)</span>
+                  <input type="file" id="dir-new-input" webkitdirectory multiple>
+                  <small id="dir-new-status" class="mono muted">Preset active</small>
+                </label>
+              </div>
+              <button type="button" class="btn btn-secondary btn-sm" id="dir-run-custom" disabled data-i18n="dir_run_custom">Diff &amp; Sign Selected Folders</button>
+            </div>
+
+            <div class="divider"></div>
+            <div class="card-subheader">
+              <h3 data-i18n="dir_tamper_heading">Signed Bundle Attack Simulation</h3>
+            </div>
+            <div class="attack-grid single-col" id="dir-tamper-buttons">
+              <button type="button" class="attack-btn active" data-tamper="none" data-i18n="dir_tm_none">Clean Ed25519 Verified Apply</button>
+              <button type="button" class="attack-btn danger" data-tamper="tamper_blob" data-i18n="dir_tm_blob">Tamper Patch Blob (1-Byte Flip)</button>
+              <button type="button" class="attack-btn danger" data-tamper="forged_signature" data-i18n="dir_tm_sig">Forge Ed25519 Signature</button>
+              <button type="button" class="attack-btn danger" data-tamper="path_traversal" data-i18n="dir_tm_path">Inject Path Traversal (../escape.sh)</button>
+            </div>
+
+            <div class="divider"></div>
+            <div class="tree-hashes" id="dir-tree-hashes"></div>
+          </div>
+
+          <div class="card card-main">
+            <div class="card-header">
+              <h2 data-i18n="dir_report_heading">File-Level Delta Plan &amp; Tree Authenticity</h2>
+              <span id="dir-signer-badge" class="mono-tag">—</span>
+            </div>
+
+            <div id="dir-verdict" class="verdict-banner"></div>
+            <div class="kpi-strip" id="dir-kpis"></div>
+
+            <div class="filter-bar" id="dir-action-filters">
+              <button type="button" class="chip-btn active" data-filter="ALL" data-i18n="flt_all">All</button>
+              <button type="button" class="chip-btn" data-filter="PATCHED">PATCHED</button>
+              <button type="button" class="chip-btn" data-filter="RENAMED">RENAMED</button>
+              <button type="button" class="chip-btn" data-filter="UNCHANGED">UNCHANGED</button>
+              <button type="button" class="chip-btn" data-filter="FULL_FALLBACK">FULL_FALLBACK</button>
+              <button type="button" class="chip-btn" data-filter="ADDED">ADDED</button>
+              <button type="button" class="chip-btn" data-filter="DELETED">DELETED</button>
+            </div>
+
+            <div id="dir-entries-table" class="table-wrap"></div>
+
+            <details class="code-details">
+              <summary data-i18n="dir_manifest_json">Inspect Canonical Signed dir-manifest.json</summary>
+              <pre id="dir-manifest-preview" class="code-block"></pre>
+            </details>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <span data-i18n="footer_left">Powered by BigSaltyMan/moonbsdiff compiled to ES Module via MoonBit JS target — zero external dependencies.</span>
+      <span class="mono muted">BSDIFF40 • Ed25519 • SHA-256 • 4 KiB Bounded Stream</span>
+    </footer>
+  </div>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

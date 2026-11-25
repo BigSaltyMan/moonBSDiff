@@ -252,8 +252,13 @@ fn stream_operation(config : CliConfig) -> Int32 {
       "\{config.operation} step \{state.chain_step}: "
     }
     let native = if io_failed() != 0 {
-      let sep = if state.detail == "" { "" } else { "; " }
-      sep + @utf8.decode_lossy(io_error()[:])
+      let err_text = @utf8.decode_lossy(io_error()[:])
+      if err_text == "" || state.detail.contains(err_text) {
+        ""
+      } else {
+        let sep = if state.detail == "" { "" } else { "; " }
+        sep + err_text
+      }
     } else {
       ""
     }

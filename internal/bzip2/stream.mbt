@@ -129,7 +129,11 @@ fn StreamReader::read_inner(
         if self.meter.remaining_output() == 0L {
           self.meter.reserve(1)
         }
-        let (plain, want) = read_rle_block(self.bits, self.level, None)
+        let (plain, want) = read_rle_block(
+          self.bits,
+          self.level,
+          Some(self.meter),
+        )
         self.plain = plain
         self.at = 0
         self.want = want

@@ -6,15 +6,17 @@ fn print_usage(operation : String, flags? : String) -> Unit {
     "patch" => ("[OPTIONS]", "OLD_FILE PATCH_FILE OUTPUT_FILE")
     "patch-chain" =>
       (
-        "--target-manifest FILE [--progress text|json] [LIMITS]", "OLD OUTPUT (PATCH MANIFEST)...",
+        "--target-manifest FILE [--public-key KEY_FILE ... --target-signature SIG_FILE --step-signature SIG_FILE ...] [--progress text|json] [LIMITS]",
+        "OLD OUTPUT (PATCH MANIFEST)...",
       )
     "verify-chain" =>
       (
-        "--target-manifest FILE [--progress text|json] [LIMITS]", "OLD (PATCH MANIFEST)...",
+        "--target-manifest FILE [--public-key KEY_FILE ... --target-signature SIG_FILE --step-signature SIG_FILE ...] [--progress text|json] [LIMITS]",
+        "OLD (PATCH MANIFEST)...",
       )
     "verify" =>
       (
-        "[--stream] --manifest MANIFEST_FILE [--public-key KEY_FILE --signature SIG_FILE] [LIMITS]",
+        "[--stream] --manifest MANIFEST_FILE [--public-key KEY_FILE ... --signature SIG_FILE] [LIMITS]",
         "OLD_FILE PATCH_FILE",
       )
     "manifest" => ("[LIMITS]", "OLD_FILE NEW_FILE PATCH_FILE MANIFEST_FILE")
@@ -34,13 +36,41 @@ fn print_usage(operation : String, flags? : String) -> Unit {
     "manifest sign" =>
       ("[--json] --private-key KEY_FILE", "MANIFEST_FILE SIGNATURE_FILE")
     "manifest verify-sig" =>
-      ("[--json] --public-key KEY_FILE --signature SIG_FILE", "MANIFEST_FILE")
+      (
+        "[--json] --public-key KEY_FILE [--public-key KEY2 ...] --signature SIG_FILE",
+        "MANIFEST_FILE",
+      )
+    "manifest catalog sign" =>
+      ("[--json] --private-key KEY_FILE", "CATALOG_FILE SIG_FILE")
+    "manifest catalog verify" =>
+      (
+        "[--json] --public-key KEY_FILE [--public-key KEY2 ...] --signature SIG_FILE [--min-catalog-version N]",
+        "CATALOG_FILE",
+      )
+    "manifest catalog plan" =>
+      (
+        "[--json] --public-key KEY_FILE [--public-key KEY2 ...] --signature SIG_FILE --current-version V --target-version V [--min-catalog-version N] [--max-steps COUNT] [--max-download-bytes VALUE] [--allow-full] [LIMITS]",
+        "CATALOG_FILE CURRENT_FILE",
+      )
     "install-full" =>
       (
-        "--target-manifest FILE [--public-key KEY_FILE --signature SIG_FILE] [--max-new-bytes VALUE] [--max-output-bytes VALUE]",
+        "--target-manifest FILE [--public-key KEY_FILE ... --signature SIG_FILE] [--max-new-bytes VALUE] [--max-output-bytes VALUE]",
         "DOWNLOADED_FILE OUTPUT_FILE",
       )
-    "inspect" => ("[--deep] [--json] [--max-patch-bytes VALUE]", "PATCH_FILE")
+    "inspect" =>
+      ("[--deep | --analyze] [--json] [--max-patch-bytes VALUE]", "PATCH_FILE")
+    "dir-diff" =>
+      (
+        "[--private-key KEY_FILE] [--json] [LIMITS]", "OLD_DIR NEW_DIR BUNDLE_DIR",
+      )
+    "dir-verify" =>
+      (
+        "[--public-key KEY_FILE ... --signature SIG_FILE] [--json] [LIMITS]", "OLD_DIR BUNDLE_DIR",
+      )
+    "dir-patch" =>
+      (
+        "[--public-key KEY_FILE ... --signature SIG_FILE] [--json] [LIMITS]", "OLD_DIR BUNDLE_DIR OUTPUT_DIR",
+      )
     _ => abort("missing usage for CLI command")
   }
   let name = if operation == "manifest" { "manifest create" } else { operation }
@@ -55,7 +85,7 @@ fn print_usage(operation : String, flags? : String) -> Unit {
 ///|
 fn print_manifest_help() -> Unit {
   println(
-    "moonbsdiff manifest <create|select|plan|plan-local|keygen|sign|verify-sig> --help",
+    "moonbsdiff manifest <create|select|plan|plan-local|keygen|sign|verify-sig|catalog> --help",
   )
   println(
     "  create      Write a manifest after checking a patch against OLD_FILE and NEW_FILE.",
@@ -68,16 +98,34 @@ fn print_manifest_help() -> Unit {
   println("  keygen      Generate a detached Ed25519 signing keypair.")
   println("  sign        Sign a Schema 1 manifest with an Ed25519 private key.")
   println("  verify-sig  Verify a detached Ed25519 manifest signature.")
+  println(
+    "  catalog     Sign, verify, and plan updates against signed release catalogs.",
+  )
+}
+
+///|
+fn print_manifest_catalog_help() -> Unit {
+  println("moonbsdiff manifest catalog <sign|verify|plan> --help")
+  println(
+    "  sign    Sign a Schema 1 release catalog JSON with an Ed25519 private key.",
+  )
+  println(
+    "  verify  Verify a detached release catalog signature against pinned public key(s).",
+  )
+  println(
+    "  plan    Plan an anti-downgrade update route from a verified release catalog.",
+  )
 }
 
 ///|
 fn print_limit_help(operation : String) -> Unit {
   let lookup = operation == "manifest select" ||
     operation == "manifest plan" ||
-    operation == "manifest plan-local"
+    operation == "manifest plan-local" ||
+    operation == "manifest catalog plan"
   if operation == "inspect" {
     println("  --max-patch-bytes VALUE     Maximum patch size.")
-    println("  With --deep only:")
+    println("  With --deep or --analyze only:")
     println("    --max-output-bytes VALUE    Maximum declared restored size.")
   } else {
     if operation != "install-full" {
@@ -90,18 +138,26 @@ fn print_limit_help(operation : String) -> Unit {
     )
   }
   if !lookup && operation != "install-full" {
-    let expanded = if operation == "diff" || operation == "diff-many" {
-      "Raw control, diff and extra bytes."
+    let expanded = if operation == "diff" ||
+      operation == "diff-many" ||
+      operation == "dir-diff" {
+      "Raw control, diff and extra bytes"
     } else {
-      "Total decoded bytes across streams."
+      "Total decoded bytes across streams"
     }
     let indent = if operation == "inspect" { "    " } else { "  " }
-    println(indent + "--max-expanded-bytes VALUE  " + expanded)
     println(
-      indent + "--max-controls COUNT        Maximum control instructions.",
+      indent +
+      "--max-expanded-bytes VALUE  " +
+      expanded +
+      " (alias: --max-decompressed-bytes).",
+    )
+    println(
+      indent +
+      "--max-controls COUNT        Maximum control instructions (alias: --max-control-instructions).",
     )
   }
-  if operation == "diff" || operation == "diff-many" {
+  if operation == "diff" || operation == "diff-many" || operation == "dir-diff" {
     println("  --max-sort-work COUNT       Sorting work limit.")
     println("  --max-match-work COUNT      Matching and generation work limit.")
   }
@@ -137,7 +193,7 @@ fn print_command_help(operation : String) -> Unit {
         "  --manifest MANIFEST_FILE   Verify input and restored bytes against a trusted manifest.",
       )
       println(
-        "  --public-key KEY_FILE      Verify detached manifest signature (requires --manifest and --signature).",
+        "  --public-key KEY_FILE      Verify detached manifest signature (repeatable for key rotation; requires --manifest and --signature).",
       )
       println(
         "  --signature SIG_FILE       Detached Ed25519 signature file for --manifest (requires --public-key).",
@@ -164,6 +220,15 @@ fn print_command_help(operation : String) -> Unit {
         "  --target-manifest FILE    Required. Supplies the expected final file identity.",
       )
       println(
+        "  --public-key KEY_FILE     Verify manifest signatures (repeatable; requires --target-signature and one --step-signature per step).",
+      )
+      println(
+        "  --target-signature FILE   Detached Ed25519 signature for --target-manifest.",
+      )
+      println(
+        "  --step-signature FILE     Detached Ed25519 signature for each PATCH MANIFEST step in order (repeatable).",
+      )
+      println(
         "  --progress text|json     Report progress to stderr. Confirmed cancellation exits 130.",
       )
     }
@@ -173,7 +238,7 @@ fn print_command_help(operation : String) -> Unit {
         "  --manifest MANIFEST_FILE  Required. Supplies the expected file identities.",
       )
       println(
-        "  --public-key KEY_FILE     Require detached signature authentication (with --signature).",
+        "  --public-key KEY_FILE     Require detached signature authentication (repeatable; with --signature).",
       )
       println(
         "  --signature SIG_FILE      Detached Ed25519 signature file (with --public-key).",
@@ -187,6 +252,9 @@ fn print_command_help(operation : String) -> Unit {
       println(
         "  --deep                   Check streams, CRC, controls and consumption without restoring.",
       )
+      println(
+        "  --analyze                Run bounded preflight forensics, ratios, risk flags and required limits (mutually exclusive with --deep).",
+      )
       println("  --json                   Write inspection results as JSON.")
     }
     "install-full" => {
@@ -197,11 +265,44 @@ fn print_command_help(operation : String) -> Unit {
         "  --target-manifest FILE   Required. Supplies the expected file identity.",
       )
       println(
-        "  --public-key KEY_FILE    Verify detached target manifest signature (with --signature).",
+        "  --public-key KEY_FILE    Verify detached target manifest signature (repeatable; with --signature).",
       )
       println(
         "  --signature SIG_FILE     Detached Ed25519 signature file (with --public-key).",
       )
+    }
+    "dir-diff" => {
+      println(
+        "Create a deterministic directory delta bundle at a brand-new BUNDLE_DIR (refuses symlinks/reparse points; multi-file delivery is not atomic).",
+      )
+      println(
+        "  --private-key KEY_FILE   Optional. Sign dir-manifest.json and write dir-manifest.sig.",
+      )
+      println("  --json                   Write directory summary as JSON.")
+    }
+    "dir-verify" => {
+      println(
+        "Verify a directory delta bundle against OLD_DIR without creating output files.",
+      )
+      println(
+        "  --public-key KEY_FILE    Verify detached directory manifest signature (repeatable; with --signature).",
+      )
+      println(
+        "  --signature SIG_FILE     Detached Ed25519 signature file for dir-manifest.json (with --public-key).",
+      )
+      println("  --json                   Write verification summary as JSON.")
+    }
+    "dir-patch" => {
+      println(
+        "Verify and restore a directory delta bundle against OLD_DIR into a brand-new OUTPUT_DIR (multi-file delivery is not atomic).",
+      )
+      println(
+        "  --public-key KEY_FILE    Verify detached directory manifest signature (repeatable; with --signature).",
+      )
+      println(
+        "  --signature SIG_FILE     Detached Ed25519 signature file for dir-manifest.json (with --public-key).",
+      )
+      println("  --json                   Write restoration summary as JSON.")
     }
     "manifest" =>
       println(
@@ -260,21 +361,79 @@ fn print_command_help(operation : String) -> Unit {
     }
     "manifest verify-sig" => {
       println(
-        "Verify a detached Ed25519 signature against a Schema 1 manifest and pinned public key.",
+        "Verify a detached Ed25519 signature against a Schema 1 manifest and pinned public key(s).",
       )
       println(
-        "  --public-key KEY_FILE  Required. Pinned Ed25519 public key JSON file.",
+        "  --public-key KEY_FILE  Required (repeatable). Pinned Ed25519 public key JSON file.",
       )
       println(
         "  --signature SIG_FILE   Required. Detached manifest signature JSON file.",
       )
       println("  --json                 Write verification result as JSON.")
     }
+    "manifest catalog sign" => {
+      println(
+        "Validate and sign a Schema 1 release catalog JSON file with an Ed25519 private key.",
+      )
+      println(
+        "  --private-key KEY_FILE  Required. Ed25519 private key JSON file.",
+      )
+      println("  --json                  Write signature metadata as JSON.")
+    }
+    "manifest catalog verify" => {
+      println(
+        "Verify a detached Ed25519 signature against a Schema 1 release catalog and pinned public key(s).",
+      )
+      println(
+        "  --public-key KEY_FILE        Required (repeatable). Pinned Ed25519 public key JSON file.",
+      )
+      println(
+        "  --signature SIG_FILE         Required. Detached catalog signature JSON file.",
+      )
+      println(
+        "  --min-catalog-version COUNT  Optional anti-replay minimum catalog_version.",
+      )
+      println(
+        "  --json                       Write verification result as JSON.",
+      )
+    }
+    "manifest catalog plan" => {
+      println(
+        "Verify a signed release catalog, hash CURRENT_FILE by streaming, and plan an anti-downgrade update.",
+      )
+      println(
+        "  --public-key KEY_FILE        Required (repeatable). Pinned Ed25519 public key JSON file.",
+      )
+      println(
+        "  --signature SIG_FILE         Required. Detached catalog signature JSON file.",
+      )
+      println(
+        "  --current-version COUNT      Required. Currently installed release version.",
+      )
+      println(
+        "  --target-version COUNT       Required. Requested target release version.",
+      )
+      println(
+        "  --min-catalog-version COUNT  Optional anti-replay minimum catalog_version.",
+      )
+      println(
+        "  --max-steps COUNT            Limit the number of patch applications.",
+      )
+      println(
+        "  --max-download-bytes VALUE   Limit total download bytes. Zero is allowed.",
+      )
+      println(
+        "  --allow-full                 Allow falling back to downloading the complete target.",
+      )
+      println("  --json                       Write plan result as JSON.")
+    }
     _ => abort("missing help for CLI command")
   }
   if operation != "manifest keygen" &&
     operation != "manifest sign" &&
-    operation != "manifest verify-sig" {
+    operation != "manifest verify-sig" &&
+    operation != "manifest catalog sign" &&
+    operation != "manifest catalog verify" {
     print_limit_help(operation)
   }
   println("Place options before paths. Use -- before paths starting with '-'.")
@@ -293,6 +452,13 @@ fn print_requested_help(args : Array[String]) -> Bool {
   }
   if args.length() == 3 && args[1] == "manifest" && help_flag(args[2]) {
     print_manifest_help()
+    return true
+  }
+  if args.length() == 4 &&
+    args[1] == "manifest" &&
+    args[2] == "catalog" &&
+    help_flag(args[3]) {
+    print_manifest_catalog_help()
     return true
   }
   if parse_command(args) is Ok((operation, options_start)) &&
@@ -325,7 +491,7 @@ fn print_help() -> Unit {
   )
   print_usage(
     "patch",
-    flags="--stream [--manifest MANIFEST_FILE [--public-key KEY_FILE --signature SIG_FILE]] [--progress text|json]",
+    flags="--stream [--manifest MANIFEST_FILE [--public-key KEY_FILE ... --signature SIG_FILE]] [--progress text|json]",
   )
   println(
     "Progress/diagnostics go to stderr. Ctrl+C (Windows also Ctrl+Break) requests cooperative cancellation, exit 130 before commit; no rollback after commit begins.",
@@ -336,6 +502,9 @@ fn print_help() -> Unit {
   println("moonbsdiff --help | -h | --version")
   println("For command help, use moonbsdiff COMMAND --help or -h.")
   println("For manifest subcommands, use moonbsdiff manifest --help.")
+  println(
+    "For release catalog commands, use moonbsdiff manifest catalog --help.",
+  )
   print_usage("verify")
   print_usage("manifest")
   println(
@@ -369,12 +538,21 @@ fn print_help() -> Unit {
   print_usage("manifest keygen")
   print_usage("manifest sign")
   print_usage("manifest verify-sig")
+  print_usage("manifest catalog sign")
+  print_usage("manifest catalog verify")
+  print_usage("manifest catalog plan")
   println(
-    "Detached Ed25519 manifest signing and verification (4096-byte key/signature caps; mode 0600 on POSIX, owner DACL on Windows for private keys).",
+    "Detached Ed25519 manifest and release catalog signing/verification (repeatable --public-key for key rotation; mode 0600 on POSIX, owner DACL on Windows for private keys).",
+  )
+  print_usage("dir-diff")
+  print_usage("dir-verify")
+  print_usage("dir-patch")
+  println(
+    "Directory delta bundles: diff, verify, and patch whole directory trees with rename detection, optional Ed25519 signatures, and no-overwrite/no-symlink safety (multi-file delivery is not atomic).",
   )
   print_usage(
     "patch",
-    flags="--manifest MANIFEST_FILE [--public-key KEY_FILE --signature SIG_FILE] [LIMITS]",
+    flags="--manifest MANIFEST_FILE [--public-key KEY_FILE ... --signature SIG_FILE] [LIMITS]",
   )
   println(
     "Manifest input: at most 16384 bytes, schema 1, no duplicate/unknown keys. Verify uses memory by default; --stream hashes restored chunks. Neither saves restored output.",
@@ -388,10 +566,10 @@ fn print_help() -> Unit {
   )
   print_usage("inspect")
   println(
-    "Deep inspect also accepts --max-output-bytes, --max-expanded-bytes and --max-controls.",
+    "Deep/analyze inspect also accepts --max-output-bytes, --max-expanded-bytes (--max-decompressed-bytes) and --max-controls (--max-control-instructions).",
   )
   println(
-    "inspect reads the header by default. --deep checks streams, CRC, controls and consumption without restoring a file.",
+    "inspect reads the header by default. --deep checks streams, CRC, controls and consumption; --analyze adds forensics, ratios, risk flags and required limits.",
   )
   println("With options: moonbsdiff diff|patch [OPTIONS] FILE FILE FILE")
   println(
@@ -404,16 +582,16 @@ fn print_help() -> Unit {
     "Options precede all paths; -- ends options and allows leading '-' paths.",
   )
   println(
-    "Byte options (diff/diff-many/patch/verify/patch-chain/verify-chain/manifest create): --max-old-bytes, --max-new-bytes, --max-output-bytes, --max-patch-bytes, --max-expanded-bytes VALUE",
+    "Byte options (diff/diff-many/patch/verify/patch-chain/verify-chain/manifest create/dir-*): --max-old-bytes, --max-new-bytes, --max-output-bytes, --max-patch-bytes, --max-expanded-bytes VALUE",
   )
   println(
     "Bytes: ASCII decimal with optional case-sensitive B, KiB or MiB. Positive except for the download budget; no spaces or signs.",
   )
   println(
-    "Count (diff/diff-many/patch/verify/patch-chain/verify-chain/manifest create): --max-controls VALUE. Diff and diff-many: --max-sort-work, --max-match-work VALUE.",
+    "Count (diff/diff-many/patch/verify/patch-chain/verify-chain/manifest create/dir-*): --max-controls VALUE. Diff/diff-many/dir-diff: --max-sort-work, --max-match-work VALUE.",
   )
   println(
-    "Counts/work: positive decimal integers, no units. Each option occurs at most once; use separate values, not '='.",
+    "Counts/work: positive decimal integers, no units. Non-repeatable options occur at most once; use separate values, not '='.",
   )
   println(
     "Expanded bytes: raw control/diff/extra for diff; cumulative decoded bytes for patch.",

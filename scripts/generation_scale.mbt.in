@@ -44,7 +44,8 @@ fn scale_case(n : Int, kind : Int, limits : Limits, probe : Bool) -> Unit raise 
         assert_eq(e.kind, ResourceLimitExceeded)
         assert_eq(e.stage, Sorting)
         assert_eq(e.field, Some("sort_remaining"))
-        assert_eq(e.value, Some(5L * (n.to_int64() + 1L)))
+        let sort_len = if kind == 0 { n - n / 7 } else { n }
+        assert_eq(e.value, Some(5L * (sort_len.to_int64() + 1L)))
         assert_eq(e.limit, Some(1L))
         assert_eq(e.offset, None)
         assert_eq(e.block, None)

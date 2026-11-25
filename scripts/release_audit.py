@@ -53,11 +53,15 @@ REQUIRED_PACKAGE_MEMBERS = (
     "moon.mod",
     "moon.pkg",
     "pkg.generated.mbti",
+    "analyze.mbt",
     "apply_stream.mbt",
+    "suffix_array.mbt",
     "manifest/moon.pkg",
     "manifest/pkg.generated.mbti",
     "manifest/bundle.mbt",
     "manifest/bundle_index.mbt",
+    "manifest/catalog.mbt",
+    "manifest/dir_bundle.mbt",
     "manifest/manifest.mbt",
     "manifest/parse.mbt",
     "manifest/plan.mbt",
@@ -213,7 +217,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--revision", default="HEAD")
     args = parser.parse_args()
-    git = ["git", "-c", "safe.directory=" + ROOT.as_posix()]
+    git = ["git", "-c", "safe.directory=" + ROOT.as_posix(), "-c", "core.autocrlf=false"]
     revision = subprocess.check_output(git + ["rev-parse", args.revision], cwd=ROOT, text=True).strip()
     raw = subprocess.check_output(git + ["archive", "--format=zip", revision], cwd=ROOT)
     folder = pathlib.Path(tempfile.mkdtemp(prefix="moonbsdiff-release-audit-"))
@@ -269,6 +273,7 @@ def main():
             license_sha256=sha(license_path.read_bytes()),
         )
     require(dependencies["moonbitstack/moonzip"]["version"] == "0.3.5", "wrong compression version")
+    require(dependencies["moonbitstack/mooncrypt"]["version"] == "0.4.7", "wrong crypto version")
     report = dict(
         schema=1,
         source_sha=revision,

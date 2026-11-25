@@ -7,6 +7,8 @@ import {
 }
 
 // Values
+pub const DIR_MANIFEST_SIGNATURE_DOMAIN : Bytes = b"moonbsdiff-dir-manifest-ed25519-v1\x00"
+
 pub fn apply(Bytes, Bytes, Bytes, @moonbsdiff.Limits) -> Result[Bytes, ManifestError]
 
 pub fn apply_signed(Bytes, Bytes, Bytes, ManifestSignature, PublicKey, @moonbsdiff.Limits) -> Result[Bytes, SignedManifestError]
@@ -14,6 +16,18 @@ pub fn apply_signed(Bytes, Bytes, Bytes, ManifestSignature, PublicKey, @moonbsdi
 pub fn diff(Bytes, Bytes, @moonbsdiff.Limits) -> Result[PatchBundle, @moonbsdiff.BsdiffError]
 
 pub fn diff_with_options(Bytes, Bytes, @moonbsdiff.Limits, @moonbsdiff.DiffOptions) -> Result[PatchBundle, @moonbsdiff.BsdiffError]
+
+pub fn dir_apply(Array[DirFileEntry], Bytes, Array[DirBlob], @moonbsdiff.Limits) -> Result[(Array[DirFileEntry], DirDeltaSummary), DirDeltaError]
+
+pub fn dir_apply_signed(Array[DirFileEntry], Bytes, DirManifestSignature, Array[PublicKey], Array[DirBlob], @moonbsdiff.Limits) -> Result[(Array[DirFileEntry], DirDeltaSummary, PublicKey), DirDeltaError]
+
+pub fn dir_diff(Array[DirFileEntry], Array[DirFileEntry], @moonbsdiff.Limits) -> Result[DirDeltaBundle, DirDeltaError]
+
+pub fn dir_summarize(DirManifest) -> DirDeltaSummary
+
+pub let max_catalog_file_bytes : Int32
+
+pub let max_dir_manifest_bytes : Int32
 
 pub let max_key_file_bytes : Int32
 
@@ -29,13 +43,23 @@ pub fn prepare_signed(Bytes, ManifestSignature, PublicKey, @moonbsdiff.Limits) -
 
 pub fn prepare_target(Bytes, @moonbsdiff.Limits) -> Result[ContentIdentity, ManifestError]
 
+pub fn tree_sha256(Array[DirFileEntry]) -> Result[String, DirDeltaError]
+
 pub fn validate_manifest_schema(Bytes) -> Result[Unit, ManifestError]
+
+pub fn validate_relative_path(String) -> Result[Unit, DirDeltaError]
+
+pub fn verify_dir_manifest_signature(Bytes, DirManifestSignature, PublicKey) -> Result[Unit, SignatureError]
+
+pub fn verify_dir_manifest_signature_with_keys(Bytes, DirManifestSignature, Array[PublicKey]) -> Result[PublicKey, SignatureError]
 
 pub fn verify_manifest_signature(Bytes, ManifestSignature, PublicKey) -> Result[Unit, SignatureError]
 
 pub fn verify_manifest_signature_bytes(Bytes, Bytes, Bytes) -> Result[ManifestSignature, SignatureError]
 
 pub fn verify_raw_signature(Bytes, Bytes, PublicKey) -> Result[Unit, SignatureError]
+
+pub fn verify_signed_candidates(TrustStore, Array[(Bytes, ManifestSignature)], @moonbsdiff.Limits) -> Result[Array[PreparedManifest], SignedCandidateError]
 
 // Errors
 
@@ -46,6 +70,86 @@ pub struct BundleIndex {
 pub fn BundleIndex::build(Bytes, @moonbsdiff.Limits) -> Result[Self, @moonbsdiff.BsdiffError]
 pub fn BundleIndex::diff(Self, Bytes, @moonbsdiff.Limits) -> Result[PatchBundle, @moonbsdiff.BsdiffError]
 pub fn BundleIndex::diff_with_options(Self, Bytes, @moonbsdiff.Limits, @moonbsdiff.DiffOptions) -> Result[PatchBundle, @moonbsdiff.BsdiffError]
+
+#derive(Eq, @debug.Debug)
+pub(all) enum CatalogError {
+  InvalidLimits(@moonbsdiff.BsdiffError)
+  InvalidEncoding
+  InvalidJson(field~ : String?, detail~ : String)
+  InvalidSchema(field~ : String, detail~ : String)
+  LimitExceeded(field~ : String, value~ : Int64, limit~ : Int64)
+  Signature(SignatureError)
+  CatalogHashMismatch(expected~ : String, actual~ : String)
+  CatalogRollback(catalog_version~ : Int64, min_catalog_version~ : Int64)
+  DowngradeRejected(current_version~ : Int64, target_version~ : Int64, min_version~ : Int64)
+  UnknownVersion(version~ : Int64)
+  CurrentIdentityMismatch(version~ : Int64, difference~ : IdentityDifference)
+  InvalidMaxSteps(Int64)
+  InvalidMaxDownloadBytes(Int64)
+  NoRoute(effective_max_steps~ : Int64?)
+  BudgetExceeded(minimum_bytes~ : Int64, max_download_bytes~ : Int64)
+}
+pub fn CatalogError::equal(Self, Self) -> Bool
+pub fn CatalogError::not_equal(Self, Self) -> Bool
+pub fn CatalogError::to_repr(Self) -> @debug.Repr
+
+#derive(Eq)
+pub(all) struct CatalogPatch {
+  from_version : Int64
+  to_version : Int64
+  patch : ContentIdentity
+  manifest_sha256 : String?
+  uri : String?
+}
+pub fn CatalogPatch::equal(Self, Self) -> Bool
+pub fn CatalogPatch::not_equal(Self, Self) -> Bool
+pub fn CatalogPatch::to_repr(Self) -> @debug.Repr
+pub impl @debug.Debug for CatalogPatch
+
+#derive(Eq)
+pub(all) struct CatalogRelease {
+  version : Int64
+  label : String
+  content : ContentIdentity
+}
+pub fn CatalogRelease::equal(Self, Self) -> Bool
+pub fn CatalogRelease::not_equal(Self, Self) -> Bool
+pub fn CatalogRelease::to_repr(Self) -> @debug.Repr
+pub impl @debug.Debug for CatalogRelease
+
+#derive(Eq, @debug.Debug)
+pub struct CatalogRoutePlan {
+  total_patch_bytes : Int64
+  patch_indices : ReadOnlyArray[Int32]
+  target : CatalogRelease
+}
+pub fn CatalogRoutePlan::equal(Self, Self) -> Bool
+pub fn CatalogRoutePlan::not_equal(Self, Self) -> Bool
+pub fn CatalogRoutePlan::to_repr(Self) -> @debug.Repr
+
+#derive(Eq, @debug.Debug)
+pub struct CatalogSignature {
+  // private fields
+}
+pub fn CatalogSignature::catalog_sha256(Self) -> String
+pub fn CatalogSignature::equal(Self, Self) -> Bool
+pub fn CatalogSignature::from_json_bytes(Bytes) -> Result[Self, SignatureError]
+pub fn CatalogSignature::key_id(Self) -> String
+pub fn CatalogSignature::not_equal(Self, Self) -> Bool
+pub fn CatalogSignature::signature_bytes(Self) -> Bytes
+pub fn CatalogSignature::signature_hex(Self) -> String
+pub fn CatalogSignature::to_json_bytes(Self) -> Bytes
+pub fn CatalogSignature::to_repr(Self) -> @debug.Repr
+
+#derive(Eq, @debug.Debug)
+pub(all) enum CatalogUpdatePlan {
+  UpToDate(CatalogRelease)
+  Patches(CatalogRoutePlan)
+  FullFile(CatalogRelease)
+}
+pub fn CatalogUpdatePlan::equal(Self, Self) -> Bool
+pub fn CatalogUpdatePlan::not_equal(Self, Self) -> Bool
+pub fn CatalogUpdatePlan::to_repr(Self) -> @debug.Repr
 
 #derive(Eq)
 pub struct ContentIdentity {
@@ -66,6 +170,121 @@ pub(all) enum ContentObject {
 pub fn ContentObject::equal(Self, Self) -> Bool
 pub fn ContentObject::not_equal(Self, Self) -> Bool
 pub fn ContentObject::to_repr(Self) -> @debug.Repr
+
+#derive(Eq, @debug.Debug)
+pub(all) struct DirBlob {
+  name : String
+  bytes : Bytes
+}
+pub fn DirBlob::equal(Self, Self) -> Bool
+pub fn DirBlob::not_equal(Self, Self) -> Bool
+pub fn DirBlob::to_repr(Self) -> @debug.Repr
+
+#derive(Eq, @debug.Debug)
+pub struct DirDeltaBundle {
+  manifest : DirManifest
+  manifest_bytes : Bytes
+  blobs : ReadOnlyArray[DirBlob]
+}
+pub fn DirDeltaBundle::equal(Self, Self) -> Bool
+pub fn DirDeltaBundle::not_equal(Self, Self) -> Bool
+pub fn DirDeltaBundle::to_repr(Self) -> @debug.Repr
+
+#derive(Eq, @debug.Debug)
+pub(all) enum DirDeltaError {
+  InvalidPath(path~ : String, detail~ : String)
+  DuplicatePath(String)
+  PathCollision(a~ : String, b~ : String)
+  InvalidBlobName(name~ : String, detail~ : String)
+  DuplicateBlob(String)
+  MissingBlob(String)
+  UnexpectedBlob(String)
+  InvalidLimits(@moonbsdiff.BsdiffError)
+  LimitExceeded(field~ : String, value~ : Int64, limit~ : Int64)
+  InvalidEncoding
+  InvalidJson(field~ : String?, detail~ : String)
+  InvalidSchema(field~ : String, detail~ : String)
+  OldTreeMismatch(expected~ : String, actual~ : String)
+  NewTreeMismatch(expected~ : String, actual~ : String)
+  MissingOldFile(path~ : String)
+  IdentityMismatch(path~ : String, object~ : ContentObject, difference~ : IdentityDifference)
+  ApplyError(path~ : String, error~ : @moonbsdiff.BsdiffError)
+  Signature(SignatureError)
+}
+pub fn DirDeltaError::equal(Self, Self) -> Bool
+pub fn DirDeltaError::not_equal(Self, Self) -> Bool
+pub fn DirDeltaError::to_repr(Self) -> @debug.Repr
+
+#derive(Eq, @debug.Debug)
+pub struct DirDeltaSummary {
+  unchanged_count : Int32
+  renamed_count : Int32
+  patched_count : Int32
+  added_count : Int32
+  full_fallback_count : Int32
+  deleted_count : Int32
+  old_total_bytes : Int64
+  new_total_bytes : Int64
+  delta_payload_bytes : Int64
+  old_tree_sha256 : String
+  new_tree_sha256 : String
+}
+pub fn DirDeltaSummary::equal(Self, Self) -> Bool
+pub fn DirDeltaSummary::not_equal(Self, Self) -> Bool
+pub fn DirDeltaSummary::to_repr(Self) -> @debug.Repr
+
+#derive(Eq)
+pub(all) enum DirEntryAction {
+  Unchanged(path~ : String, identity~ : ContentIdentity)
+  Renamed(path~ : String, from_path~ : String, identity~ : ContentIdentity)
+  Patched(path~ : String, from_path~ : String, old_identity~ : ContentIdentity, new_identity~ : ContentIdentity, patch_identity~ : ContentIdentity, blob_name~ : String)
+  Added(path~ : String, identity~ : ContentIdentity, blob_name~ : String, full_fallback~ : Bool)
+  Deleted(path~ : String, old_identity~ : ContentIdentity)
+}
+pub fn DirEntryAction::equal(Self, Self) -> Bool
+pub fn DirEntryAction::not_equal(Self, Self) -> Bool
+pub fn DirEntryAction::to_repr(Self) -> @debug.Repr
+pub impl @debug.Debug for DirEntryAction
+
+#derive(Eq, @debug.Debug)
+pub(all) struct DirFileEntry {
+  path : String
+  bytes : Bytes
+}
+pub fn DirFileEntry::equal(Self, Self) -> Bool
+pub fn DirFileEntry::not_equal(Self, Self) -> Bool
+pub fn DirFileEntry::to_repr(Self) -> @debug.Repr
+
+#derive(Eq, @debug.Debug)
+pub struct DirManifest {
+  old_tree_sha256 : String
+  new_tree_sha256 : String
+  old_file_count : Int32
+  new_file_count : Int32
+  old_total_bytes : Int64
+  new_total_bytes : Int64
+  delta_payload_bytes : Int64
+  entries : ReadOnlyArray[DirEntryAction]
+}
+pub fn DirManifest::equal(Self, Self) -> Bool
+pub fn DirManifest::from_json_bytes(Bytes) -> Result[Self, DirDeltaError]
+pub fn DirManifest::not_equal(Self, Self) -> Bool
+pub fn DirManifest::to_json_bytes(Self) -> Bytes
+pub fn DirManifest::to_repr(Self) -> @debug.Repr
+
+#derive(Eq, @debug.Debug)
+pub struct DirManifestSignature {
+  // private fields
+}
+pub fn DirManifestSignature::dir_manifest_sha256(Self) -> String
+pub fn DirManifestSignature::equal(Self, Self) -> Bool
+pub fn DirManifestSignature::from_json_bytes(Bytes) -> Result[Self, SignatureError]
+pub fn DirManifestSignature::key_id(Self) -> String
+pub fn DirManifestSignature::not_equal(Self, Self) -> Bool
+pub fn DirManifestSignature::signature_bytes(Self) -> Bytes
+pub fn DirManifestSignature::signature_hex(Self) -> String
+pub fn DirManifestSignature::to_json_bytes(Self) -> Bytes
+pub fn DirManifestSignature::to_repr(Self) -> @debug.Repr
 
 #derive(Eq, @debug.Debug)
 pub(all) enum IdentityDifference {
@@ -134,6 +353,8 @@ pub fn PrivateKey::from_json_bytes(Bytes) -> Result[Self, SignatureError]
 pub fn PrivateKey::from_seed(Bytes) -> Result[Self, SignatureError]
 pub fn PrivateKey::key_id(Self) -> String
 pub fn PrivateKey::public_key(Self) -> PublicKey
+pub fn PrivateKey::sign_catalog(Self, Bytes) -> Result[CatalogSignature, CatalogError]
+pub fn PrivateKey::sign_dir_manifest(Self, Bytes) -> Result[DirManifestSignature, DirDeltaError]
 pub fn PrivateKey::sign_manifest(Self, Bytes) -> Result[ManifestSignature, SignatureError]
 pub fn PrivateKey::to_json_bytes(Self) -> Bytes
 
@@ -150,6 +371,21 @@ pub fn PublicKey::to_bytes(Self) -> Bytes
 pub fn PublicKey::to_hex(Self) -> String
 pub fn PublicKey::to_json_bytes(Self) -> Bytes
 pub fn PublicKey::to_repr(Self) -> @debug.Repr
+
+#derive(Eq, @debug.Debug)
+pub struct ReleaseCatalog {
+  channel : String
+  catalog_version : Int64
+  min_version : Int64
+  releases : ReadOnlyArray[CatalogRelease]
+  patches : ReadOnlyArray[CatalogPatch]
+}
+pub fn ReleaseCatalog::equal(Self, Self) -> Bool
+pub fn ReleaseCatalog::from_json_bytes(Bytes) -> Result[Self, CatalogError]
+pub fn ReleaseCatalog::new(String, Int64, Int64, Array[CatalogRelease], Array[CatalogPatch]) -> Result[Self, CatalogError]
+pub fn ReleaseCatalog::not_equal(Self, Self) -> Bool
+pub fn ReleaseCatalog::to_json_bytes(Self) -> Bytes
+pub fn ReleaseCatalog::to_repr(Self) -> @debug.Repr
 
 pub struct RoutePlan {
   total_patch_bytes : Int64
@@ -175,6 +411,16 @@ pub fn SignatureError::not_equal(Self, Self) -> Bool
 pub fn SignatureError::to_repr(Self) -> @debug.Repr
 
 #derive(Eq, @debug.Debug)
+pub(all) enum SignedCandidateError {
+  InvalidLimits(@moonbsdiff.BsdiffError)
+  Signature(index~ : Int32, error~ : SignatureError)
+  Manifest(index~ : Int32, error~ : ManifestError)
+}
+pub fn SignedCandidateError::equal(Self, Self) -> Bool
+pub fn SignedCandidateError::not_equal(Self, Self) -> Bool
+pub fn SignedCandidateError::to_repr(Self) -> @debug.Repr
+
+#derive(Eq, @debug.Debug)
 pub(all) enum SignedManifestError {
   Signature(SignatureError)
   Manifest(ManifestError)
@@ -183,11 +429,36 @@ pub fn SignedManifestError::equal(Self, Self) -> Bool
 pub fn SignedManifestError::not_equal(Self, Self) -> Bool
 pub fn SignedManifestError::to_repr(Self) -> @debug.Repr
 
+#derive(Eq, @debug.Debug)
+pub struct TrustStore {
+  // private fields
+}
+pub fn TrustStore::equal(Self, Self) -> Bool
+pub fn TrustStore::find(Self, String) -> PublicKey?
+pub fn TrustStore::from_keys(Array[PublicKey]) -> Result[Self, SignatureError]
+pub fn TrustStore::key_ids(Self) -> ReadOnlyArray[String]
+pub fn TrustStore::len(Self) -> Int32
+pub fn TrustStore::not_equal(Self, Self) -> Bool
+pub fn TrustStore::to_repr(Self) -> @debug.Repr
+pub fn TrustStore::verify_catalog(Self, Bytes, CatalogSignature, min_catalog_version? : Int64) -> Result[VerifiedCatalog, CatalogError]
+pub fn TrustStore::verify_manifest_signature(Self, Bytes, ManifestSignature) -> Result[PublicKey, SignatureError]
+
 pub(all) enum UpdatePlan {
   UpToDate
   Patches(RoutePlan)
   FullFile(ContentIdentity)
 }
+
+#derive(Eq, @debug.Debug)
+pub struct VerifiedCatalog {
+  catalog : ReleaseCatalog
+  catalog_sha256 : String
+  signer_key_id : String
+}
+pub fn VerifiedCatalog::equal(Self, Self) -> Bool
+pub fn VerifiedCatalog::not_equal(Self, Self) -> Bool
+pub fn VerifiedCatalog::plan_update(Self, Int64, ContentIdentity, Int64, @moonbsdiff.Limits, max_steps? : Int64, max_download_bytes? : Int64, allow_full? : Bool) -> Result[CatalogUpdatePlan, CatalogError]
+pub fn VerifiedCatalog::to_repr(Self) -> @debug.Repr
 
 // Type aliases
 

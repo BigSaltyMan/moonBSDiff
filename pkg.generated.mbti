@@ -6,6 +6,8 @@ import {
 }
 
 // Values
+pub fn analyze_patch(Bytes, Limits) -> Result[PatchAnalysis, BsdiffError]
+
 pub fn apply(Bytes, Bytes, Limits) -> Result[Bytes, BsdiffError]
 
 pub fn[E] apply_stream(Int64, Int64, Limits, read_old_at~ : (Int64, Int32) -> Result[Bytes, E], read_patch_at~ : (Int64, Int32) -> Result[Bytes, E], write_output~ : (Bytes) -> Result[Unit, E], on_stage? : (StreamApplyStage) -> Result[Unit, E], checkpoint? : () -> Result[Unit, E]) -> Result[DeepPatchInfo, StreamApplyError[E]]
@@ -36,6 +38,17 @@ pub(all) struct BsdiffError {
 pub fn BsdiffError::equal(Self, Self) -> Bool
 pub fn BsdiffError::not_equal(Self, Self) -> Bool
 pub fn BsdiffError::to_repr(Self) -> @debug.Repr
+
+#derive(Eq, @debug.Debug)
+pub(all) struct ControlSample {
+  index : Int64
+  add_bytes : Int64
+  extra_bytes : Int64
+  seek_offset : Int64
+}
+pub fn ControlSample::equal(Self, Self) -> Bool
+pub fn ControlSample::not_equal(Self, Self) -> Bool
+pub fn ControlSample::to_repr(Self) -> @debug.Repr
 
 pub struct DeepPatchInfo {
   header : PatchInfo
@@ -111,6 +124,28 @@ pub fn Limits::not_equal(Self, Self) -> Bool
 pub fn Limits::to_repr(Self) -> @debug.Repr
 pub fn Limits::validate(Self) -> Result[Unit, BsdiffError]
 
+#derive(Eq, @debug.Debug)
+pub struct PatchAnalysis {
+  deep : DeepPatchInfo
+  ctrl_compressed_bytes : Int64
+  diff_compressed_bytes : Int64
+  extra_compressed_bytes : Int64
+  total_compressed_bytes : Int64
+  expansion_ratio_permille : Int64
+  diff_share_permille : Int64
+  extra_share_permille : Int64
+  patch_to_output_permille : Int64
+  negative_seek_count : Int64
+  max_abs_seek : Int64
+  required_limits : Limits
+  risk_level : RiskLevel
+  risk_flags : ReadOnlyArray[PatchRiskFlag]
+  sample_controls : ReadOnlyArray[ControlSample]
+}
+pub fn PatchAnalysis::equal(Self, Self) -> Bool
+pub fn PatchAnalysis::not_equal(Self, Self) -> Bool
+pub fn PatchAnalysis::to_repr(Self) -> @debug.Repr
+
 pub struct PatchInfo {
   patch_bytes : Int64
   new_bytes : Int64
@@ -126,6 +161,26 @@ pub fn PatchInfo::not_equal(Self, Self) -> Bool
 pub fn PatchInfo::to_repr(Self) -> @debug.Repr
 pub impl Eq for PatchInfo
 pub impl @debug.Debug for PatchInfo
+
+#derive(Eq, @debug.Debug)
+pub(all) struct PatchRiskFlag {
+  code : String
+  severity : RiskLevel
+  detail : String
+}
+pub fn PatchRiskFlag::equal(Self, Self) -> Bool
+pub fn PatchRiskFlag::not_equal(Self, Self) -> Bool
+pub fn PatchRiskFlag::to_repr(Self) -> @debug.Repr
+
+#derive(Eq, @debug.Debug)
+pub(all) enum RiskLevel {
+  Low
+  Elevated
+  High
+}
+pub fn RiskLevel::equal(Self, Self) -> Bool
+pub fn RiskLevel::not_equal(Self, Self) -> Bool
+pub fn RiskLevel::to_repr(Self) -> @debug.Repr
 
 #derive(Eq, @debug.Debug)
 pub(all) enum StreamApplyError[E] {

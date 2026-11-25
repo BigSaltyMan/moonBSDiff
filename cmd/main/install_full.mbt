@@ -43,7 +43,7 @@ fn install_full_command(config : CliConfig) -> Unit {
   verify_optional_manifest_signature(
     "install-full",
     data,
-    config.public_key,
+    config.public_keys,
     config.signature,
   )
   |> ignore
@@ -55,7 +55,7 @@ fn install_full_command(config : CliConfig) -> Unit {
       )
   }
   let inputs = [config.files[0], manifest]
-  if config.public_key is Some(pk) {
+  for pk in config.public_keys {
     inputs.push(pk)
   }
   if config.signature is Some(sig) {

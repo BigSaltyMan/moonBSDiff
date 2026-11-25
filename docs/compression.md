@@ -73,7 +73,10 @@ The file path adds refillable bit input and StreamReader with independent RLE
 cursor/pending run, CRC and end state. The pinned block transform is shared with
 the memory decoder; final expanded blocks are not buffered by the new driver.
 A shared Budget reserves each entire final RLE run before emitting it across
-bounded pulls. EOF is returned only after block/combined CRC and exact interval
+bounded pulls, and `StreamReader` passes the shared `Meter` into `read_rle_block`
+to meter RLE1/BWT block output before inverse-BWT allocation so tight
+`max_decompressed_bytes` caps block BWT decompression bombs in `analyze_patch`,
+`inspect_deep`, and `apply_stream`. EOF is returned only after block/combined CRC and exact interval
 consumption. Source chunks and output pulls are at most 4096 bytes, while BWT and
 RLE-domain block workspaces remain bounded by 100000 * level (at most 900000).
 See [file apply](file-apply.md) for simultaneous retention and compact validation;

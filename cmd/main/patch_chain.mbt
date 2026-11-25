@@ -77,18 +77,79 @@ fn chain_preflight(
       all_inputs.push(patch_path)
       all_inputs.push(manifest_path)
     }
+    for pk in config.public_keys {
+      all_inputs.push(pk)
+    }
+    if config.target_signature is Some(tsig) {
+      all_inputs.push(tsig)
+    }
+    for ssig in config.step_signatures {
+      all_inputs.push(ssig)
+    }
     stream_require(
       check_output_against(all_inputs, target),
       "output precheck for '\{target}'",
     )
     let out = path_bytes(target)
-    chain_check_output(out, paths.old)
     chain_check_output(out, target_path)
+    for pk in config.public_keys {
+      chain_check_output(out, pk)
+    }
+    if config.target_signature is Some(tsig) {
+      chain_check_output(out, tsig)
+    }
+    for ssig in config.step_signatures {
+      chain_check_output(out, ssig)
+    }
     Some(out)
   } else {
     None
   }
   let target_data = stream_read_manifest_data(target_path, progress)
+  let signed_step_datas : Array[Bytes] = []
+  if !config.public_keys.is_empty() {
+    let (store, _) = match
+      load_trust_store(config.operation, config.public_keys) {
+      Ok(v) => v
+      Err(msg) => raise StreamError(msg)
+    }
+    let target_sig_path = config.target_signature.unwrap()
+    match
+      verify_manifest_with_store(
+        config.operation,
+        store,
+        target_data,
+        target_sig_path,
+      ) {
+      Ok(_) => ()
+      Err(msg) => raise StreamError(msg)
+    }
+    for i in 0..<paths.pairs.length() {
+      let (_, manifest_path) = paths.pairs[i]
+      progress.chain_step = i + 1
+      progress.checkpoint(2)
+      if output is Some(out) {
+        chain_check_output(out, manifest_path)
+      }
+      let data = if manifest_path == target_path {
+        target_data
+      } else {
+        stream_read_manifest_data(manifest_path, progress)
+      }
+      let step_sig_path = config.step_signatures[i]
+      match
+        verify_manifest_with_store(config.operation, store, data, step_sig_path) {
+        Ok(_) => ()
+        Err(msg) => raise StreamError(msg)
+      }
+      signed_step_datas.push(data)
+    }
+    progress.chain_step = 0
+  }
+  // Check OLD_DIR/OLD and step PATCH parent-dir aliasing only after signatures pass.
+  if output is Some(out) {
+    chain_check_output(out, paths.old)
+  }
   let target = match @manifest.prepare_target(target_data, config.limits) {
     Ok(identity) => identity
     Err(error) =>
@@ -97,17 +158,24 @@ fn chain_preflight(
       )
   }
   let prepared : Array[@manifest.PreparedManifest] = []
-  for (patch_path, manifest_path) in paths.pairs {
+  for i in 0..<paths.pairs.length() {
+    let (patch_path, manifest_path) = paths.pairs[i]
     progress.chain_step = prepared.length() + 1
     progress.checkpoint(2)
     if output is Some(out) {
       chain_check_output(out, patch_path)
-      chain_check_output(out, manifest_path)
     }
-    let data = if manifest_path == target_path {
-      target_data
+    let data = if !signed_step_datas.is_empty() {
+      signed_step_datas[i]
     } else {
-      stream_read_manifest_data(manifest_path, progress)
+      if output is Some(out) {
+        chain_check_output(out, manifest_path)
+      }
+      if manifest_path == target_path {
+        target_data
+      } else {
+        stream_read_manifest_data(manifest_path, progress)
+      }
     }
     let step = stream_prepare_manifest(data, manifest_path, config.limits)
     if prepared.length() != 0 {

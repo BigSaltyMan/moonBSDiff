@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+## 0.7.0
+
+- **Linear-time `O(n)` SA-IS suffix-array engine**:
+  - Upgrade internal `build_suffix_array` / `build_suffix_array_view` (`suffix_array.mbt`) from `O(n log n)` prefix-doubling to linear-time `O(n)` SA-IS (Suffix Array Induced Sorting) while preserving exact BSDIFF40 suffix order, byte-identical patches, and bounded `SortBudget` accounting across all recursive levels (`4.49x`–`4.92x` less `sort_work` and `4.33x`–`6.05x` faster SA construction on 256 KiB / 1 MiB periodic inputs). See [docs/suffix-array.md](docs/suffix-array.md).
+- **Preflight patch forensics & decompression-bomb auditor (`analyze_patch` / `inspect --analyze`)**:
+  - Add cross-target (Native/JS/Wasm-GC) `analyze_patch(Bytes, Limits) -> Result[PatchAnalysis, BsdiffError]` along with `PatchAnalysis`, `RiskLevel`, `PatchRiskFlag`, and `ControlSample` in `BigSaltyMan/moonbsdiff` (`analyze.mbt`).
+  - Compute overflow-safe integer permille ratios, negative/max seek stats, first 64 control samples, exact `required_limits` derivation (`Limits::validate() == Ok(())` and round-trip verified), and deterministic preflight risk flags (`HIGH_EXPANSION_RATIO`, `PATCH_LARGER_THAN_OUTPUT`, `HIGH_EXTRA_RATIO`, `EXCESSIVE_CONTROL_DENSITY`, `ZERO_OUTPUT_NONTRIVIAL_PATCH` including `patch_bytes > 74`), with identical fail-closed bomb rejection to `inspect_deep`.
+  - Add native CLI `inspect --analyze [--json]` (mutually exclusive with `--deep`, supporting `--max-expanded-bytes`/`--max-decompressed-bytes` and `--max-controls`/`--max-control-instructions`). See [docs/analyze.md](docs/analyze.md).
+- **Multi-key `TrustStore`, signed release catalogs & signed multi-hop chains**:
+  - Add cross-target (Native/JS/Wasm-GC) `TrustStore` (zero-downtime multi-key rotation, deduplication, conflicting `key_id` rejection), fail-closed two-pass `verify_signed_candidates` (`SignedCandidateError::InvalidLimits`, `Signature`, `Manifest`), Schema 1 `ReleaseCatalog` (`<= 256 KiB`, strict integer/JSON/URI hardening), `CatalogSignature` (`moonbsdiff-catalog-ed25519-v1\x00` domain separation), `TrustStore::verify_catalog` (`min_catalog_version` anti-replay), and `VerifiedCatalog::plan_update` (anti-downgrade and strictly forward-hop Dijkstra routing) in `BigSaltyMan/moonbsdiff/manifest` (`manifest/catalog.mbt`).
+  - Add native CLI `manifest catalog sign|verify|plan`, repeatable `--public-key` (up to 64 keys) across all signature-verifying commands, and signed `verify-chain` / `patch-chain` (`--target-signature` and per-step `--step-signature` verified before opening inputs). See [docs/catalog.md](docs/catalog.md).
+- **Whole-directory delta bundles (`dir_diff` / `dir_apply` / `dir_apply_signed` & CLI `dir-*`)**:
+  - Add cross-target (Native/JS/Wasm-GC) Schema 1 `DirManifest` (`<= 512 KiB`), canonical UTF-8 `tree_sha256`, strict `validate_relative_path` (`<= 1024` UTF-16 units & UTF-8 bytes, no surrogates/C0/C1/backslashes/traversal/drive prefixes/prefix collisions), 0-byte unchanged & rename/copy deduplication, automatic BSDIFF40 vs full-file fallback (`max_new_bytes` and `max_output_bytes` enforced), explicit `Deleted` completeness check, and domain-separated Ed25519 `DirManifestSignature` (`DIR_MANIFEST_SIGNATURE_DOMAIN = b"moonbsdiff-dir-manifest-ed25519-v1\x00"`) with `dir_apply_signed` in `BigSaltyMan/moonbsdiff/manifest` (`manifest/dir_bundle.mbt`).
+  - Add native CLI `dir-diff`, `dir-verify`, and `dir-patch` with no-symlink/reparse-point traversal, no-overwrite/no-nested-output preflight, platform case-collision & Windows segment checks, and verify-before-read signature authentication. See [docs/dir-delta.md](docs/dir-delta.md).
+- **Red-team security hardening across streaming bzip2, catalogs, directory deltas, and native CLI**:
+  - Meter RLE1/BWT block output inside `internal/bzip2` `StreamReader` (`read_rle_block`) *before* inverse-BWT allocation, blocking BWT decompression bombs under tight `max_decompressed_bytes` in `analyze_patch`, `inspect_deep`, and `apply_stream`.
+  - Harden `ReleaseCatalog` URI validation with strict RFC 3986 ASCII authority checks (DNS/IPv4/`[IPv6]`, port `1..65535`, rejecting `@`/`%`/non-ASCII/metachars), strict UTF-8 validation on percent-decoded passes (blocking overlong encodings and raw C1), and rejection of `?`/`#`/whitespace/invisible/confusable characters in relative POSIX paths.
+  - Harden `DirManifest` and `dir_apply` / `dir_diff` with unique `Patched.from_path` enforcement, `old_file_count <= new_file_count + deleted`, per-file `Limits` on `Unchanged`/`Renamed`/`Patched`, and a cross-action `cloned_bytes <= max_output_bytes` cap.
+  - Harden native CLI path safety with full Unicode 16.0 case-folding collision detection (Windows NTFS, WSL2 DrvFs, macOS case-insensitive filesystems, Linux `NTFS3`), rejection of Windows `\\.\` device-namespace paths, unconditional trailing dot/space, and extended DOS device names (`COM0`, `LPT0`, `CONIN$`, `CONOUT$`, `COM¹²³`/`LPT¹²³`), plus canonical `\\?\` `dir-diff` directory reads.
+- **Differentiated Web Studio & 0.7.0 acceptance runner**:
+  - Add zero-backend browser workbench (`cmd/studio` + `examples/web-studio/`) compiled to MoonBit ES modules covering Update Graph & Red-Team Lab, BSDIFF40 X-Ray & Bomb Auditor, 4 KiB Stream Oscilloscope, and Directory Delta Explorer, verified via Node ESM (`scripts/test_web_studio.py`).
+  - Add deterministic end-to-end acceptance runner `scripts/run_070_acceptance.py` wired into CI alongside `test_cli_analyze.py`, `test_cli_catalog.py`, `test_cli_dir.py`, and `test_web_studio.py`.
+
 ## 0.6.0 — 2026-11-24
 
 See [0.6.0 release evidence](docs/release-0.6.0.md) for exact source, package, and CLI identities.

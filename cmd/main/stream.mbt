@@ -295,7 +295,7 @@ fn stream_run(config : CliConfig, progress : StreamProgress) -> Unit raise {
     if config.manifest is Some(m) {
       inputs.push(m)
     }
-    if config.public_key is Some(pk) {
+    for pk in config.public_keys {
       inputs.push(pk)
     }
     if config.signature is Some(sig) {
@@ -342,8 +342,14 @@ fn stream_command(config : CliConfig) -> Unit {
     return
   }
   if config.operation == "verify-chain" {
-    println(
-      "Chain verification succeeded: all steps match the supplied manifests.",
-    )
+    if !config.public_keys.is_empty() {
+      println(
+        "Chain verification succeeded: signatures and all steps match the supplied manifests.",
+      )
+    } else {
+      println(
+        "Chain verification succeeded: all steps match the supplied manifests.",
+      )
+    }
   }
 }

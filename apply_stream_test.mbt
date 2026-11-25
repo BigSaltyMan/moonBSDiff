@@ -1066,4 +1066,65 @@ test "apply-stream-limits-and-corrupt-streams" {
     Extra,
     Some("decompressed_remaining"),
   )
+
+  // 173-byte BZh9 BWT bomb must fail closed before inverse-BWT in apply_stream
+  // with zero output bytes written and exact error parity with apply().
+  let bwt_bomb_patch = b"\x42\x53\x44\x49\x46\x46\x34\x30\x33\x00\x00\x00\x00\x00\x00\x00" +
+    b"\x2d\x00\x00\x00\x00\x00\x00\x00\x02\x00\x00\x00\x00\x00\x00\x00" +
+    b"\x42\x5a\x68\x39\x31\x41\x59\x26\x53\x59\xfb\xea\x6c\xd9\x03\x6c" +
+    b"\xf7\xc0\x00\x68\x04\x20\x00\x30\xcd\x34\x13\x52\x9a\x6b\x56\x14" +
+    b"\x14\x44\xd6\xf7\x72\x90\x51\x13\xe2\xee\x48\xa7\x0a\x12\x1f\x7d" +
+    b"\x4d\x9b\x20\x42\x5a\x68\x39\x31\x41\x59\x26\x53\x59\xa2\x8c\x78" +
+    b"\xe4\x00\x00\x00\x40\x00\x60\x00\x20\x00\x30\x80\x4d\x46\xa9\x05" +
+    b"\x11\x32\x90\x51\x13\x8b\xb9\x22\x9c\x28\x48\x51\x46\x3c\x72\x00" +
+    b"\x42\x5a\x68\x39\x31\x41\x59\x26\x53\x59\xa2\x8c\x78\xe4\x00\x00" +
+    b"\x00\x40\x00\x60\x00\x20\x00\x30\x80\x4d\x46\xa9\x05\x11\x32\x90" +
+    b"\x51\x13\x8b\xb9\x22\x9c\x28\x48\x51\x46\x3c\x72\x00"
+  let tight_bomb : @moonbsdiff.Limits = {
+    ..limits,
+    max_patch_bytes: 256L,
+    max_new_bytes: 2L,
+    max_output_bytes: 2L,
+    max_decompressed_bytes: 26L,
+    max_control_instructions: 1L,
+  }
+  let mut bomb_writes = 0
+  let bomb_stream_res : Result[
+    @moonbsdiff.DeepPatchInfo,
+    @moonbsdiff.StreamApplyError[String],
+  ] = @moonbsdiff.apply_stream(
+    2L,
+    bwt_bomb_patch.length().to_int64(),
+    tight_bomb,
+    read_old_at=(o, c) => {
+      let old = b"AB"
+      Ok(old[o.to_int():Int32::min(old.length(), o.to_int() + c)].to_owned())
+    },
+    read_patch_at=(o, c) => {
+      Ok(
+        bwt_bomb_patch[o.to_int():Int32::min(
+          bwt_bomb_patch.length(),
+          o.to_int() + c,
+        )].to_owned(),
+      )
+    },
+    write_output=_ => {
+      bomb_writes += 1
+      Ok(())
+    },
+  )
+  let bomb_apply_err = match
+    @moonbsdiff.apply(b"AB", bwt_bomb_patch, tight_bomb) {
+    Ok(_) => abort("expected apply to reject BZh9 BWT bomb")
+    Err(e) => e
+  }
+  match bomb_stream_res {
+    Err(Bsdiff(e)) => {
+      assert_eq(e, bomb_apply_err)
+      assert_eq(e.kind, ResourceLimitExceeded)
+      assert_eq(e.stage, Control)
+    }
+    _ => abort("expected apply_stream to reject BZh9 BWT bomb")
+  }
+  assert_eq(bomb_writes, 0)
 }

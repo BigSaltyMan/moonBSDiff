@@ -2,52 +2,108 @@
 
 ## Route and source relationship
 
-The internal `build_suffix_array` is an original MoonBit prefix-doubling implementation using an initial single-pass length-1 counting sort followed by prefix-doubling rounds with linear second-key placement and one stable first-key counting-sort pass (replacing the earlier Commit 7/11 design that ran two counting-sort passes per round). BSDiff 4.3 `bsdiff.c::qsufsort` and `split` were reviewed from the existing, SHA-256-verified local source (fc0a6e634ef77dcf14bf36c7b6d1e57ba1ac5c4809073dfaacb3b5f7ab277eb7). No oracle download or rebuild was performed. Its positions/inverse-ranks and empty-suffix result contract are the reference. No split code is translated: recursive group refinement, small-group comparisons and negative run markers are replaced by iterative radix passes and dense ranks. This choice makes array bounds, arithmetic and progression easier to audit in this toolchain; no measured speed advantage over qsufsort is claimed. No code from another suffix-array implementation was copied. BSDiff's original Colin Percival copyright and complete BSD notice remain in upstream.md and tools/oracle/BSDIFF-LICENSE.txt; the new MoonBit implementation is under the repository BSD-2-Clause license.
+In **0.7.0**, the internal `build_suffix_array` (and `build_suffix_array_view`) in `suffix_array.mbt` was upgraded from the earlier `O(n log n)` prefix-doubling builder to an original, pure-MoonBit linear-time **`O(n)` SA-IS (Suffix Array Induced Sorting)** implementation. The upgrade preserves the exact BSDIFF40 suffix order contract and bounded `SortBudget` accounting without changing any public signature in `pkg.generated.mbti`.
+
+BSDiff 4.3 `bsdiff.c::qsufsort` and `split` were reviewed from the existing, SHA-256-verified local source (`fc0a6e634ef77dcf14bf36c7b6d1e57ba1ac5c4809073dfaacb3b5f7ab277eb7`). Its suffix positions and leading empty-suffix contract remain the reference. No `qsufsort` code is translated and no code from another suffix-array or SA-IS implementation was copied. BSDiff's original Colin Percival copyright and complete BSD notice remain in [upstream.md](upstream.md) and `tools/oracle/BSDIFF-LICENSE.txt`; the MoonBit implementation is under the repository BSD-2-Clause license.
 
 ## Contract and invariants
 
-For n bytes, return every position 0..n exactly once, in unsigned-byte lexicographic order; position n is the empty suffix and comes first. A shorter prefix suffix comes before a longer suffix. NUL and ff are ordinary input bytes, with unsigned values 0 and 255. Initial real ranks are byte+1 (1..256); the empty suffix rank is 0. A second component beyond the input is 0, never a real byte sentinel. After the initial length-1 counting sort and each doubling round, dense ranks are 0..classes-1; the empty suffix remains the only first-component rank 0 (`sa[0] == n`).
+For an input slice `data` of `n` bytes (`N = n + 1`), `build_suffix_array` / `build_suffix_array_view` returns a freshly allocated `sa : Array[Int32]` of length `N` containing every position `0..n` exactly once in strict unsigned-byte lexicographic order:
 
-Before doubling begins, a single length-1 counting sort on the initial byte+1 keys orders `sa` by 1-byte prefixes and compresses `rank` to dense classes `0..init_classes-1`; if `init_classes == N` (for example on single-byte or all-distinct inputs), `sa` is returned immediately without entering the doubling loop. At the start of doubling step `h` (`step = 1, 2, 4, ...`), `sa` is already sorted by `h`-byte prefixes and `rank` holds their dense equivalence classes. Placing suffixes with `pos > n - h` (second key `0`) first and scanning `sa` in order to place `sa[i] - h` (for `sa[i] >= h`) orders all suffixes by second key linearly, and one stable counting sort on `rank` produces the exact `2h`-byte prefix order. Reranking equal pairs gives equal classes. Once `classes == N = n + 1`, the entire suffix order is known and the array is returned. Otherwise `h` doubles. Before doubling, `h < N - h` must hold; when a prefix already spans the input, all suffixes must be distinct. A defensive internal error detects a violated progress invariant instead of overflowing or looping indefinitely.
+- `sa[0] == n` is the empty sentinel suffix and always comes first.
+- `data[sa[i]:] < data[sa[i + 1]:]` strictly for every `0 <= i < n`.
+- A shorter prefix suffix precedes a longer suffix sharing that prefix.
+- `0x00` and `0xff` are ordinary unsigned input bytes (`0..255`). The appended sentinel symbol `0` is strictly smaller than every remapped input byte (`1..sigma`), never colliding with `0x00`.
+- Input bytes are never mutated; non-zero-offset `BytesView` slices produce the exact same suffix array as standalone copied `Bytes`. Returned arrays are caller-owned and never aliased across calls.
 
-Core code neither compares whole suffixes nor allocates suffix copies. Calls own all buffers, and the returned array is not reused. It does not mutate the input.
+### Linear-time SA-IS algorithm
 
-## Bounds, memory and work
+1. **Preflight (`suffix_sizes`)**: Pure validation without allocation. Checks `max_entries` in `1..2147483647` (`InvalidConfiguration`, field `"suffix_entries"`) and `n` in `0..2147483646` (`IntegerOverflow`, field `"suffix_length"`), computes `N = n + 1` in `Int64`, enforces `N <= max_entries` (`ResourceLimitExceeded`, field `"suffix_entries"`), and narrows `(N, B)` to `Int32` where `B = max(N, 257)`.
+2. **Empty input (`n == 0`)**: Reserves `1` work unit and returns `[0]` without allocating sorting buffers.
+3. **Top-level alphabet compaction and all-distinct fast path**:
+   - Counts byte frequencies into `raw_counts[0..255]`, remaps occurring bytes in ascending unsigned order to dense positive symbols `1..sigma` (`remap`), and initializes `bkt_size` with `[1]` for the sentinel symbol `0` so the compacted alphabet has size `k = sigma + 1` (`2 <= k <= 257`).
+   - **Unique-byte fast path (`sigma == n`)**: When every input byte is distinct (for example, any 1-byte input or a byte permutation), first bytes alone determine the complete suffix order. The builder places `sa[0] = n` and `sa[remap[data[i]]] = i` directly and returns without entering `sais_rec`.
+   - Otherwise populates `s` of length `N` with `s[i] = remap[data[i]]` for `0 <= i < n` and `s[n] = 0`, then invokes `sais_rec(s, N, sigma + 1, Some(bkt_size), budget)`.
+4. **Recursive SA-IS core (`sais_rec`)**:
+   - **Precondition**: `m >= 2`, `k >= 2`, `s[m - 1] == 0` is the unique smallest sentinel, and `1 <= s[i] < k` for all `0 <= i < m - 1`.
+   - **S/L classification and LMS collection**: Scans right-to-left marking `is_s[m - 1] = true` (sentinel is S-type), `is_s[m - 2] = false` (since `s[m - 2] >= 1 > 0`), and `is_s[idx] = (s[idx] < s[idx + 1]) || (s[idx] == s[idx + 1] && is_s[idx + 1])` for `idx` down to `0`. A left-to-right scan then collects all Leftmost S-type (LMS) positions (`pos > 0 && is_s[pos] && !is_s[pos - 1]`) into `lms_pos`. Because no two adjacent indices can both be LMS, `1 <= lms_count <= floor(m / 2)`.
+   - **First induced sort**: Scatters `lms_pos` into bucket tails (`bucket_tails`) and calls `induce_sort`:
+     - Left-to-right pass from `bucket_heads` induces all L-type suffixes (`pos > 0 && !is_s[pos - 1]`).
+     - Right-to-left pass from `bucket_tails` induces all S-type suffixes (`pos > 0 && is_s[pos - 1]`).
+   - **Single-LMS early return (`lms_count == 1`)**: When only the sentinel is LMS (such as all-same inputs like `b"AA"` or `b"\xff" * 16384`, or monotonically descending inputs), the first induced sort already yields the exact final suffix array and returns `Ok(sa)` immediately.
+   - **LMS substring naming**: Allocates `lms_names` of length `half = (m - 1) / 2 + 1` indexed by `pos / 2` (collision-free since LMS positions are never adjacent). Scans `sa[1..<m]` in induced order, compares consecutive LMS substrings using `lms_substrings_equal` (matching both symbol `s` and type `is_s` up to the next LMS boundary; sentinel `m - 1` matches only itself), and assigns dense names `0..k1 - 1` (`k1 = name + 1`).
+   - **LMS suffix ordering**:
+     - If `k1 == lms_count`, every LMS substring is unique and `sa` already holds the exact LMS order; `sorted_lms` is extracted directly in one scan.
+     - Otherwise builds the reduced string `s1` of length `lms_count` (`s1[j] = lms_names[lms_pos[j] / 2]`, with unique smallest sentinel `s1[lms_count - 1] == 0`), recursively calls `sais_rec(s1, lms_count, k1, None, budget)`, and maps `sa1` back to original positions `lms_pos[sa1[j]]`.
+   - **Final induced sort**: Resets `sa` to `-1`, scatters `sorted_lms` right-to-left into bucket tails (preserving their exact sorted order within every bucket), and runs `induce_sort` to produce the complete suffix array.
 
-`suffix_sizes` is separately testable without allocation. It validates max_entries in 1..2147483647 and n in 0..2147483646 before calculating N=n+1 in Int64. N must fit max_entries. Only then are lengths narrowed to Int32. Empty input consumes one setup work unit and returns [0] without other buffers. Nonempty input uses four N-element Int32 arrays (positions, radix scratch, ranks, next ranks) and one B=max(N,257)-element Int32 bucket array. Rank arrays swap roles without allocation. Logical array payload is 4*(4N+B) bytes, plus headers, capacities, allocator/GC and input; this is not a measured process-memory bound.
+## Bounds, memory, and `SortBudget` accounting
 
-Both key ranges fit the bucket array: initial keys are 0..256 and later keys 0..classes-1. Counting-prefix totals never exceed N; scatter cursors address an element before their last increment reaches at most N. The second-rank lookup tests h <= n-position before adding. Classes and traversal indices stay within N. Doubling is performed only after h < N-h proves 2h < N, so Int arithmetic does not overflow. Work-charge arithmetic uses Int64; with `N`, `step < N`, and `K < N` bounded by Int32 maximum, both `3N+257` and `4N+step+2K` (`< 7N`) are representable.
+All index bounds and work reservations use `Int64` arithmetic after `suffix_sizes` proves `N <= 2147483647`. Bucket head and tail cursors stay strictly within `0..<m` because `sum(bkt_size[0..<k]) == m` at every level.
 
-An explicit internal SortBudget carries remaining Int64 work across calls, independent of Limits::for_apply. A negative budget is invalid and zero is exhausted, never unlimited. The builder reserves `4N+B` initialization visits before allocation (empty input costs `1`). For nonempty inputs it then reserves `3N+257` units before the initial length-1 counting sort and dense reranking (count `N`, prefix sum `257`, scatter `N`, rerank `N`; `counts` is freshly zero-allocated) and returns early if `init_classes == N`. Each subsequent doubling round reserves `4N+step+2K` units before running (linear second-key placement `step+N`, single stable first-key counting pass `2N+2K`, and dense reranking `N`, where `K` is the current dense class count). These are defined algorithmic visit charges, not a count of every machine operation: initial array zeroing is charged by logical element visits; branch/key lookups and runtime overhead are not separately metered. Failed reservations do not deduct that reservation; already completed stages stay charged. Size rejection does not consume the budget. This interface permits future generator-wide accumulation but does not establish full generation protection or a generation default. Caller-selected practical entry limits remain necessary; an arithmetic-valid request may still exceed available memory.
+An explicit internal `SortBudget` carries remaining `Int64` logical work units across all passes and recursive levels, driven by `Limits.max_sort_work` in `diff`, `diff_with_options`, and `DiffIndex::build` (see [generation-resources.md](generation-resources.md) and [diff-index.md](diff-index.md)). A negative budget (`sorting_budget`) or negative reservation (`SortBudget::reserve`) returns `InvalidConfiguration` at stage `Sorting`; zero remaining is exhausted, never unlimited. Failed reservations return `ResourceLimitExceeded` (stage `Sorting`, field `"sort_remaining"`, `value = requested`, `limit = remaining`) without deducting the failed request; completed stages remain charged. Preflight rejections in `suffix_sizes` consume zero budget.
 
-Time is O(n log n), from at most logarithmically many O(N+K) rounds, with O(n+256) auxiliary space. Neither peak memory nor performance relative to upstream has been measured.
+### Stage-by-stage work reservations
+
+| Stage | Condition | Logical work units (`Int64`) |
+| --- | --- | --- |
+| Empty input | `n == 0` (`N = 1`) | `1` |
+| Top-level initialization | `n >= 1`, `B = max(N, 257)` | `4*N + B` |
+| Alphabet compaction + scatter / mapping | `n >= 1` | `2*N + 256` |
+| Recursive level setup | `precomputed_bkt_size == None` | `3*m + 2*k` |
+| S/L classification + LMS collection | each `sais_rec` level | `2*m` |
+| First induced sort | each `sais_rec` level | `2*m + 3*k + lms_count` |
+| LMS substring naming | `lms_count > 1`, `half = (m - 1)/2 + 1` | `2*m + lms_count + half` |
+| LMS ordering (unique names) | `k1 == lms_count` | `m + lms_count` |
+| LMS ordering (recursive) | `k1 < lms_count` | `2*lms_count` + child `sais_rec` + `2*lms_count` |
+| Final induced sort | `lms_count > 1` | `3*m + 3*k + lms_count` |
+
+These are defined algorithmic visit charges, not machine-instruction counts or wall-clock limits. Caller-selected entry limits (`max_old_bytes`) and practical work budgets (`max_sort_work`) remain necessary; logical array sizes do not cap allocator overhead, GC retention, or process RSS.
+
+### Exact work boundaries and linear scaling
+
+Because every recursive level reduces problem size by at least half (`lms_count <= floor(m / 2)` and `k1 <= lms_count`), both total running time and total `SortBudget` consumption form a convergent geometric series:
+
+- **Time complexity**: strictly **`O(n)`** across all input shapes (including repeated, periodic, alternating, Fibonacci, and Thue-Morse inputs that trigger multi-level recursion).
+- **Auxiliary space**: **`O(n)`** (top-level `s`, `sa`, `is_s`, `bkt_size`/`bkt`, and geometric recursive workspaces totaling `< 2N` elements).
+- **Exact small-fixture boundaries** (verified in `suffix_array_wbtest.mbt` and `diff_resources_wbtest.mbt`):
+  - `b""` (`N = 1`): **1** unit.
+  - `b"A"` (`N = 2`, `B = 257`, unique-byte fast path): **525 exact / 524 one-short** (`4*2 + 257 = 265` init + `2*2 + 256 = 260` compaction & scatter; one-short fails requesting `260` with `259` remaining).
+  - `b"AA"` (`N = 3`, `B = 257`, `k = 2`, `lms_count = 1` early return): **550 exact / 549 one-short** (`4*3 + 257 = 269` init + `2*3 + 256 = 262` compaction + `2*3 = 6` classify/collect + `2*3 + 3*2 + 1 = 13` first induced sort; one-short fails requesting `13` with `12` remaining).
+- **Measured linear scaling bounds** (enforced by `suffix-sais-linear-work-and-recursive-budget-exhaustion`):
+  - All-same inputs hit `lms_count == 1` and stay below **`13*n`** units (~`11*n`).
+  - Periodic (period-7), alternating (`0x00 0xff`, recursive), and LCG random inputs all stay below **`35*n`** units across 1 KiB, 4 KiB, and 16 KiB.
+  - 64 KiB period-7 input uses fewer than **`2,500,000`** units, fitting comfortably inside the default `Limits::for_diff().max_sort_work` (`8,388,608`).
+
+### Measured SA-IS vs prefix-doubling at 256 KiB and 1 MiB
+
+Interleaved native `--release` measurements (locked 0.10.19 Windows MSVC, 1 warmup + 5 runs) comparing 0.7.0 SA-IS directly against 0.6.0 prefix-doubling and the recorded 0.5.4 baseline (`testdata/release/0.5.4.json`):
+
+| Case | 0.5.4 `sort_work` | 0.7.0 `sort_work` (`diff` / full SA) | `sort_work` vs 0.5.4 | 0.6.0 -> 0.7.0 SA median (Win MSVC) | Patch == 0.5.4 |
+| --- | ---: | ---: | --- | --- | --- |
+| `256k-sparse` | 5,896,636 | 5,935,466 / 6,926,208 | 1.01x / 1.17x | 13.61 -> 17.66 ms (0.77x) | Yes (188 B) |
+| `256k-periodic` | 21,758,538 | **4,849,999** / 4,849,999 | **4.49x less (-77.7%)** | **33.32 -> 7.69 ms (4.33x faster)** | Yes (165 B) |
+| `256k-random` | 5,896,636 | 6,926,208 / 6,926,208 | 1.17x | 13.95 -> 17.74 ms (0.79x) | Yes (263,849 B) |
+| `1m-sparse` | 23,200,464 | 23,738,932 / 27,689,504 | 1.02x / 1.19x | 70.78 -> 113.67 ms (0.62x) | Yes (197 B) |
+| `1m-periodic` | 95,421,038 | **19,398,999** / 19,398,999 | **4.92x less (-79.7%)** | **182.53 -> 30.19 ms (6.05x faster)** | Yes (168 B) |
+| `1m-random` | 23,200,464 | 27,689,504 / 27,689,504 | 1.19x | 65.25 -> 82.22 ms (0.79x) | Yes (1,053,978 B) |
+
+- **Exact parity**: Element-for-element `sa_sais[i] == sa_pd[i]` holds across all `n + 1` entries on all 6 inputs, and generated `patch_bytes` / `patch_sha256` match 0.5.4/0.6.0 byte-for-byte.
+- **Confirmed linear scaling**: The 1 MiB / 256 KiB `sort_work` ratio is **`4.000x`** on periodic (`19,398,999 / 4,849,999`, ~`18.5n`) and **`3.998x`** on random (`27,689,504 / 6,926,208`, ~`26.4n`), versus `4.385x` (~`91n` at 1 MiB) for prefix-doubling on periodic inputs.
+- **Workload profile**: On `sparse`, `diff` trims the `n / 7` common prefix before suffix sorting. On high-entropy random bytes, prefix-doubling exits after ~3 doubling rounds so SA-IS uses ~17–19% more `sort_work` (still only ~13.2% of the `200 * (n + 1)` scale quota), whereas on repetitive/periodic inputs SA-IS cuts `sort_work` by **4.49x–4.92x** and speeds up SA construction by **4.33x–6.05x**.
+
+### Historical prefix-doubling baseline
+
+Prior to 0.7.0, `build_suffix_array` used an `O(n log n)` prefix-doubling algorithm (initial length-1 counting sort `3N + 257` plus `4N + step + 2K` per doubling round; earlier Commit 11 used two counting passes per round at `5N + 4K`). Its historical single-byte / two-byte exact figures were `528 / 552` (and earlier `1303` in Commit 11 and `1040` in Commit 7). The suffix ordering output contract is completely unchanged across all generations.
 
 ## Independent verification
 
-The test-only insertion sort compares original bytes and lengths directly. It does not use ranks, radix helpers or grouping. Small cases compare the entire returned array and separately check length N, range, uniqueness/completeness, empty first, and every adjacent pair's strict lexicographic order. Six hand-auditable vectors also check the test comparator: empty, ff, banana, 00 ff 00, AAAA, aba. Binary cases include increasing/decreasing 0..255, NUL repetition, 00/ff periodic data and long common prefixes.
+`suffix_array_wbtest.mbt` verifies SA-IS against an independent test-only insertion-sort oracle (`naive_suffix_less` and `naive_suffix_array`) that compares raw input bytes and explicit lengths directly without ranks, buckets, or induced sorting, plus a full structural checker (`suffix_test_complete`) verifying length `N`, valid range, permutation completeness, `sa[0] == n`, and strict adjacent lexicographic order:
 
-Random generation is an explicitly defined UInt32 LCG, state=(1664525*state+1013904223) mod 2^32, emitting the high byte. Compact tests use lengths 0..63 and seed 20261106+i. Native exhaustive tests enumerate all 3280 strings of lengths 0..7 over {00,01,ff}. These include overlaps with compact cases; repeated target runs do not increase independent input counts.
+- **Manual and binary fixtures** (`suffix-compact-manual-complete-vectors`, `suffix-compact-binary-and-prefixes`, `suffix-compact-seeded-random`, `suffix-compact-state-isolation`): empty, `0xff`, `"banana"`, `00 ff 00`, `"AAAA"`, `"aba"`, ascending/descending `0..255`, 128-byte NUL runs, period-3 `00/ff`, long common prefixes, 64 LCG-random lengths (`0..63`, seed `20261106 + i`), and caller mutation isolation.
+- **Exhaustive and scale tests** (`suffix-native-exhaustive`, `suffix-native-scale-and-growth`): all 3,280 strings of lengths `0..7` over `{0x00, 0x01, 0xff}`, plus 1,024 / 4,096 / 16,384-byte all-`0xff`, period-7, and LCG-random inputs.
+- **0.7.0 SA-IS edge cases and views** (`suffix-sais-edge-cases-and-views`): all 256 single-byte values, all 2-byte boundary pairs (`00/00`, `00/ff`, `ff/00`, `ff/ff`, `00/01`, `fe/ff`), full 256-byte alphabet repeated forward and backward, and non-zero-offset `BytesView` slice parity.
+- **0.7.0 multi-level recursion stress** (`suffix-sais-multilevel-recursion-and-periodic`): `babababa`, alternating `ab`/`ba`/`00 ff`/`ff 00`, repeated `mmiissiissiippii`/`abacabad`/`aaabaaac`, Fibonacci words `F_0..F_14`, and Thue-Morse words `T_0..T_10`.
+- **0.7.0 recursive budget exhaustion and linear scaling** (`suffix-compact-preflight-and-work-budget`, `suffix-sais-linear-work-and-recursive-budget-exhaustion`): exact/one-short checks for `b"A"` (`525/524`) and `b"AA"` (`550/549`), stepping downward across every reservation checkpoint of 128-byte Thue-Morse `T_7` (confirming `>= 8` distinct fail-closed reservation boundaries across recursive levels with nonnegative remaining budget), and linear `< 13n` / `< 35n` work bounds through 64 KiB.
 
-Native scale checks use lengths 1024, 4096 and 16384: all-ff has the complete expected array [n,n-1,...,0]; period-7 data has an independently constructed complete order by byte and decreasing position. Random input uses seed 20261106 and full permutation/adjacency checks, plus deterministic repeated construction. Mutation of one returned array is tested against a separate existing result and a fresh call. Invalid n/entry limits are rejected by the preflight helper without huge allocation; work tests check an exact 1040-unit single-byte call, 1039/0 failure, shared-budget exhaustion, preflight budget preservation and fresh-call recovery.
-
-Actual target results and commands are recorded below. Native runs both exhaustive and scale cases; JS/Wasm-GC run only the compact group. No apply/large-compression matrix, oracle build, upstream patch regeneration, historical probe or resource measurement is needed for this internal index change. Matching, diff, CLI and generation defaults remain later work.
-
-## Actual verification (2026-11-06)
-
-Toolchain: moon 0.1.20261102 (ea07287 2026-11-02), moonc v0.10.19+bee578715 (2026-11-02), moonrun 0.1.20261102 (ea07287 2026-11-02), isolated installation. Native uses Windows MSVC; no global compiler installation was upgraded.
-
-| Selection | Target | Result |
-| --- | --- | --- |
-| suffix_array_wbtest.mbt, all tests | native | 7/7 passed, including exhaustive and all three scale sizes |
-| suffix_array_wbtest.mbt, suffix-compact* | JS | 5/5 passed in final selection |
-| suffix_array_wbtest.mbt, suffix-compact* | Wasm-GC | 5/5 passed |
-| limits_test.mbt + format_wbtest.mbt | native | 12/12 passed |
-
-Native command: `moon test suffix_array_wbtest.mbt --target native --deny-warn`. Compact command: `moon test suffix_array_wbtest.mbt --filter 'suffix-compact*' --target js --deny-warn`, with wasm-gc substituted for the other target. Necessary regression: `moon test limits_test.mbt format_wbtest.mbt --target native --deny-warn`. There was also an earlier five-test JS development run before the added budget-preservation assertions; it is not counted as new cases.
-
-moon info, moon fmt, moon fmt --check, native check --deny-warn, native build, and git diff --check passed. Root pkg.generated.mbti remains byte-for-byte unchanged. CI's existing native full suite discovers the seven new tests, and an explicit compact JS/Wasm-GC step checks nonzero results. Remote CI has not run.
-
-No peak-memory or speed benchmark was run. Maximum actually sorted size was 16384 bytes; integer-limit preflight tests did not allocate arrays near those integer limits. Apply defaults, runtime and compression code were not changed, so their full matrices and historical measurements were not repeated. The remaining generation-wide quotas and defaults are reserved for Commit 11; this step does not deliver matching, diff or a CLI.
-
-
-Current work boundaries: the single-byte fixture `b"A"` (`N=2`) takes **528 exact / 527 one-short** (initialization `4*2+257=265`, initial length-1 sort+rerank `3*2+257=263`, early return at `init_classes == 2`; one short leaves `262` remaining). The two-byte repeated fixture `b"AA"` (`N=3`) additionally exercises one doubling round at **552 exact / 551 one-short** (initialization `4*3+257=269`, initial pass `3*3+257=266`, doubling round `step=1, keys=2`: `4*3+1+2*2=17`; one short leaves `16` remaining). Earlier `1303 / 1302` (Commit 11, `4N+257` plus `5N+4*257`) and `1040 / 1039` (Commit 7) figures are historical evidence. [Generation resources](generation-resources.md) documents the current cumulative quota and measured defaults; the suffix ordering output contract is unchanged.
+Related docs: [generation-resources.md](generation-resources.md), [matching.md](matching.md), [diff-index.md](diff-index.md), [upstream.md](upstream.md).

@@ -65,14 +65,6 @@ fn signature_diagnostic(err : @manifest.SignatureError) -> String {
 }
 
 ///|
-fn signed_manifest_diagnostic(err : @manifest.SignedManifestError) -> String {
-  match err {
-    Signature(sig_err) => signature_diagnostic(sig_err)
-    Manifest(man_err) => manifest_diagnostic(man_err)
-  }
-}
-
-///|
 fn read_bounded_checked(
   op : String,
   label : String,
@@ -91,36 +83,100 @@ fn read_bounded_checked(
 }
 
 ///|
+fn load_public_keys(
+  op : String,
+  paths : Array[String],
+) -> Result[Array[@manifest.PublicKey], String] {
+  let keys : Array[@manifest.PublicKey] = []
+  for path in paths {
+    let raw = match
+      read_bounded_checked(
+        op, "read public key", path, @manifest.max_key_file_bytes,
+      ) {
+      Ok(v) => v
+      Err(msg) => return Err(msg)
+    }
+    let pk = match @manifest.PublicKey::from_json_bytes(raw) {
+      Ok(v) => v
+      Err(err) => return Err("\{op} '\{path}': " + signature_diagnostic(err))
+    }
+    keys.push(pk)
+  }
+  Ok(keys)
+}
+
+///|
+fn load_trust_store(
+  op : String,
+  paths : Array[String],
+) -> Result[(@manifest.TrustStore, Map[String, String]), String] {
+  let keys = match load_public_keys(op, paths) {
+    Ok(v) => v
+    Err(msg) => return Err(msg)
+  }
+  let store = match @manifest.TrustStore::from_keys(keys) {
+    Ok(v) => v
+    Err(err) => return Err("\{op} public keys: " + signature_diagnostic(err))
+  }
+  let path_by_id : Map[String, String] = Map([])
+  for i in 0..<keys.length() {
+    let id = keys[i].key_id()
+    if !path_by_id.contains(id) {
+      path_by_id[id] = paths[i]
+    }
+  }
+  Ok((store, path_by_id))
+}
+
+///|
+fn verify_manifest_with_store(
+  op : String,
+  store : @manifest.TrustStore,
+  manifest_bytes : Bytes,
+  sig_path : String,
+) -> Result[(@manifest.ManifestSignature, @manifest.PublicKey), String] {
+  let sig_bytes = match
+    read_bounded_checked(
+      op, "read signature", sig_path, @manifest.max_signature_file_bytes,
+    ) {
+    Ok(v) => v
+    Err(msg) => return Err(msg)
+  }
+  let sig = match @manifest.ManifestSignature::from_json_bytes(sig_bytes) {
+    Ok(v) => v
+    Err(err) => return Err("\{op} '\{sig_path}': " + signature_diagnostic(err))
+  }
+  match store.verify_manifest_signature(manifest_bytes, sig) {
+    Ok(verified_key) => Ok((sig, verified_key))
+    Err(err) => Err("\{op} signature: " + signature_diagnostic(err))
+  }
+}
+
+///|
 fn verify_optional_manifest_signature(
   op : String,
   manifest_bytes : Bytes,
-  public_key_path : String?,
+  public_key_paths : Array[String],
   signature_path : String?,
 ) -> Bool {
-  match (public_key_path, signature_path) {
-    (Some(pub_path), Some(sig_path)) => {
-      let pub_bytes = read_input(
-        "\{op} read public key (limit=\{@manifest.max_key_file_bytes} bytes)",
-        pub_path,
-        @manifest.max_key_file_bytes.to_int64(),
-      )
-      let sig_bytes = read_input(
-        "\{op} read signature (limit=\{@manifest.max_signature_file_bytes} bytes)",
-        sig_path,
-        @manifest.max_signature_file_bytes.to_int64(),
-      )
-      match
-        @manifest.verify_manifest_signature_bytes(
-          manifest_bytes, sig_bytes, pub_bytes,
-        ) {
+  match (!public_key_paths.is_empty(), signature_path) {
+    (true, Some(sig_path)) => {
+      let (store, _) = match load_trust_store(op, public_key_paths) {
+        Ok(v) => v
+        Err(msg) => {
+          failure(msg)
+          abort("unreachable after process exit")
+        }
+      }
+      match verify_manifest_with_store(op, store, manifest_bytes, sig_path) {
         Ok(_) => true
-        Err(err) => {
-          failure("\{op} signature: " + signature_diagnostic(err))
+        Err(msg) => {
+          failure(msg)
           abort("unreachable after process exit")
         }
       }
     }
-    (None, None) => false
+    (false, None) => false
     _ => {
       failure("\{op}: --public-key and --signature must be provided together")
       abort("unreachable after process exit")
@@ -134,42 +190,25 @@ fn prepare_optional_signed_manifest(
   manifest_path : String,
   manifest_bytes : Bytes,
   limits : @moonbsdiff.Limits,
-  public_key_path : String?,
+  public_key_paths : Array[String],
   signature_path : String?,
 ) -> Result[@manifest.PreparedManifest, String] {
-  match (public_key_path, signature_path) {
-    (Some(pub_path), Some(sig_path)) => {
-      let pub_bytes = match
-        read_bounded_checked(
-          op, "read public key", pub_path, @manifest.max_key_file_bytes,
-        ) {
+  match (!public_key_paths.is_empty(), signature_path) {
+    (true, Some(sig_path)) => {
+      let (store, _) = match load_trust_store(op, public_key_paths) {
         Ok(v) => v
         Err(msg) => return Err(msg)
       }
-      let sig_bytes = match
-        read_bounded_checked(
-          op, "read signature", sig_path, @manifest.max_signature_file_bytes,
-        ) {
-        Ok(v) => v
+      match verify_manifest_with_store(op, store, manifest_bytes, sig_path) {
+        Ok(_) => ()
         Err(msg) => return Err(msg)
       }
-      let pub_key = match @manifest.PublicKey::from_json_bytes(pub_bytes) {
-        Ok(v) => v
-        Err(err) =>
-          return Err("\{op} '\{pub_path}': " + signature_diagnostic(err))
-      }
-      let sig = match @manifest.ManifestSignature::from_json_bytes(sig_bytes) {
-        Ok(v) => v
-        Err(err) =>
-          return Err("\{op} '\{sig_path}': " + signature_diagnostic(err))
-      }
-      match @manifest.prepare_signed(manifest_bytes, sig, pub_key, limits) {
+      match @manifest.prepare(manifest_bytes, limits) {
         Ok(v) => Ok(v)
-        Err(err) =>
-          Err("\{op} '\{manifest_path}': " + signed_manifest_diagnostic(err))
+        Err(err) => Err("\{op} '\{manifest_path}': " + manifest_diagnostic(err))
       }
     }
-    (None, None) =>
+    (false, None) =>
       match @manifest.prepare(manifest_bytes, limits) {
         Ok(v) => Ok(v)
         Err(err) => Err("\{op} '\{manifest_path}': " + manifest_diagnostic(err))
@@ -309,31 +348,25 @@ fn manifest_sign_command(config : CliConfig) -> Unit {
 ///|
 fn manifest_verify_sig_command(config : CliConfig) -> Unit {
   let op = config.operation
-  let pub_path = config.public_key.unwrap()
   let sig_path = config.signature.unwrap()
   let manifest_path = config.files[0]
-  let pub_bytes = read_input(
-    "\{op} read public key (limit=\{@manifest.max_key_file_bytes} bytes)",
-    pub_path,
-    @manifest.max_key_file_bytes.to_int64(),
-  )
-  let sig_bytes = read_input(
-    "\{op} read signature (limit=\{@manifest.max_signature_file_bytes} bytes)",
-    sig_path,
-    @manifest.max_signature_file_bytes.to_int64(),
-  )
+  let (store, path_by_id) = match load_trust_store(op, config.public_keys) {
+    Ok(v) => v
+    Err(msg) => {
+      failure(msg)
+      return
+    }
+  }
   let manifest_bytes = read_input(
     "\{op} read manifest (limit=\{@manifest_support.MAX_MANIFEST_BYTES} bytes)",
     manifest_path,
     @manifest_support.MAX_MANIFEST_BYTES.to_int64(),
   )
-  let sig = match
-    @manifest.verify_manifest_signature_bytes(
-      manifest_bytes, sig_bytes, pub_bytes,
-    ) {
+  let (sig, verified_key) = match
+    verify_manifest_with_store(op, store, manifest_bytes, sig_path) {
     Ok(v) => v
-    Err(err) => {
-      failure("\{op}: " + signature_diagnostic(err))
+    Err(msg) => {
+      failure(msg)
       return
     }
   }
@@ -344,6 +377,9 @@ fn manifest_verify_sig_command(config : CliConfig) -> Unit {
       return
     }
   }
+  let matched_pub_path = path_by_id
+    .get(verified_key.key_id())
+    .unwrap_or(config.public_keys[0])
   if config.json {
     println(
       @json.Json::object({
@@ -353,7 +389,7 @@ fn manifest_verify_sig_command(config : CliConfig) -> Unit {
         "key_id": @json.Json::string(sig.key_id()),
         "manifest_sha256": @json.Json::string(sig.manifest_sha256()),
         "manifest_path": @json.Json::string(manifest_path),
-        "public_key_path": @json.Json::string(pub_path),
+        "public_key_path": @json.Json::string(matched_pub_path),
         "signature_path": @json.Json::string(sig_path),
       }).stringify(),
     )

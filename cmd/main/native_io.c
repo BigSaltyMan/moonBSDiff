@@ -29,9 +29,7 @@
 #include <fcntl.h>
 #include <strings.h>
 #include <sys/stat.h>
-#ifdef MBSD_IO_TEST
 #include <dirent.h>
-#endif
 #ifdef __linux__
 #include <sys/ioctl.h>
 #include <sys/random.h>
@@ -184,23 +182,62 @@ static int win_random_hex(wchar_t out[33]) {
   out[32]=0;
   return 1;
 }
+static int win_is_ascii_alpha(wchar_t c) {
+  return (c>=L'A' && c<=L'Z') || (c>=L'a' && c<=L'z');
+}
 static int win_validate_output_path(const wchar_t *raw) {
   size_t len=wcslen(raw);
   if(!len) { fail("invalid output name",ERROR_INVALID_NAME); return 0; }
   if(raw[len-1]==L'\\' || raw[len-1]==L'/') { fail("invalid output name",ERROR_INVALID_NAME); return 0; }
-  int extended=(len>=4 && raw[0]==L'\\' && raw[1]==L'\\' && raw[2]==L'?' && raw[3]==L'\\');
+  if((len==3 || (len>=4 && (raw[3]==L'\\' || raw[3]==L'/'))) &&
+     (raw[0]==L'\\' || raw[0]==L'/') && (raw[1]==L'\\' || raw[1]==L'/') && raw[2]==L'.') {
+    fail("Win32 device namespace paths (\\\\.\\) are unsupported",ERROR_INVALID_NAME);
+    return 0;
+  }
+  int extended=(len>=4 && (raw[0]==L'\\' || raw[0]==L'/') && (raw[1]==L'\\' || raw[1]==L'/') &&
+                raw[2]==L'?' && (raw[3]==L'\\' || raw[3]==L'/'));
+  if(extended && wcschr(raw,L'/')) { fail("forward slashes are unsupported in extended paths",ERROR_INVALID_NAME); return 0; }
   const wchar_t *leaf=raw;
   for(const wchar_t *q=raw;*q;q++) if(*q==L'\\' || *q==L'/') leaf=q+1;
-  if(!*leaf) { fail("invalid output name",ERROR_INVALID_NAME); return 0; }
+  if(!*leaf || wcscmp(leaf,L".")==0 || wcscmp(leaf,L"..")==0) { fail("invalid output name",ERROR_INVALID_NAME); return 0; }
   const wchar_t *colon_scan=leaf;
-  if(leaf==raw && ((raw[0]>=L'A' && raw[0]<=L'Z') || (raw[0]>=L'a' && raw[0]<=L'z')) && raw[1]==L':') colon_scan=raw+2;
+  if(leaf==raw && win_is_ascii_alpha(raw[0]) && raw[1]==L':') {
+    if(!raw[2]) { fail("invalid output name",ERROR_INVALID_NAME); return 0; }
+    colon_scan=raw+2;
+  }
   if(wcschr(colon_scan,L':')) { fail("alternate data streams are unsupported",ERROR_INVALID_NAME); return 0; }
+  size_t llen=wcslen(leaf);
+  if(llen && (leaf[llen-1]==L'.' || leaf[llen-1]==L' ')) {
+    fail(extended?"extended path trailing dot or space is unsupported"
+                 :"trailing dot or space in output path is unsupported",ERROR_INVALID_NAME);
+    return 0;
+  }
+  size_t scan_start=0;
   if(extended) {
-    size_t llen=wcslen(leaf);
-    if(llen && (leaf[llen-1]==L'.' || leaf[llen-1]==L' ')) {
-      fail("extended path trailing dot or space is unsupported",ERROR_INVALID_NAME);
-      return 0;
+    scan_start=4;
+    if(len>=8 && (raw[4]==L'U' || raw[4]==L'u') && (raw[5]==L'N' || raw[5]==L'n') &&
+       (raw[6]==L'C' || raw[6]==L'c') && raw[7]==L'\\') scan_start=8;
+  } else if(len>=2 && (raw[0]==L'\\' || raw[0]==L'/') && (raw[1]==L'\\' || raw[1]==L'/')) {
+    scan_start=2;
+  }
+  size_t seg_start=scan_start;
+  for(size_t i=scan_start;i<=len;i++) {
+    if(i<len && raw[i]!=L'\\' && raw[i]!=L'/') continue;
+    size_t slen=i-seg_start;
+    if(slen>0) {
+      int is_dot=(slen==1 && raw[seg_start]==L'.');
+      int is_dotdot=(slen==2 && raw[seg_start]==L'.' && raw[seg_start+1]==L'.');
+      int is_drive=(seg_start==scan_start && slen==2 && win_is_ascii_alpha(raw[seg_start]) && raw[seg_start+1]==L':');
+      if(!is_dot && !is_dotdot && !is_drive) {
+        wchar_t tail=raw[i-1];
+        if(tail==L'.' || tail==L' ') {
+          fail(extended?"extended path trailing dot or space is unsupported"
+                       :"trailing dot or space in output path is unsupported",ERROR_INVALID_NAME);
+          return 0;
+        }
+      }
     }
+    seg_start=i+1;
   }
   return 1;
 }
@@ -524,9 +561,15 @@ MOONBIT_FFI_EXPORT int32_t mbsd_output_check(moonbit_bytes_t a,moonbit_bytes_t b
   } else { DWORD e=GetLastError(); if(e!=ERROR_FILE_NOT_FOUND && e!=ERROR_PATH_NOT_FOUND) fail("inspect output",e); }
   free(p);
 #else
+  const char *out_path=(const char *)out;
+  size_t out_len=strlen(out_path);
+  if(!out_len || out_path[out_len-1]=='/') {
+    fail("invalid output name",EINVAL);
+    return 0;
+  }
   struct stat t,l;
-  if(lstat((char*)out,&l)==0) {
-    if(stat((char*)out,&t)==0) {
+  if(lstat(out_path,&l)==0) {
+    if(stat(out_path,&t)==0) {
       moonbit_bytes_t inputs[2]={a,b};
       for(int i=0;i<2;i++) { struct stat s; if(stat((char*)inputs[i],&s)==0 && t.st_dev==s.st_dev && t.st_ino==s.st_ino) fail("output is the same file as an input",EEXIST); }
     }
@@ -614,13 +657,230 @@ static int pair_parent(moonbit_bytes_t name,const char **leaf) {
   if(fd<0) fail("open output pair parent",err);
   return fd;
 }
+#endif
+/* Zero-dependency Unicode 16.0 simple case-folding table (1-to-1 scalar mapping;
+ * covers all Windows NTFS $UpCase pairs plus BMP/supplementary Unicode scripts). */
+typedef struct {
+  uint32_t start;
+  uint32_t end;
+  int32_t delta;
+  uint8_t step;
+} UnicodeFoldRun;
+
+static const UnicodeFoldRun unicode_fold_runs[] = {
+  {0x0041u,0x005Au,32,1}, {0x00B5u,0x00B5u,775,1}, {0x00C0u,0x00D6u,32,1}, {0x00D8u,0x00DEu,32,1},
+  {0x0100u,0x012Eu,1,2}, {0x0132u,0x0136u,1,2}, {0x0139u,0x0147u,1,2}, {0x014Au,0x0176u,1,2},
+  {0x0178u,0x0178u,-121,1}, {0x0179u,0x017Du,1,2}, {0x017Fu,0x017Fu,-268,1}, {0x0181u,0x0181u,210,1},
+  {0x0182u,0x0184u,1,2}, {0x0186u,0x0186u,206,1}, {0x0187u,0x0187u,1,1}, {0x0189u,0x018Au,205,1},
+  {0x018Bu,0x018Bu,1,1}, {0x018Eu,0x018Eu,79,1}, {0x018Fu,0x018Fu,202,1}, {0x0190u,0x0190u,203,1},
+  {0x0191u,0x0191u,1,1}, {0x0193u,0x0193u,205,1}, {0x0194u,0x0194u,207,1}, {0x0196u,0x0196u,211,1},
+  {0x0197u,0x0197u,209,1}, {0x0198u,0x0198u,1,1}, {0x019Cu,0x019Cu,211,1}, {0x019Du,0x019Du,213,1},
+  {0x019Fu,0x019Fu,214,1}, {0x01A0u,0x01A4u,1,2}, {0x01A6u,0x01A6u,218,1}, {0x01A7u,0x01A7u,1,1},
+  {0x01A9u,0x01A9u,218,1}, {0x01ACu,0x01ACu,1,1}, {0x01AEu,0x01AEu,218,1}, {0x01AFu,0x01AFu,1,1},
+  {0x01B1u,0x01B2u,217,1}, {0x01B3u,0x01B5u,1,2}, {0x01B7u,0x01B7u,219,1}, {0x01B8u,0x01B8u,1,1},
+  {0x01BCu,0x01BCu,1,1}, {0x01C4u,0x01C4u,2,1}, {0x01C5u,0x01C5u,1,1}, {0x01C7u,0x01C7u,2,1},
+  {0x01C8u,0x01C8u,1,1}, {0x01CAu,0x01CAu,2,1}, {0x01CBu,0x01DBu,1,2}, {0x01DEu,0x01EEu,1,2},
+  {0x01F1u,0x01F1u,2,1}, {0x01F2u,0x01F4u,1,2}, {0x01F6u,0x01F6u,-97,1}, {0x01F7u,0x01F7u,-56,1},
+  {0x01F8u,0x021Eu,1,2}, {0x0220u,0x0220u,-130,1}, {0x0222u,0x0232u,1,2}, {0x023Au,0x023Au,10795,1},
+  {0x023Bu,0x023Bu,1,1}, {0x023Du,0x023Du,-163,1}, {0x023Eu,0x023Eu,10792,1}, {0x0241u,0x0241u,1,1},
+  {0x0243u,0x0243u,-195,1}, {0x0244u,0x0244u,69,1}, {0x0245u,0x0245u,71,1}, {0x0246u,0x024Eu,1,2},
+  {0x0345u,0x0345u,116,1}, {0x0370u,0x0372u,1,2}, {0x0376u,0x0376u,1,1}, {0x037Fu,0x037Fu,116,1},
+  {0x0386u,0x0386u,38,1}, {0x0388u,0x038Au,37,1}, {0x038Cu,0x038Cu,64,1}, {0x038Eu,0x038Fu,63,1},
+  {0x0391u,0x03A1u,32,1}, {0x03A3u,0x03ABu,32,1}, {0x03C2u,0x03C2u,1,1}, {0x03CFu,0x03CFu,8,1},
+  {0x03D0u,0x03D0u,-30,1}, {0x03D1u,0x03D1u,-25,1}, {0x03D5u,0x03D5u,-15,1}, {0x03D6u,0x03D6u,-22,1},
+  {0x03D8u,0x03EEu,1,2}, {0x03F0u,0x03F0u,-54,1}, {0x03F1u,0x03F1u,-48,1}, {0x03F4u,0x03F4u,-60,1},
+  {0x03F5u,0x03F5u,-64,1}, {0x03F7u,0x03F7u,1,1}, {0x03F9u,0x03F9u,-7,1}, {0x03FAu,0x03FAu,1,1},
+  {0x03FDu,0x03FFu,-130,1}, {0x0400u,0x040Fu,80,1}, {0x0410u,0x042Fu,32,1}, {0x0460u,0x0480u,1,2},
+  {0x048Au,0x04BEu,1,2}, {0x04C0u,0x04C0u,15,1}, {0x04C1u,0x04CDu,1,2}, {0x04D0u,0x052Eu,1,2},
+  {0x0531u,0x0556u,48,1}, {0x10A0u,0x10C5u,7264,1}, {0x10C7u,0x10C7u,7264,1}, {0x10CDu,0x10CDu,7264,1},
+  {0x13F8u,0x13FDu,-8,1}, {0x1C80u,0x1C80u,-6222,1}, {0x1C81u,0x1C81u,-6221,1}, {0x1C82u,0x1C82u,-6212,1},
+  {0x1C83u,0x1C84u,-6210,1}, {0x1C85u,0x1C85u,-6211,1}, {0x1C86u,0x1C86u,-6204,1}, {0x1C87u,0x1C87u,-6180,1},
+  {0x1C88u,0x1C88u,35267,1}, {0x1C89u,0x1C89u,1,1}, {0x1C90u,0x1CBAu,-3008,1}, {0x1CBDu,0x1CBFu,-3008,1},
+  {0x1E00u,0x1E94u,1,2}, {0x1E9Bu,0x1E9Bu,-58,1}, {0x1E9Eu,0x1E9Eu,-7615,1}, {0x1EA0u,0x1EFEu,1,2},
+  {0x1F08u,0x1F0Fu,-8,1}, {0x1F18u,0x1F1Du,-8,1}, {0x1F28u,0x1F2Fu,-8,1}, {0x1F38u,0x1F3Fu,-8,1},
+  {0x1F48u,0x1F4Du,-8,1}, {0x1F59u,0x1F5Fu,-8,2}, {0x1F68u,0x1F6Fu,-8,1}, {0x1F88u,0x1F8Fu,-8,1},
+  {0x1F98u,0x1F9Fu,-8,1}, {0x1FA8u,0x1FAFu,-8,1}, {0x1FB8u,0x1FB9u,-8,1}, {0x1FBAu,0x1FBBu,-74,1},
+  {0x1FBCu,0x1FBCu,-9,1}, {0x1FBEu,0x1FBEu,-7173,1}, {0x1FC8u,0x1FCBu,-86,1}, {0x1FCCu,0x1FCCu,-9,1},
+  {0x1FD8u,0x1FD9u,-8,1}, {0x1FDAu,0x1FDBu,-100,1}, {0x1FE8u,0x1FE9u,-8,1}, {0x1FEAu,0x1FEBu,-112,1},
+  {0x1FECu,0x1FECu,-7,1}, {0x1FF8u,0x1FF9u,-128,1}, {0x1FFAu,0x1FFBu,-126,1}, {0x1FFCu,0x1FFCu,-9,1},
+  {0x2126u,0x2126u,-7517,1}, {0x212Au,0x212Au,-8383,1}, {0x212Bu,0x212Bu,-8262,1}, {0x2132u,0x2132u,28,1},
+  {0x2160u,0x216Fu,16,1}, {0x2183u,0x2183u,1,1}, {0x24B6u,0x24CFu,26,1}, {0x2C00u,0x2C2Fu,48,1},
+  {0x2C60u,0x2C60u,1,1}, {0x2C62u,0x2C62u,-10743,1}, {0x2C63u,0x2C63u,-3814,1}, {0x2C64u,0x2C64u,-10727,1},
+  {0x2C67u,0x2C6Bu,1,2}, {0x2C6Du,0x2C6Du,-10780,1}, {0x2C6Eu,0x2C6Eu,-10749,1}, {0x2C6Fu,0x2C6Fu,-10783,1},
+  {0x2C70u,0x2C70u,-10782,1}, {0x2C72u,0x2C72u,1,1}, {0x2C75u,0x2C75u,1,1}, {0x2C7Eu,0x2C7Fu,-10815,1},
+  {0x2C80u,0x2CE2u,1,2}, {0x2CEBu,0x2CEDu,1,2}, {0x2CF2u,0x2CF2u,1,1}, {0xA640u,0xA66Cu,1,2},
+  {0xA680u,0xA69Au,1,2}, {0xA722u,0xA72Eu,1,2}, {0xA732u,0xA76Eu,1,2}, {0xA779u,0xA77Bu,1,2},
+  {0xA77Du,0xA77Du,-35332,1}, {0xA77Eu,0xA786u,1,2}, {0xA78Bu,0xA78Bu,1,1}, {0xA78Du,0xA78Du,-42280,1},
+  {0xA790u,0xA792u,1,2}, {0xA796u,0xA7A8u,1,2}, {0xA7AAu,0xA7AAu,-42308,1}, {0xA7ABu,0xA7ABu,-42319,1},
+  {0xA7ACu,0xA7ACu,-42315,1}, {0xA7ADu,0xA7ADu,-42305,1}, {0xA7AEu,0xA7AEu,-42308,1}, {0xA7B0u,0xA7B0u,-42258,1},
+  {0xA7B1u,0xA7B1u,-42282,1}, {0xA7B2u,0xA7B2u,-42261,1}, {0xA7B3u,0xA7B3u,928,1}, {0xA7B4u,0xA7C2u,1,2},
+  {0xA7C4u,0xA7C4u,-48,1}, {0xA7C5u,0xA7C5u,-42307,1}, {0xA7C6u,0xA7C6u,-35384,1}, {0xA7C7u,0xA7C9u,1,2},
+  {0xA7CBu,0xA7CBu,-42343,1}, {0xA7CCu,0xA7CCu,1,1}, {0xA7D0u,0xA7D0u,1,1}, {0xA7D6u,0xA7DAu,1,2},
+  {0xA7DCu,0xA7DCu,-42561,1}, {0xA7F5u,0xA7F5u,1,1}, {0xAB70u,0xABBFu,-38864,1}, {0xFF21u,0xFF3Au,32,1},
+  {0x10400u,0x10427u,40,1}, {0x104B0u,0x104D3u,40,1}, {0x10570u,0x1057Au,39,1}, {0x1057Cu,0x1058Au,39,1},
+  {0x1058Cu,0x10592u,39,1}, {0x10594u,0x10595u,39,1}, {0x10C80u,0x10CB2u,64,1}, {0x10D50u,0x10D65u,32,1},
+  {0x118A0u,0x118BFu,32,1}, {0x16E40u,0x16E5Fu,32,1}, {0x1E900u,0x1E921u,34,1}
+};
+
+static uint32_t unicode_fold_cp(uint32_t cp) {
+  if(cp<0x80u) return (cp>='A' && cp<='Z')?(cp+32u):cp;
+  size_t lo=0,hi=sizeof(unicode_fold_runs)/sizeof(unicode_fold_runs[0]);
+  while(lo<hi) {
+    size_t mid=lo+(hi-lo)/2u;
+    if(cp<unicode_fold_runs[mid].start) hi=mid;
+    else if(cp>unicode_fold_runs[mid].end) lo=mid+1u;
+    else {
+      const UnicodeFoldRun *r=&unicode_fold_runs[mid];
+      if(((cp-r->start)%(uint32_t)r->step)==0u) return (uint32_t)((int32_t)cp+r->delta);
+      return cp;
+    }
+  }
+  return cp;
+}
+
+static size_t utf8_decode_one(const unsigned char *s,size_t n,uint32_t *out_cp) {
+  if(!n) return 0;
+  unsigned char c0=s[0];
+  if(c0<0x80u) { *out_cp=(uint32_t)c0; return 1; }
+  if(c0>=0xC2u && c0<=0xDFu) {
+    if(n<2 || (s[1]&0xC0u)!=0x80u) return 0;
+    *out_cp=((uint32_t)(c0&0x1Fu)<<6)|(uint32_t)(s[1]&0x3Fu);
+    return 2;
+  }
+  if(c0>=0xE0u && c0<=0xEFu) {
+    if(n<3 || (s[1]&0xC0u)!=0x80u || (s[2]&0xC0u)!=0x80u) return 0;
+    if(c0==0xE0u && s[1]<0xA0u) return 0;
+    if(c0==0xEDu && s[1]>0x9Fu) return 0;
+    *out_cp=((uint32_t)(c0&0x0Fu)<<12)|((uint32_t)(s[1]&0x3Fu)<<6)|(uint32_t)(s[2]&0x3Fu);
+    return 3;
+  }
+  if(c0>=0xF0u && c0<=0xF4u) {
+    if(n<4 || (s[1]&0xC0u)!=0x80u || (s[2]&0xC0u)!=0x80u || (s[3]&0xC0u)!=0x80u) return 0;
+    if(c0==0xF0u && s[1]<0x90u) return 0;
+    if(c0==0xF4u && s[1]>0x8Fu) return 0;
+    *out_cp=((uint32_t)(c0&0x07u)<<18)|((uint32_t)(s[1]&0x3Fu)<<12)|
+            ((uint32_t)(s[2]&0x3Fu)<<6)|(uint32_t)(s[3]&0x3Fu);
+    return 4;
+  }
+  return 0;
+}
+
+static size_t utf8_encode_one(uint32_t cp,unsigned char out[4]) {
+  if(cp<0x80u) { out[0]=(unsigned char)cp; return 1; }
+  if(cp<0x800u) {
+    out[0]=(unsigned char)(0xC0u|(cp>>6));
+    out[1]=(unsigned char)(0x80u|(cp&0x3Fu));
+    return 2;
+  }
+  if(cp<0x10000u) {
+    out[0]=(unsigned char)(0xE0u|(cp>>12));
+    out[1]=(unsigned char)(0x80u|((cp>>6)&0x3Fu));
+    out[2]=(unsigned char)(0x80u|(cp&0x3Fu));
+    return 3;
+  }
+  out[0]=(unsigned char)(0xF0u|(cp>>18));
+  out[1]=(unsigned char)(0x80u|((cp>>12)&0x3Fu));
+  out[2]=(unsigned char)(0x80u|((cp>>6)&0x3Fu));
+  out[3]=(unsigned char)(0x80u|(cp&0x3Fu));
+  return 4;
+}
+
+static moonbit_bytes_t unicode_fold_utf8_buf(const unsigned char *src,size_t len) {
+  if(!len) return bytes(NULL,0);
+  size_t cap=len+16u;
+  unsigned char *out=malloc(cap);
+  if(!out) { fail("case fold allocation",ENOMEM); return bytes(NULL,0); }
+  size_t pos=0,used=0;
+  while(pos<len) {
+    uint32_t cp=0;
+    size_t step=utf8_decode_one(src+pos,len-pos,&cp);
+    if(!step) {
+      free(out);
+      fail("invalid UTF-8 in case fold",EINVAL);
+      return bytes(NULL,0);
+    }
+    uint32_t folded=unicode_fold_cp(cp);
+    unsigned char enc[4];
+    size_t elen=utf8_encode_one(folded,enc);
+    if(used+elen>cap) {
+      size_t next=cap*2u;
+      if(next<used+elen) next=used+elen+16u;
+      unsigned char *grown=realloc(out,next);
+      if(!grown) { free(out); fail("case fold allocation",ENOMEM); return bytes(NULL,0); }
+      out=grown; cap=next;
+    }
+    memcpy(out+used,enc,elen);
+    used+=elen;
+    pos+=step;
+  }
+  moonbit_bytes_t result=bytes(out,used);
+  free(out);
+  return result;
+}
+
+MOONBIT_FFI_EXPORT moonbit_bytes_t mbsd_case_fold_utf8(moonbit_bytes_t utf8_in) {
+  problem[0]=0;
+  int32_t in_len=Moonbit_array_length(utf8_in);
+  if(in_len<=0) return bytes(NULL,0);
+#ifdef _WIN32
+  int wlen=MultiByteToWideChar(CP_UTF8,MB_ERR_INVALID_CHARS,(const char *)utf8_in,in_len,NULL,0);
+  if(wlen<=0) { fail("UTF-8 case fold conversion",GetLastError()); return bytes(NULL,0); }
+  wchar_t *wbuf=malloc((size_t)wlen*sizeof(wchar_t));
+  if(!wbuf) { fail("case fold allocation",ERROR_NOT_ENOUGH_MEMORY); return bytes(NULL,0); }
+  if(!MultiByteToWideChar(CP_UTF8,MB_ERR_INVALID_CHARS,(const char *)utf8_in,in_len,wbuf,wlen)) {
+    DWORD e=GetLastError(); free(wbuf); fail("UTF-8 case fold conversion",e); return bytes(NULL,0);
+  }
+  int ulen=LCMapStringEx(LOCALE_NAME_INVARIANT,LCMAP_UPPERCASE,wbuf,wlen,NULL,0,NULL,NULL,0);
+  if(ulen<=0) { DWORD e=GetLastError(); free(wbuf); fail("Windows invariant case fold",e); return bytes(NULL,0); }
+  wchar_t *ubuf=malloc((size_t)ulen*sizeof(wchar_t));
+  if(!ubuf) { free(wbuf); fail("case fold allocation",ERROR_NOT_ENOUGH_MEMORY); return bytes(NULL,0); }
+  if(!LCMapStringEx(LOCALE_NAME_INVARIANT,LCMAP_UPPERCASE,wbuf,wlen,ubuf,ulen,NULL,NULL,0)) {
+    DWORD e=GetLastError(); free(wbuf); free(ubuf); fail("Windows invariant case fold",e); return bytes(NULL,0);
+  }
+  free(wbuf);
+  int mlen=WideCharToMultiByte(CP_UTF8,0x00000080 /* WC_ERR_INVALID_CHARS */,ubuf,ulen,NULL,0,NULL,NULL);
+  if(mlen<=0) { DWORD e=GetLastError(); free(ubuf); fail("UTF-8 case fold conversion",e); return bytes(NULL,0); }
+  unsigned char *mid=malloc((size_t)mlen);
+  if(!mid) { free(ubuf); fail("case fold allocation",ERROR_NOT_ENOUGH_MEMORY); return bytes(NULL,0); }
+  if(!WideCharToMultiByte(CP_UTF8,0x00000080 /* WC_ERR_INVALID_CHARS */,ubuf,ulen,(char *)mid,mlen,NULL,NULL)) {
+    DWORD e=GetLastError(); free(ubuf); free(mid); fail("UTF-8 case fold conversion",e); return bytes(NULL,0);
+  }
+  free(ubuf);
+  moonbit_bytes_t result=unicode_fold_utf8_buf(mid,(size_t)mlen);
+  free(mid);
+  return result;
+#else
+  return unicode_fold_utf8_buf((const unsigned char *)utf8_in,(size_t)in_len);
+#endif
+}
+
+#ifndef _WIN32
+static int utf8_case_equal(const char *a,const char *b) {
+  const unsigned char *pa=(const unsigned char *)a;
+  const unsigned char *pb=(const unsigned char *)b;
+  size_t la=strlen(a),lb=strlen(b),ia=0,ib=0;
+  while(ia<la && ib<lb) {
+    uint32_t ca=0,cb=0;
+    size_t sa=utf8_decode_one(pa+ia,la-ia,&ca);
+    size_t sb=utf8_decode_one(pb+ib,lb-ib,&cb);
+    if(!sa || !sb) {
+      if(pa[ia]!=pb[ib]) return 0;
+      ia++; ib++;
+      continue;
+    }
+    if(unicode_fold_cp(ca)!=unicode_fold_cp(cb)) return 0;
+    ia+=sa; ib+=sb;
+  }
+  return ia==la && ib==lb;
+}
 #ifdef __linux__
 static int is_case_insensitive_dir(int fd) {
   struct statfs fs;
   if(fstatfs(fd,&fs)==0) {
     unsigned long t=(unsigned long)fs.f_type;
     if(t==0x4d44UL /* MSDOS/FAT */ || t==0x2011BAB0UL /* EXFAT */ ||
-       t==0x5346544eUL /* NTFS */ || t==0x65735546UL /* FUSE/ntfs-3g */ ||
+       t==0x5346544eUL /* NTFS */ || t==0x7366746eUL /* NTFS3 */ ||
+       t==0x65735546UL /* FUSE/ntfs-3g */ ||
        t==0xFF534D42UL /* CIFS */ || t==0xFE534D42UL /* SMB2 */ ||
        t==0x517BUL /* SMB */ || t==0x01021997UL /* V9FS/WSL DrvFs */)
       return 1;
@@ -665,7 +925,7 @@ MOONBIT_FFI_EXPORT int32_t mbsd_pair_check(moonbit_bytes_t a,moonbit_bytes_t b) 
     struct stat ia,ib;
     if(fstat(pa,&ia)<0 || fstat(pb,&ib)<0) fail("output pair parent identity",errno);
     else if(ia.st_dev==ib.st_dev && ia.st_ino==ib.st_ino) {
-      int same=!strcmp(leaf_a,leaf_b) || (is_case_insensitive_dir(pa) && !strcasecmp(leaf_a,leaf_b));
+      int same=!strcmp(leaf_a,leaf_b) || (is_case_insensitive_dir(pa) && utf8_case_equal(leaf_a,leaf_b));
       if(same) fail("paths resolve to the same target",EEXIST);
     }
   }
@@ -1392,6 +1652,16 @@ MOONBIT_FFI_EXPORT int32_t mbsd_stream_open_full(moonbit_bytes_t path,int64_t ca
   if(problem[0]) stream_close_inputs();
   return !problem[0];
 }
+/* Open a single installed/current input file bounded by max_old_bytes. */
+MOONBIT_FFI_EXPORT int32_t mbsd_stream_open_old(moonbit_bytes_t path,int64_t cap) {
+  problem[0]=0;
+  if(stream_inputs[0]!=STREAM_INVALID || stream_inputs[1]!=STREAM_INVALID || stream_copy!=STREAM_INVALID) {
+    fail("stream input handles already open",EBUSY);return 0;
+  }
+  stream_open_file(0,path,cap,"max_old_bytes");
+  if(problem[0]) stream_close_inputs();
+  return !problem[0];
+}
 /* A verified intermediate handle is already installed as old input. */
 MOONBIT_FFI_EXPORT int32_t mbsd_stream_open_next_patch(moonbit_bytes_t patch,int64_t cap) {
   if(stream_inputs[0]==STREAM_INVALID || stream_inputs[1]!=STREAM_INVALID || stream_copy!=STREAM_INVALID)
@@ -1857,4 +2127,1697 @@ MOONBIT_FFI_EXPORT int32_t mbsd_interrupt_poll(int32_t token,int32_t point) {
   IO_TEST(interrupt_test_checkpoint(point);)
   (void)point;
   return interrupt_requested(token);
+}
+
+/* Safe cross-platform directory tree helpers (no symlink/reparse traversal). */
+#define MBSD_DIR_MAX_ENTRIES 16384u
+#define MBSD_DIR_MAX_DEPTH 64
+#define MBSD_DIR_MAX_PATH_BYTES 1024u
+
+#ifdef _WIN32
+#define MBSD_ERR_INVALID ERROR_INVALID_NAME
+#define MBSD_ERR_DEPTH ERROR_BUFFER_OVERFLOW
+#else
+#define MBSD_ERR_INVALID EINVAL
+#define MBSD_ERR_DEPTH ELOOP
+#endif
+
+MOONBIT_FFI_EXPORT int32_t mbsd_is_windows(void) {
+#ifdef _WIN32
+  return 1;
+#else
+  return 0;
+#endif
+}
+
+MOONBIT_FFI_EXPORT int32_t mbsd_parent_is_case_insensitive(moonbit_bytes_t output_dir) {
+  problem[0]=0;
+#ifdef _WIN32
+  (void)output_dir;
+  return 1;
+#else
+  const char *leaf=NULL;
+  int pfd=pair_parent(output_dir,&leaf);
+  if(pfd<0) return -1;
+  int ci=is_case_insensitive_dir(pfd);
+  if(close(pfd)<0) { fail("close output parent directory",errno); return -1; }
+  return ci?1:0;
+#endif
+}
+
+typedef struct {
+  char **items;
+  size_t count;
+  size_t cap;
+  size_t visited;
+} DirList;
+
+static void dir_list_free(DirList *list) {
+  if(!list) return;
+  for(size_t i=0;i<list->count;i++) free(list->items[i]);
+  free(list->items);
+  list->items=NULL;
+  list->count=0;
+  list->cap=0;
+}
+
+static int dir_entry_name_valid(const unsigned char *s,size_t len) {
+  if(!len) return 0;
+  if((len==1 && s[0]=='.') || (len==2 && s[0]=='.' && s[1]=='.')) return 0;
+  for(size_t i=0;i<len;i++) {
+    unsigned char c=s[i];
+    if(c<0x20u || c==0x7Fu || c=='/' || c=='\\') return 0;
+  }
+  return 1;
+}
+
+static int validate_rel_path_c(const char *rel,int reject_colon) {
+  size_t len=strlen(rel);
+  if(!len || len>MBSD_DIR_MAX_PATH_BYTES) {
+    fail("invalid relative path",MBSD_ERR_INVALID);
+    return 0;
+  }
+  if(rel[0]=='/' || rel[0]=='\\' || rel[len-1]=='/' || rel[len-1]=='\\') {
+    fail("invalid relative path",MBSD_ERR_INVALID);
+    return 0;
+  }
+#ifndef _WIN32
+  if(!valid_utf8((const unsigned char *)rel,len)) {
+    fail("invalid UTF-8 relative path",EINVAL);
+    return 0;
+  }
+#endif
+  int depth=0;
+  size_t seg_start=0;
+  for(size_t i=0;i<=len;i++) {
+    unsigned char c=(i<len)?(unsigned char)rel[i]:(unsigned char)'/';
+    if(i<len) {
+      if(c<0x20u || c==0x7Fu || c=='\\') {
+        fail("invalid relative path",MBSD_ERR_INVALID);
+        return 0;
+      }
+      if(reject_colon && c==':') {
+        fail("invalid relative path",MBSD_ERR_INVALID);
+        return 0;
+      }
+    }
+    if(c=='/') {
+      size_t slen=i-seg_start;
+      if(!dir_entry_name_valid((const unsigned char *)(rel+seg_start),slen)) {
+        fail("invalid relative path component",MBSD_ERR_INVALID);
+        return 0;
+      }
+      if(i<len && ++depth>MBSD_DIR_MAX_DEPTH) {
+        fail("directory depth limit exceeded",MBSD_ERR_DEPTH);
+        return 0;
+      }
+      seg_start=i+1;
+    }
+  }
+  return 1;
+}
+
+static int dir_list_push(DirList *list,const char *rel,size_t len) {
+  if(!len || len>MBSD_DIR_MAX_PATH_BYTES) {
+    fail("relative path exceeds length limit",ENAMETOOLONG);
+    return 0;
+  }
+  if(list->count>=MBSD_DIR_MAX_ENTRIES) {
+    fail("directory entry limit exceeded",E2BIG);
+    return 0;
+  }
+  if(list->count==list->cap) {
+    size_t next=list->cap?list->cap*2:64;
+    if(next>MBSD_DIR_MAX_ENTRIES) next=MBSD_DIR_MAX_ENTRIES;
+    char **grown=realloc(list->items,next*sizeof(char*));
+    if(!grown) { fail("directory list allocation",ENOMEM); return 0; }
+    list->items=grown;
+    list->cap=next;
+  }
+  char *copy=malloc(len+1);
+  if(!copy) { fail("directory entry allocation",ENOMEM); return 0; }
+  memcpy(copy,rel,len);
+  copy[len]=0;
+  list->items[list->count++]=copy;
+  return 1;
+}
+
+static int dir_cmp_paths(const void *a,const void *b) {
+  const unsigned char *sa=*(const unsigned char *const *)a;
+  const unsigned char *sb=*(const unsigned char *const *)b;
+  while(*sa && *sa==*sb) { sa++; sb++; }
+  return (int)*sa-(int)*sb;
+}
+
+static moonbit_bytes_t dir_list_to_bytes(DirList *list) {
+  if(list->count==0) {
+    dir_list_free(list);
+    return bytes(NULL,0);
+  }
+  qsort(list->items,list->count,sizeof(char*),dir_cmp_paths);
+  size_t total=0;
+  for(size_t i=0;i<list->count;i++) {
+    size_t l=strlen(list->items[i]);
+    if(l>(size_t)INT32_MAX-1u || total>(size_t)INT32_MAX-l-1u) {
+      dir_list_free(list);
+      fail("directory listing too large",ENOMEM);
+      return bytes(NULL,0);
+    }
+    total+=l+(i+1<list->count?1:0);
+  }
+  char *joined=malloc(total?total:1);
+  if(!joined) {
+    dir_list_free(list);
+    fail("directory listing allocation",ENOMEM);
+    return bytes(NULL,0);
+  }
+  size_t at=0;
+  for(size_t i=0;i<list->count;i++) {
+    size_t l=strlen(list->items[i]);
+    memcpy(joined+at,list->items[i],l);
+    at+=l;
+    if(i+1<list->count) joined[at++]='\n';
+  }
+  moonbit_bytes_t result=bytes(joined,at);
+  free(joined);
+  dir_list_free(list);
+  return result;
+}
+
+#ifdef _WIN32
+#ifndef WC_ERR_INVALID_CHARS
+#define WC_ERR_INVALID_CHARS 0x00000080
+#endif
+
+static int win_is_extended_drive_root(const wchar_t *w,size_t len) {
+  return len==7 && w[0]==L'\\' && w[1]==L'\\' && (w[2]==L'?' || w[2]==L'.') &&
+    w[3]==L'\\' && win_is_ascii_alpha(w[4]) && w[5]==L':' && w[6]==L'\\';
+}
+
+static int win_is_bare_drive_or_volume(const wchar_t *w,size_t len) {
+  if(len==2 && win_is_ascii_alpha(w[0]) && w[1]==L':') return 1;
+  if(len==6 && w[0]==L'\\' && w[1]==L'\\' && (w[2]==L'?' || w[2]==L'.') &&
+     w[3]==L'\\' && win_is_ascii_alpha(w[4]) && w[5]==L':') return 1;
+  return 0;
+}
+
+static int win_is_device_namespace(const wchar_t *w,size_t len) {
+  return (len==3 || (len>=4 && (w[3]==L'\\' || w[3]==L'/'))) &&
+    (w[0]==L'\\' || w[0]==L'/') && (w[1]==L'\\' || w[1]==L'/') && w[2]==L'.';
+}
+
+static wchar_t *win_trim_dir_path(const char *utf8_path) {
+  wchar_t *w=wide(utf8_path);
+  if(!w) return NULL;
+  size_t len=wcslen(w);
+  if(!len) { free(w); fail("empty directory path",ERROR_INVALID_NAME); return NULL; }
+  if(win_is_device_namespace(w,len)) {
+    free(w);
+    fail("Win32 device namespace paths (\\\\.\\) are unsupported",ERROR_INVALID_NAME);
+    return NULL;
+  }
+  if(win_is_bare_drive_or_volume(w,len)) {
+    free(w);
+    fail("bare drive or volume path without root separator is unsupported",ERROR_INVALID_NAME);
+    return NULL;
+  }
+  while(len>1 && (w[len-1]==L'\\' || w[len-1]==L'/')) {
+    if(len==3 && win_is_ascii_alpha(w[0]) && w[1]==L':') break;
+    if(win_is_extended_drive_root(w,len)) break;
+    w[--len]=0;
+  }
+  if(win_is_bare_drive_or_volume(w,len)) {
+    free(w);
+    fail("bare drive or volume path without root separator is unsupported",ERROR_INVALID_NAME);
+    return NULL;
+  }
+  return w;
+}
+
+/* Convert a trimmed Win32 directory path to an extended-length \\?\ path so
+ * Win32 CreateFileW/GetFileAttributesW never strip trailing dots/spaces on
+ * enumerated child entries (preventing file. -> file silent aliasing). */
+static wchar_t *win_to_extended_dir_path(const wchar_t *wpath) {
+  size_t wlen=wcslen(wpath);
+  if(win_is_device_namespace(wpath,wlen)) {
+    fail("Win32 device namespace paths (\\\\.\\) are unsupported",ERROR_INVALID_NAME);
+    return NULL;
+  }
+  if(wlen>=4 && wpath[0]==L'\\' && wpath[1]==L'\\' && wpath[2]==L'?' && wpath[3]==L'\\') {
+    if(wcschr(wpath,L'/')) {
+      fail("forward slashes are unsupported in extended paths",ERROR_INVALID_NAME);
+      return NULL;
+    }
+    wchar_t *copy=malloc((wlen+1)*sizeof(wchar_t));
+    if(!copy) { fail("path allocation",ERROR_NOT_ENOUGH_MEMORY); return NULL; }
+    memcpy(copy,wpath,(wlen+1)*sizeof(wchar_t));
+    return copy;
+  }
+  wchar_t *full=malloc(32768*sizeof(wchar_t));
+  if(!full) { fail("path allocation",ERROR_NOT_ENOUGH_MEMORY); return NULL; }
+  DWORD flen=GetFullPathNameW(wpath,32768,full,NULL);
+  DWORD ferr=GetLastError();
+  if(!flen || flen>=32768) {
+    free(full);
+    fail("resolve directory path",flen?ERROR_FILENAME_EXCED_RANGE:ferr);
+    return NULL;
+  }
+  if(win_is_device_namespace(full,(size_t)flen)) {
+    free(full);
+    fail("Win32 device namespace paths (\\\\.\\) are unsupported",ERROR_INVALID_NAME);
+    return NULL;
+  }
+  wchar_t *ext=NULL;
+  if(flen>=4 && full[0]==L'\\' && full[1]==L'\\' && full[2]==L'?' && full[3]==L'\\') {
+    ext=full;
+  } else if(flen>=2 && full[0]==L'\\' && full[1]==L'\\') {
+    size_t need=8u+(size_t)(flen-2u)+1u;
+    if(need>32768u) { free(full); fail("resolve directory path",ERROR_FILENAME_EXCED_RANGE); return NULL; }
+    ext=malloc(need*sizeof(wchar_t));
+    if(!ext) { free(full); fail("path allocation",ERROR_NOT_ENOUGH_MEMORY); return NULL; }
+    memcpy(ext,L"\\\\?\\UNC\\",8u*sizeof(wchar_t));
+    memcpy(ext+8,full+2,(size_t)(flen-2u+1u)*sizeof(wchar_t));
+    free(full);
+  } else {
+    size_t need=4u+(size_t)flen+1u;
+    if(need>32768u) { free(full); fail("resolve directory path",ERROR_FILENAME_EXCED_RANGE); return NULL; }
+    ext=malloc(need*sizeof(wchar_t));
+    if(!ext) { free(full); fail("path allocation",ERROR_NOT_ENOUGH_MEMORY); return NULL; }
+    memcpy(ext,L"\\\\?\\",4u*sizeof(wchar_t));
+    memcpy(ext+4,full,(size_t)(flen+1u)*sizeof(wchar_t));
+    free(full);
+  }
+  size_t elen=wcslen(ext);
+  while(elen>1 && ext[elen-1]==L'\\' && !win_is_extended_drive_root(ext,elen)) ext[--elen]=0;
+  return ext;
+}
+
+static wchar_t *win_join_segment(const wchar_t *base,const wchar_t *seg) {
+  size_t blen=wcslen(base);
+  size_t slen=wcslen(seg);
+  int has_sep=(blen>0 && (base[blen-1]==L'\\' || base[blen-1]==L'/'));
+  wchar_t *joined=malloc((blen+slen+2)*sizeof(wchar_t));
+  if(!joined) { fail("path allocation",ERROR_NOT_ENOUGH_MEMORY); return NULL; }
+  memcpy(joined,base,blen*sizeof(wchar_t));
+  size_t at=blen;
+  if(!has_sep) joined[at++]=L'\\';
+  memcpy(joined+at,seg,(slen+1)*sizeof(wchar_t));
+  return joined;
+}
+
+static int win_same_file_id(const BY_HANDLE_FILE_INFORMATION *a,const BY_HANDLE_FILE_INFORMATION *b) {
+  return a->dwVolumeSerialNumber==b->dwVolumeSerialNumber &&
+    a->nFileIndexHigh==b->nFileIndexHigh &&
+    a->nFileIndexLow==b->nFileIndexLow;
+}
+
+static int win_is_root_dir(const wchar_t *p,size_t len) {
+  if(len==1 && (p[0]==L'\\' || p[0]==L'/')) return 1;
+  if(len==3 && win_is_ascii_alpha(p[0]) && p[1]==L':' && (p[2]==L'\\' || p[2]==L'/')) return 1;
+  if(win_is_extended_drive_root(p,len)) return 1;
+  if(len>=5 && p[0]==L'\\' && p[1]==L'\\') {
+    size_t start=2;
+    if(len>=8 && (p[2]==L'?' || p[2]==L'.') && p[3]==L'\\' &&
+       (p[4]==L'U' || p[4]==L'u') && (p[5]==L'N' || p[5]==L'n') &&
+       (p[6]==L'C' || p[6]==L'c') && p[7]==L'\\') {
+      start=8;
+    } else if(p[2]==L'?' || p[2]==L'.') {
+      return 0;
+    }
+    size_t seps=0;
+    for(size_t i=start;i<len;i++) if(p[i]==L'\\') seps++;
+    if(seps<=1) return 1;
+  }
+  return 0;
+}
+
+static int win_strip_parent(wchar_t *p) {
+  size_t len=wcslen(p);
+  while(len>1 && p[len-1]==L'\\' && !win_is_root_dir(p,len)) p[--len]=0;
+  if(win_is_root_dir(p,len)) return 0;
+  wchar_t *slash=wcsrchr(p,L'\\');
+  if(!slash) return 0;
+  size_t pos=(size_t)(slash-p);
+  if(pos==0 ||
+     (pos==2 && win_is_ascii_alpha(p[0]) && p[1]==L':') ||
+     (pos==6 && p[0]==L'\\' && p[1]==L'\\' && (p[2]==L'?' || p[2]==L'.') &&
+      p[3]==L'\\' && win_is_ascii_alpha(p[4]) && p[5]==L':')) {
+    p[pos+1]=0;
+    return 1;
+  }
+  p[pos]=0;
+  return 1;
+}
+
+static int win_check_ancestor_chain(const wchar_t *start_dir,const BY_HANDLE_FILE_INFORMATION *input_info) {
+  size_t slen=wcslen(start_dir);
+  if(slen>=32768) { fail("ancestor path too long",ERROR_FILENAME_EXCED_RANGE); return 0; }
+  wchar_t *walk=malloc(32768*sizeof(wchar_t));
+  if(!walk) { fail("ancestor path allocation",ERROR_NOT_ENOUGH_MEMORY); return 0; }
+  memcpy(walk,start_dir,(slen+1)*sizeof(wchar_t));
+  for(int hops=0;hops<4096;hops++) {
+    HANDLE h=CreateFileW(walk,FILE_READ_ATTRIBUTES,
+                         FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE,NULL,
+                         OPEN_EXISTING,FILE_FLAG_BACKUP_SEMANTICS,NULL);
+    if(h==INVALID_HANDLE_VALUE) {
+      DWORD e=GetLastError();
+      free(walk);
+      fail(hops==0?"open output parent directory":"inspect output ancestor directory",e);
+      return 0;
+    }
+    BY_HANDLE_FILE_INFORMATION wi;
+    BOOL got=GetFileInformationByHandle(h,&wi);
+    DWORD ge=GetLastError();
+    if(!CloseHandle(h)) {
+      DWORD ce=GetLastError();
+      free(walk);
+      fail("close output ancestor directory",ce);
+      return 0;
+    }
+    if(!got) { free(walk); fail("inspect output ancestor directory",ge); return 0; }
+    if(hops==0 && !(wi.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) {
+      free(walk);
+      fail("output parent is not a directory",ERROR_DIRECTORY);
+      return 0;
+    }
+    if((wi.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) && win_same_file_id(&wi,input_info)) {
+      free(walk);
+      fail("output directory must not be inside an input directory",ERROR_ALREADY_EXISTS);
+      return 0;
+    }
+    if(!win_strip_parent(walk)) break;
+  }
+  free(walk);
+  return 1;
+}
+
+static int win_walk_dir(const wchar_t *wdir,const char *rel_prefix,size_t prefix_len,int depth,DirList *out) {
+  if(depth>MBSD_DIR_MAX_DEPTH) {
+    fail("directory depth limit exceeded",ERROR_BUFFER_OVERFLOW);
+    return 0;
+  }
+  size_t wdir_len=wcslen(wdir);
+  int has_sep=(wdir_len>0 && (wdir[wdir_len-1]==L'\\' || wdir[wdir_len-1]==L'/'));
+  wchar_t *pattern=malloc((wdir_len+3)*sizeof(wchar_t));
+  WIN32_FIND_DATAW *fdat=malloc(sizeof(*fdat));
+  if(!pattern || !fdat) {
+    free(pattern); free(fdat);
+    fail("directory walk allocation",ERROR_NOT_ENOUGH_MEMORY);
+    return 0;
+  }
+  memcpy(pattern,wdir,wdir_len*sizeof(wchar_t));
+  size_t pat_at=wdir_len;
+  if(!has_sep) pattern[pat_at++]=L'\\';
+  pattern[pat_at++]=L'*';
+  pattern[pat_at]=0;
+  HANDLE h=FindFirstFileW(pattern,fdat);
+  free(pattern);
+  if(h==INVALID_HANDLE_VALUE) {
+    DWORD e=GetLastError();
+    free(fdat);
+    if(e==ERROR_FILE_NOT_FOUND || e==ERROR_NO_MORE_FILES) return 1;
+    fail("list directory",e);
+    return 0;
+  }
+  int ok=1;
+  do {
+    if(wcscmp(fdat->cFileName,L".")==0 || wcscmp(fdat->cFileName,L"..")==0) continue;
+    if(out->visited>=MBSD_DIR_MAX_ENTRIES) {
+      fail("directory entry limit exceeded",ERROR_BUFFER_OVERFLOW);
+      ok=0; break;
+    }
+    out->visited++;
+    if(fdat->dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) {
+      fail("symlink or reparse point encountered in directory tree",ERROR_ACCESS_DENIED);
+      ok=0; break;
+    }
+    if(fdat->dwFileAttributes & FILE_ATTRIBUTE_DEVICE) {
+      fail("device file encountered in directory tree",ERROR_INVALID_FUNCTION);
+      ok=0; break;
+    }
+    if(!valid_utf16(fdat->cFileName)) {
+      fail("invalid UTF-16 filename in directory tree",ERROR_NO_UNICODE_TRANSLATION);
+      ok=0; break;
+    }
+    int need=WideCharToMultiByte(CP_UTF8,WC_ERR_INVALID_CHARS,fdat->cFileName,-1,NULL,0,NULL,NULL);
+    if(need<=0) {
+      fail("UTF-8 filename conversion",GetLastError());
+      ok=0; break;
+    }
+    if(need==1) {
+      fail("empty filename in directory tree",ERROR_INVALID_NAME);
+      ok=0; break;
+    }
+    size_t name_len=(size_t)(need-1);
+    size_t child_rel_len=prefix_len?(prefix_len+1+name_len):name_len;
+    if(child_rel_len>MBSD_DIR_MAX_PATH_BYTES) {
+      fail("relative path exceeds length limit",ERROR_FILENAME_EXCED_RANGE);
+      ok=0; break;
+    }
+    char *child_rel=malloc(child_rel_len+1);
+    if(!child_rel) { fail("relative path allocation",ERROR_NOT_ENOUGH_MEMORY); ok=0; break; }
+    char *name_dst=child_rel;
+    if(prefix_len) {
+      memcpy(child_rel,rel_prefix,prefix_len);
+      child_rel[prefix_len]='/';
+      name_dst=child_rel+prefix_len+1;
+    }
+    if(!WideCharToMultiByte(CP_UTF8,WC_ERR_INVALID_CHARS,fdat->cFileName,-1,name_dst,need,NULL,NULL)) {
+      DWORD e=GetLastError();
+      free(child_rel);
+      fail("UTF-8 filename conversion",e);
+      ok=0; break;
+    }
+    if(!dir_entry_name_valid((const unsigned char *)name_dst,name_len)) {
+      free(child_rel);
+      fail("invalid filename character in directory tree",ERROR_INVALID_NAME);
+      ok=0; break;
+    }
+    wchar_t *child_w=win_join_segment(wdir,fdat->cFileName);
+    if(!child_w) {
+      free(child_rel);
+      ok=0; break;
+    }
+    DWORD cattrs=GetFileAttributesW(child_w);
+    if(cattrs==INVALID_FILE_ATTRIBUTES) {
+      DWORD e=GetLastError();
+      free(child_w); free(child_rel);
+      fail("inspect directory entry",e);
+      ok=0; break;
+    }
+    if(cattrs & FILE_ATTRIBUTE_REPARSE_POINT) {
+      free(child_w); free(child_rel);
+      fail("symlink or reparse point encountered in directory tree",ERROR_ACCESS_DENIED);
+      ok=0; break;
+    }
+    if(cattrs & FILE_ATTRIBUTE_DEVICE) {
+      free(child_w); free(child_rel);
+      fail("device file encountered in directory tree",ERROR_INVALID_FUNCTION);
+      ok=0; break;
+    }
+    if(cattrs & FILE_ATTRIBUTE_DIRECTORY) {
+      ok=win_walk_dir(child_w,child_rel,child_rel_len,depth+1,out);
+      free(child_w); free(child_rel);
+      if(!ok) break;
+    } else {
+      free(child_w);
+      ok=dir_list_push(out,child_rel,child_rel_len);
+      free(child_rel);
+      if(!ok) break;
+    }
+  } while(FindNextFileW(h,fdat));
+  if(ok) {
+    DWORD end_err=GetLastError();
+    if(end_err!=ERROR_NO_MORE_FILES) {
+      fail("list directory",end_err);
+      ok=0;
+    }
+  }
+  FindClose(h);
+  free(fdat);
+  return ok && !problem[0];
+}
+#else
+static char *posix_trim_dir_path(const char *raw) {
+  size_t len=strlen(raw);
+  if(!len) { fail("empty directory path",EINVAL); return NULL; }
+  while(len>1 && raw[len-1]=='/') len--;
+  char *copy=malloc(len+1);
+  if(!copy) { fail("directory path allocation",ENOMEM); return NULL; }
+  memcpy(copy,raw,len);
+  copy[len]=0;
+  return copy;
+}
+
+static int posix_walk_dir(int dir_fd,const char *rel_prefix,size_t prefix_len,int depth,DirList *out) {
+  if(depth>MBSD_DIR_MAX_DEPTH) {
+    close(dir_fd);
+    fail("directory depth limit exceeded",ELOOP);
+    return 0;
+  }
+  DIR *d=fdopendir(dir_fd);
+  if(!d) {
+    int e=errno;
+    close(dir_fd);
+    fail("open directory stream",e);
+    return 0;
+  }
+  int dfd=dirfd(d);
+  if(dfd<0) {
+    int e=errno;
+    closedir(d);
+    fail("inspect directory descriptor",e);
+    return 0;
+  }
+  int ok=1;
+  for(;;) {
+    errno=0;
+    struct dirent *ent=readdir(d);
+    if(!ent) {
+      if(errno!=0) { fail("read directory entry",errno); ok=0; }
+      break;
+    }
+    if(strcmp(ent->d_name,".")==0 || strcmp(ent->d_name,"..")==0) continue;
+    if(out->visited>=MBSD_DIR_MAX_ENTRIES) {
+      fail("directory entry limit exceeded",E2BIG);
+      ok=0; break;
+    }
+    out->visited++;
+    size_t name_len=strlen(ent->d_name);
+    if(!valid_utf8((const unsigned char *)ent->d_name,name_len) ||
+       !dir_entry_name_valid((const unsigned char *)ent->d_name,name_len)) {
+      fail("invalid filename in directory tree",EINVAL);
+      ok=0; break;
+    }
+    size_t child_rel_len=prefix_len?(prefix_len+1+name_len):name_len;
+    if(child_rel_len>MBSD_DIR_MAX_PATH_BYTES) {
+      fail("relative path exceeds length limit",ENAMETOOLONG);
+      ok=0; break;
+    }
+    struct stat est;
+    if(fstatat(dfd,ent->d_name,&est,AT_SYMLINK_NOFOLLOW)<0) {
+      fail("stat directory entry",errno);
+      ok=0; break;
+    }
+    if(S_ISLNK(est.st_mode)) {
+      fail("symlink encountered in directory tree",ELOOP);
+      ok=0; break;
+    }
+    char *child_rel=malloc(child_rel_len+1);
+    if(!child_rel) { fail("relative path allocation",ENOMEM); ok=0; break; }
+    if(prefix_len) {
+      memcpy(child_rel,rel_prefix,prefix_len);
+      child_rel[prefix_len]='/';
+      memcpy(child_rel+prefix_len+1,ent->d_name,name_len+1);
+    } else {
+      memcpy(child_rel,ent->d_name,name_len+1);
+    }
+    if(S_ISDIR(est.st_mode)) {
+      int sub_fd=openat(dfd,ent->d_name,O_RDONLY|O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC);
+      if(sub_fd<0) {
+        int e=errno;
+        free(child_rel);
+        fail("open subdirectory",e);
+        ok=0; break;
+      }
+      struct stat sub_st;
+      if(fstat(sub_fd,&sub_st)<0 || !S_ISDIR(sub_st.st_mode) || !same_inode(&sub_st,&est)) {
+        close(sub_fd);
+        free(child_rel);
+        fail("subdirectory changed during traversal",ESTALE);
+        ok=0; break;
+      }
+      ok=posix_walk_dir(sub_fd,child_rel,child_rel_len,depth+1,out);
+      free(child_rel);
+      if(!ok) break;
+    } else if(S_ISREG(est.st_mode)) {
+      ok=dir_list_push(out,child_rel,child_rel_len);
+      free(child_rel);
+      if(!ok) break;
+    } else {
+      free(child_rel);
+      fail("non-regular file encountered in directory tree",EINVAL);
+      ok=0; break;
+    }
+  }
+  if(closedir(d)<0) { fail("close directory stream",errno); ok=0; }
+  return ok && !problem[0];
+}
+#endif
+
+MOONBIT_FFI_EXPORT int32_t mbsd_dir_output_check(moonbit_bytes_t input_dir,moonbit_bytes_t output_dir) {
+  problem[0]=0;
+#ifdef _WIN32
+  wchar_t *wout=wide((const char *)output_dir);
+  if(!wout) return 0;
+  if(!win_validate_output_path(wout)) { free(wout); return 0; }
+  const wchar_t *raw_leaf=wout;
+  for(const wchar_t *q=wout;*q;q++) if(*q==L'\\' || *q==L'/') raw_leaf=q+1;
+  if(!*raw_leaf || wcscmp(raw_leaf,L".")==0 || wcscmp(raw_leaf,L"..")==0) {
+    free(wout);
+    fail("invalid output directory name",ERROR_INVALID_NAME);
+    return 0;
+  }
+  wchar_t *full=malloc(32768*sizeof(wchar_t));
+  wchar_t *final_parent=malloc(32768*sizeof(wchar_t));
+  if(!full || !final_parent) {
+    free(wout); free(full); free(final_parent);
+    fail("output directory path allocation",ERROR_NOT_ENOUGH_MEMORY);
+    return 0;
+  }
+  DWORD flen=GetFullPathNameW(wout,32768,full,NULL);
+  DWORD ferr=GetLastError();
+  free(wout);
+  if(!flen || flen>=32768) {
+    free(full); free(final_parent);
+    fail("resolve output directory",flen?ERROR_FILENAME_EXCED_RANGE:ferr);
+    return 0;
+  }
+  wchar_t *slash=wcsrchr(full,L'\\');
+  if(!slash || !slash[1]) {
+    free(full); free(final_parent);
+    fail("invalid output directory name",ERROR_INVALID_NAME);
+    return 0;
+  }
+  slash[1]=0;
+  HANDLE ph=CreateFileW(full,FILE_READ_ATTRIBUTES,
+                        FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE,NULL,
+                        OPEN_EXISTING,FILE_FLAG_BACKUP_SEMANTICS,NULL);
+  if(ph==INVALID_HANDLE_VALUE) {
+    DWORD pe=GetLastError();
+    free(full); free(final_parent);
+    fail("open output parent directory",pe);
+    return 0;
+  }
+  BY_HANDLE_FILE_INFORMATION pi;
+  BOOL got_pi=GetFileInformationByHandle(ph,&pi);
+  DWORD pi_err=GetLastError();
+  final_parent[0]=0;
+  if(got_pi) {
+    DWORD fn=GetFinalPathNameByHandleW(ph,final_parent,32768,FILE_NAME_NORMALIZED|VOLUME_NAME_DOS);
+    if(fn==0 || fn>=32768) final_parent[0]=0;
+  }
+  if(!CloseHandle(ph)) {
+    DWORD ce=GetLastError();
+    free(full); free(final_parent);
+    fail("close output parent directory",ce);
+    return 0;
+  }
+  if(!got_pi) {
+    free(full); free(final_parent);
+    fail("inspect output parent directory",pi_err);
+    return 0;
+  }
+  if(!(pi.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) {
+    free(full); free(final_parent);
+    fail("output parent is not a directory",ERROR_DIRECTORY);
+    return 0;
+  }
+  wchar_t *winp=win_trim_dir_path((const char *)input_dir);
+  if(!winp) { free(full); free(final_parent); return 0; }
+  HANDLE ih=CreateFileW(winp,FILE_READ_ATTRIBUTES,
+                        FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE,NULL,
+                        OPEN_EXISTING,FILE_FLAG_BACKUP_SEMANTICS,NULL);
+  DWORD ierr=GetLastError();
+  free(winp);
+  if(ih==INVALID_HANDLE_VALUE) {
+    free(full); free(final_parent);
+    if(ierr==ERROR_FILE_NOT_FOUND || ierr==ERROR_PATH_NOT_FOUND) return 1;
+    fail("inspect input directory",ierr);
+    return 0;
+  }
+  BY_HANDLE_FILE_INFORMATION ii;
+  BOOL got_ii=GetFileInformationByHandle(ih,&ii);
+  DWORD ii_err=GetLastError();
+  if(!CloseHandle(ih)) {
+    DWORD ce=GetLastError();
+    free(full); free(final_parent);
+    fail("close input directory",ce);
+    return 0;
+  }
+  if(!got_ii) {
+    free(full); free(final_parent);
+    fail("inspect input directory",ii_err);
+    return 0;
+  }
+  if(!(ii.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) {
+    free(full); free(final_parent);
+    return 1;
+  }
+  if(win_same_file_id(&pi,&ii)) {
+    free(full); free(final_parent);
+    fail("output directory must not be inside an input directory",ERROR_ALREADY_EXISTS);
+    return 0;
+  }
+  int ok=win_check_ancestor_chain(full,&ii);
+  if(ok && final_parent[0]) ok=win_check_ancestor_chain(final_parent,&ii);
+  free(full); free(final_parent);
+  return ok && !problem[0];
+#else
+  const char *out_path=(const char *)output_dir;
+  size_t out_len=strlen(out_path);
+  if(!out_len || out_path[out_len-1]=='/') {
+    fail("invalid output directory name",EINVAL);
+    return 0;
+  }
+  const char *leaf=NULL;
+  int cur_fd=pair_parent(output_dir,&leaf);
+  if(cur_fd<0) return 0;
+  char *inp=posix_trim_dir_path((const char *)input_dir);
+  if(!inp) { close(cur_fd); return 0; }
+  struct stat ist;
+  if(stat(inp,&ist)<0) {
+    int e=errno;
+    free(inp);
+    if(close(cur_fd)<0) { fail("close output parent directory",errno); return 0; }
+    if(e==ENOENT || e==ENOTDIR) return 1;
+    fail("inspect input directory",e);
+    return 0;
+  }
+  free(inp);
+  if(!S_ISDIR(ist.st_mode)) {
+    if(close(cur_fd)<0) { fail("close output parent directory",errno); return 0; }
+    return 1;
+  }
+  int ok=1;
+  for(int hops=0;hops<4096;hops++) {
+    struct stat cst;
+    if(fstat(cur_fd,&cst)<0) { fail("inspect output ancestor directory",errno); ok=0; break; }
+    if(same_inode(&cst,&ist)) {
+      fail("output directory must not be inside an input directory",EEXIST);
+      ok=0; break;
+    }
+    int up_fd=openat(cur_fd,"..",O_RDONLY|O_DIRECTORY|O_CLOEXEC);
+    if(up_fd<0) { fail("walk output ancestor directory",errno); ok=0; break; }
+    struct stat ust;
+    if(fstat(up_fd,&ust)<0) {
+      int e=errno;
+      close(up_fd);
+      fail("inspect output ancestor directory",e);
+      ok=0; break;
+    }
+    if(same_inode(&ust,&cst)) {
+      if(close(up_fd)<0) { fail("close output ancestor directory",errno); ok=0; }
+      break;
+    }
+    if(close(cur_fd)<0) {
+      int e=errno;
+      close(up_fd);
+      fail("close output ancestor directory",e);
+      ok=0; break;
+    }
+    cur_fd=up_fd;
+  }
+  if(close(cur_fd)<0) { fail("close output ancestor directory",errno); ok=0; }
+  return ok && !problem[0];
+#endif
+}
+
+MOONBIT_FFI_EXPORT moonbit_bytes_t mbsd_dir_list(moonbit_bytes_t dir_path) {
+  problem[0]=0;
+  DirList list={NULL,0,0,0};
+#ifdef _WIN32
+  wchar_t *wraw=win_trim_dir_path((const char *)dir_path);
+  if(!wraw) return bytes(NULL,0);
+  wchar_t *wroot=win_to_extended_dir_path(wraw);
+  free(wraw);
+  if(!wroot) return bytes(NULL,0);
+  DWORD attrs=GetFileAttributesW(wroot);
+  if(attrs==INVALID_FILE_ATTRIBUTES) {
+    DWORD e=GetLastError();
+    free(wroot);
+    fail("inspect directory",e);
+    return bytes(NULL,0);
+  }
+  if(attrs & FILE_ATTRIBUTE_REPARSE_POINT) {
+    free(wroot);
+    fail("directory path must not be a symlink or reparse point",ERROR_ACCESS_DENIED);
+    return bytes(NULL,0);
+  }
+  if(!(attrs & FILE_ATTRIBUTE_DIRECTORY)) {
+    free(wroot);
+    fail("path is not a directory",ERROR_DIRECTORY);
+    return bytes(NULL,0);
+  }
+  int ok=win_walk_dir(wroot,"",0,0,&list);
+  free(wroot);
+#else
+  char *root=posix_trim_dir_path((const char *)dir_path);
+  if(!root) return bytes(NULL,0);
+  struct stat rst;
+  if(lstat(root,&rst)<0) {
+    int e=errno;
+    free(root);
+    fail("inspect directory",e);
+    return bytes(NULL,0);
+  }
+  if(S_ISLNK(rst.st_mode)) {
+    free(root);
+    fail("directory path must not be a symlink",ELOOP);
+    return bytes(NULL,0);
+  }
+  if(!S_ISDIR(rst.st_mode)) {
+    free(root);
+    fail("path is not a directory",ENOTDIR);
+    return bytes(NULL,0);
+  }
+  int rfd=open(root,O_RDONLY|O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC);
+  int open_err=errno;
+  free(root);
+  if(rfd<0) { fail("open directory",open_err); return bytes(NULL,0); }
+  struct stat fst;
+  if(fstat(rfd,&fst)<0 || !S_ISDIR(fst.st_mode) || !same_inode(&fst,&rst)) {
+    close(rfd);
+    fail("directory changed on open",ESTALE);
+    return bytes(NULL,0);
+  }
+  int ok=posix_walk_dir(rfd,"",0,0,&list);
+#endif
+  if(!ok || problem[0]) {
+    dir_list_free(&list);
+    return bytes(NULL,0);
+  }
+  return dir_list_to_bytes(&list);
+}
+
+/* List regular files directly inside root_dir/rel_subdir, rejecting any
+ * symlink/reparse point, device/non-regular file, or subdirectory (even empty).
+ * Returns empty bytes without error when rel_subdir does not exist. */
+MOONBIT_FFI_EXPORT moonbit_bytes_t mbsd_dir_list_flat(moonbit_bytes_t root_dir,moonbit_bytes_t rel_subdir) {
+  problem[0]=0;
+  const char *sub=(const char *)rel_subdir;
+  size_t sub_len=strlen(sub);
+  if(!sub_len || sub_len>MBSD_DIR_MAX_PATH_BYTES ||
+     !dir_entry_name_valid((const unsigned char *)sub,sub_len) ||
+     strchr(sub,':')!=NULL) {
+    fail("invalid subdirectory name",MBSD_ERR_INVALID);
+    return bytes(NULL,0);
+  }
+  DirList list={NULL,0,0,0};
+#ifdef _WIN32
+  wchar_t *wraw=win_trim_dir_path((const char *)root_dir);
+  if(!wraw) return bytes(NULL,0);
+  wchar_t *wroot=win_to_extended_dir_path(wraw);
+  free(wraw);
+  if(!wroot) return bytes(NULL,0);
+  DWORD rattrs=GetFileAttributesW(wroot);
+  if(rattrs==INVALID_FILE_ATTRIBUTES) {
+    DWORD e=GetLastError();
+    free(wroot);
+    fail("inspect directory",e);
+    return bytes(NULL,0);
+  }
+  if(rattrs & FILE_ATTRIBUTE_REPARSE_POINT) {
+    free(wroot);
+    fail("directory path must not be a symlink or reparse point",ERROR_ACCESS_DENIED);
+    return bytes(NULL,0);
+  }
+  if(!(rattrs & FILE_ATTRIBUTE_DIRECTORY)) {
+    free(wroot);
+    fail("path is not a directory",ERROR_DIRECTORY);
+    return bytes(NULL,0);
+  }
+  wchar_t *wsub_name=wide(sub);
+  if(!wsub_name) { free(wroot); return bytes(NULL,0); }
+  wchar_t *wsub=win_join_segment(wroot,wsub_name);
+  free(wroot);
+  free(wsub_name);
+  if(!wsub) return bytes(NULL,0);
+  DWORD sattrs=GetFileAttributesW(wsub);
+  if(sattrs==INVALID_FILE_ATTRIBUTES) {
+    DWORD e=GetLastError();
+    free(wsub);
+    if(e==ERROR_FILE_NOT_FOUND || e==ERROR_PATH_NOT_FOUND) return bytes(NULL,0);
+    fail("inspect directory",e);
+    return bytes(NULL,0);
+  }
+  if(sattrs & FILE_ATTRIBUTE_REPARSE_POINT) {
+    free(wsub);
+    fail("directory path must not be a symlink or reparse point",ERROR_ACCESS_DENIED);
+    return bytes(NULL,0);
+  }
+  if(!(sattrs & FILE_ATTRIBUTE_DIRECTORY)) {
+    free(wsub);
+    fail("path is not a directory",ERROR_DIRECTORY);
+    return bytes(NULL,0);
+  }
+  wchar_t *pattern=win_join_segment(wsub,L"*");
+  WIN32_FIND_DATAW *fdat=malloc(sizeof(*fdat));
+  if(!pattern || !fdat) {
+    free(wsub); free(pattern); free(fdat);
+    fail("directory walk allocation",ERROR_NOT_ENOUGH_MEMORY);
+    return bytes(NULL,0);
+  }
+  HANDLE h=FindFirstFileW(pattern,fdat);
+  free(pattern);
+  if(h==INVALID_HANDLE_VALUE) {
+    DWORD e=GetLastError();
+    free(wsub); free(fdat);
+    if(e==ERROR_FILE_NOT_FOUND || e==ERROR_NO_MORE_FILES) return bytes(NULL,0);
+    fail("list directory",e);
+    return bytes(NULL,0);
+  }
+  int ok=1;
+  do {
+    if(wcscmp(fdat->cFileName,L".")==0 || wcscmp(fdat->cFileName,L"..")==0) continue;
+    if(list.visited>=MBSD_DIR_MAX_ENTRIES) {
+      fail("directory entry limit exceeded",ERROR_BUFFER_OVERFLOW);
+      ok=0; break;
+    }
+    list.visited++;
+    if(fdat->dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) {
+      fail("symlink or reparse point encountered in directory tree",ERROR_ACCESS_DENIED);
+      ok=0; break;
+    }
+    if(fdat->dwFileAttributes & FILE_ATTRIBUTE_DEVICE) {
+      fail("device file encountered in directory tree",ERROR_INVALID_FUNCTION);
+      ok=0; break;
+    }
+    if(fdat->dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+      fail("unexpected subdirectory in blobs directory",ERROR_DIRECTORY);
+      ok=0; break;
+    }
+    if(!valid_utf16(fdat->cFileName)) {
+      fail("invalid UTF-16 filename in directory tree",ERROR_NO_UNICODE_TRANSLATION);
+      ok=0; break;
+    }
+    int need=WideCharToMultiByte(CP_UTF8,WC_ERR_INVALID_CHARS,fdat->cFileName,-1,NULL,0,NULL,NULL);
+    if(need<=0) {
+      fail("UTF-8 filename conversion",GetLastError());
+      ok=0; break;
+    }
+    if(need==1) {
+      fail("empty filename in directory tree",ERROR_INVALID_NAME);
+      ok=0; break;
+    }
+    size_t name_len=(size_t)(need-1);
+    char *utf8_name=malloc(name_len+1);
+    if(!utf8_name) { fail("directory entry allocation",ERROR_NOT_ENOUGH_MEMORY); ok=0; break; }
+    if(!WideCharToMultiByte(CP_UTF8,WC_ERR_INVALID_CHARS,fdat->cFileName,-1,utf8_name,need,NULL,NULL)) {
+      DWORD e=GetLastError();
+      free(utf8_name);
+      fail("UTF-8 filename conversion",e);
+      ok=0; break;
+    }
+    if(!dir_entry_name_valid((const unsigned char *)utf8_name,name_len)) {
+      free(utf8_name);
+      fail("invalid filename character in directory tree",ERROR_INVALID_NAME);
+      ok=0; break;
+    }
+    wchar_t *child_w=win_join_segment(wsub,fdat->cFileName);
+    if(!child_w) { free(utf8_name); ok=0; break; }
+    DWORD cattrs=GetFileAttributesW(child_w);
+    free(child_w);
+    if(cattrs==INVALID_FILE_ATTRIBUTES) {
+      DWORD e=GetLastError();
+      free(utf8_name);
+      fail("inspect directory entry",e);
+      ok=0; break;
+    }
+    if(cattrs & FILE_ATTRIBUTE_REPARSE_POINT) {
+      free(utf8_name);
+      fail("symlink or reparse point encountered in directory tree",ERROR_ACCESS_DENIED);
+      ok=0; break;
+    }
+    if(cattrs & FILE_ATTRIBUTE_DEVICE) {
+      free(utf8_name);
+      fail("device file encountered in directory tree",ERROR_INVALID_FUNCTION);
+      ok=0; break;
+    }
+    if(cattrs & FILE_ATTRIBUTE_DIRECTORY) {
+      free(utf8_name);
+      fail("unexpected subdirectory in blobs directory",ERROR_DIRECTORY);
+      ok=0; break;
+    }
+    ok=dir_list_push(&list,utf8_name,name_len);
+    free(utf8_name);
+    if(!ok) break;
+  } while(FindNextFileW(h,fdat));
+  if(ok) {
+    DWORD end_err=GetLastError();
+    if(end_err!=ERROR_NO_MORE_FILES) {
+      fail("list directory",end_err);
+      ok=0;
+    }
+  }
+  FindClose(h);
+  free(fdat);
+  free(wsub);
+#else
+  if(!valid_utf8((const unsigned char *)sub,sub_len)) {
+    fail("invalid UTF-8 subdirectory name",EINVAL);
+    return bytes(NULL,0);
+  }
+  char *root=posix_trim_dir_path((const char *)root_dir);
+  if(!root) return bytes(NULL,0);
+  struct stat rst;
+  if(lstat(root,&rst)<0) {
+    int e=errno;
+    free(root);
+    fail("inspect directory",e);
+    return bytes(NULL,0);
+  }
+  if(S_ISLNK(rst.st_mode)) {
+    free(root);
+    fail("directory path must not be a symlink",ELOOP);
+    return bytes(NULL,0);
+  }
+  if(!S_ISDIR(rst.st_mode)) {
+    free(root);
+    fail("path is not a directory",ENOTDIR);
+    return bytes(NULL,0);
+  }
+  int rfd=open(root,O_RDONLY|O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC);
+  int open_err=errno;
+  free(root);
+  if(rfd<0) { fail("open directory",open_err); return bytes(NULL,0); }
+  struct stat fst;
+  if(fstat(rfd,&fst)<0 || !S_ISDIR(fst.st_mode) || !same_inode(&fst,&rst)) {
+    close(rfd);
+    fail("directory changed on open",ESTALE);
+    return bytes(NULL,0);
+  }
+  struct stat bst;
+  if(fstatat(rfd,sub,&bst,AT_SYMLINK_NOFOLLOW)<0) {
+    int e=errno;
+    close(rfd);
+    if(e==ENOENT) return bytes(NULL,0);
+    fail("inspect directory",e);
+    return bytes(NULL,0);
+  }
+  if(S_ISLNK(bst.st_mode)) {
+    close(rfd);
+    fail("directory path must not be a symlink",ELOOP);
+    return bytes(NULL,0);
+  }
+  if(!S_ISDIR(bst.st_mode)) {
+    close(rfd);
+    fail("path is not a directory",ENOTDIR);
+    return bytes(NULL,0);
+  }
+  int sfd=openat(rfd,sub,O_RDONLY|O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC);
+  int serr=errno;
+  close(rfd);
+  if(sfd<0) { fail("open directory",serr); return bytes(NULL,0); }
+  struct stat sfst;
+  if(fstat(sfd,&sfst)<0 || !S_ISDIR(sfst.st_mode) || !same_inode(&sfst,&bst)) {
+    close(sfd);
+    fail("directory changed on open",ESTALE);
+    return bytes(NULL,0);
+  }
+  DIR *d=fdopendir(sfd);
+  if(!d) {
+    int e=errno;
+    close(sfd);
+    fail("open directory stream",e);
+    return bytes(NULL,0);
+  }
+  int dfd=dirfd(d);
+  if(dfd<0) {
+    int e=errno;
+    closedir(d);
+    fail("inspect directory descriptor",e);
+    return bytes(NULL,0);
+  }
+  int ok=1;
+  for(;;) {
+    errno=0;
+    struct dirent *ent=readdir(d);
+    if(!ent) {
+      if(errno!=0) { fail("read directory entry",errno); ok=0; }
+      break;
+    }
+    if(strcmp(ent->d_name,".")==0 || strcmp(ent->d_name,"..")==0) continue;
+    if(list.visited>=MBSD_DIR_MAX_ENTRIES) {
+      fail("directory entry limit exceeded",E2BIG);
+      ok=0; break;
+    }
+    list.visited++;
+    size_t name_len=strlen(ent->d_name);
+    if(!valid_utf8((const unsigned char *)ent->d_name,name_len) ||
+       !dir_entry_name_valid((const unsigned char *)ent->d_name,name_len)) {
+      fail("invalid filename in directory tree",EINVAL);
+      ok=0; break;
+    }
+    struct stat est;
+    if(fstatat(dfd,ent->d_name,&est,AT_SYMLINK_NOFOLLOW)<0) {
+      fail("stat directory entry",errno);
+      ok=0; break;
+    }
+    if(S_ISLNK(est.st_mode)) {
+      fail("symlink encountered in directory tree",ELOOP);
+      ok=0; break;
+    }
+    if(S_ISDIR(est.st_mode)) {
+      fail("unexpected subdirectory in blobs directory",EISDIR);
+      ok=0; break;
+    }
+    if(!S_ISREG(est.st_mode)) {
+      fail("non-regular file encountered in directory tree",EINVAL);
+      ok=0; break;
+    }
+    ok=dir_list_push(&list,ent->d_name,name_len);
+    if(!ok) break;
+  }
+  if(closedir(d)<0) { fail("close directory stream",errno); ok=0; }
+#endif
+  if(!ok || problem[0]) {
+    dir_list_free(&list);
+    return bytes(NULL,0);
+  }
+  return dir_list_to_bytes(&list);
+}
+
+/* Anchored relative file reader rejecting root, intermediate-dir, and leaf
+ * symlinks/reparse points and enforcing a hard byte cap on the opened handle. */
+MOONBIT_FFI_EXPORT moonbit_bytes_t mbsd_read_rel_nosymlink(
+    moonbit_bytes_t root_dir,moonbit_bytes_t rel_path,int32_t cap) {
+  problem[0]=0;
+  if(cap<0) { fail("negative read cap",EINVAL); return bytes(NULL,0); }
+  const char *rel=(const char *)rel_path;
+#ifdef _WIN32
+  if(!validate_rel_path_c(rel,1)) return bytes(NULL,0);
+  wchar_t *wraw=win_trim_dir_path((const char *)root_dir);
+  if(!wraw) return bytes(NULL,0);
+  wchar_t *cur=win_to_extended_dir_path(wraw);
+  free(wraw);
+  if(!cur) return bytes(NULL,0);
+  DWORD rattrs=GetFileAttributesW(cur);
+  if(rattrs==INVALID_FILE_ATTRIBUTES) {
+    DWORD e=GetLastError();
+    free(cur);
+    fail("inspect directory",e);
+    return bytes(NULL,0);
+  }
+  if(rattrs & FILE_ATTRIBUTE_REPARSE_POINT) {
+    free(cur);
+    fail("directory path must not be a symlink or reparse point",ERROR_ACCESS_DENIED);
+    return bytes(NULL,0);
+  }
+  if(!(rattrs & FILE_ATTRIBUTE_DIRECTORY)) {
+    free(cur);
+    fail("path is not a directory",ERROR_DIRECTORY);
+    return bytes(NULL,0);
+  }
+  const char *seg=rel;
+  const char *slash=NULL;
+  while((slash=strchr(seg,'/'))!=NULL) {
+    size_t slen=(size_t)(slash-seg);
+    char *comp=malloc(slen+1);
+    if(!comp) { free(cur); fail("directory component allocation",ERROR_NOT_ENOUGH_MEMORY); return bytes(NULL,0); }
+    memcpy(comp,seg,slen);
+    comp[slen]=0;
+    wchar_t *wcomp=wide(comp);
+    free(comp);
+    if(!wcomp) { free(cur); return bytes(NULL,0); }
+    wchar_t *joined=win_join_segment(cur,wcomp);
+    free(wcomp);
+    free(cur);
+    if(!joined) return bytes(NULL,0);
+    cur=joined;
+    DWORD cattrs=GetFileAttributesW(cur);
+    if(cattrs==INVALID_FILE_ATTRIBUTES) {
+      DWORD e=GetLastError();
+      free(cur);
+      fail("inspect subdirectory",e);
+      return bytes(NULL,0);
+    }
+    if(cattrs & FILE_ATTRIBUTE_REPARSE_POINT) {
+      free(cur);
+      fail("symlink or reparse point encountered in directory path",ERROR_ACCESS_DENIED);
+      return bytes(NULL,0);
+    }
+    if(!(cattrs & FILE_ATTRIBUTE_DIRECTORY)) {
+      free(cur);
+      fail("path component is not a directory",ERROR_DIRECTORY);
+      return bytes(NULL,0);
+    }
+    seg=slash+1;
+  }
+  wchar_t *wleaf=wide(seg);
+  if(!wleaf) { free(cur); return bytes(NULL,0); }
+  wchar_t *leaf_path=win_join_segment(cur,wleaf);
+  free(wleaf);
+  free(cur);
+  if(!leaf_path) return bytes(NULL,0);
+  HANDLE f=CreateFileW(leaf_path,GENERIC_READ,
+                       FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE,NULL,
+                       OPEN_EXISTING,FILE_ATTRIBUTE_NORMAL|FILE_FLAG_OPEN_REPARSE_POINT,NULL);
+  DWORD open_err=GetLastError();
+  if(f==INVALID_HANDLE_VALUE) {
+    DWORD lattrs=GetFileAttributesW(leaf_path);
+    free(leaf_path);
+    if(lattrs!=INVALID_FILE_ATTRIBUTES && (lattrs & FILE_ATTRIBUTE_REPARSE_POINT)) {
+      fail("file must not be a symlink or reparse point",ERROR_ACCESS_DENIED);
+    } else if(lattrs!=INVALID_FILE_ATTRIBUTES && (lattrs & FILE_ATTRIBUTE_DIRECTORY)) {
+      fail("input must be a regular disk file",ERROR_INVALID_FUNCTION);
+    } else {
+      fail("open input",open_err);
+    }
+    return bytes(NULL,0);
+  }
+  free(leaf_path);
+  unsigned char *buffer=NULL; size_t used=0,capacity=0;
+  BY_HANDLE_FILE_INFORMATION fi;
+  LARGE_INTEGER size;
+  DWORD ftype=GetFileType(f);
+  if(!GetFileInformationByHandle(f,&fi)) fail("stat regular input",GetLastError());
+  else if(fi.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) fail("file must not be a symlink or reparse point",ERROR_ACCESS_DENIED);
+  else if(fi.dwFileAttributes & (FILE_ATTRIBUTE_DIRECTORY|FILE_ATTRIBUTE_DEVICE)) fail("input must be a regular disk file",ERROR_INVALID_FUNCTION);
+  else if(ftype!=FILE_TYPE_DISK) {
+    DWORD type_err=(ftype==FILE_TYPE_UNKNOWN)?GetLastError():ERROR_INVALID_FUNCTION;
+    fail("input must be a regular disk file",type_err?type_err:ERROR_INVALID_FUNCTION);
+  } else if(!GetFileSizeEx(f,&size)) fail("stat regular input",GetLastError());
+  else if(size.QuadPart>cap) limit_fail("input size",cap);
+  while(!problem[0]) {
+    unsigned char chunk[4096];
+    size_t room=(size_t)cap-used;
+    size_t request=room<sizeof(chunk)?room+1:sizeof(chunk);
+    DWORD got=0;
+    if(!ReadFile(f,chunk,(DWORD)request,&got,NULL)) {
+      DWORD error=GetLastError();
+      fail("read input",error);
+      break;
+    }
+    if(!got) break;
+    if((size_t)got>room) { limit_fail("read limit",cap); break; }
+    size_t wanted=used+(size_t)got;
+    if(wanted>capacity) {
+      size_t next=capacity?capacity:((size_t)cap<4096?(size_t)cap:4096);
+      while(next<wanted) next=next>(size_t)cap/2?(size_t)cap:next*2;
+      unsigned char *grown=realloc(buffer,next);
+      if(!grown) { fail("read buffer allocation",ENOMEM); break; }
+      buffer=grown; capacity=next;
+    }
+    memcpy(buffer+used,chunk,(size_t)got); used=wanted;
+  }
+  if(!CloseHandle(f)) fail("close input",GetLastError());
+  moonbit_bytes_t result=problem[0]?bytes(NULL,0):bytes(buffer,used);
+  free(buffer);
+  return result;
+#else
+  if(!validate_rel_path_c(rel,0)) return bytes(NULL,0);
+  char *root=posix_trim_dir_path((const char *)root_dir);
+  if(!root) return bytes(NULL,0);
+  struct stat rst;
+  if(lstat(root,&rst)<0) {
+    int e=errno;
+    free(root);
+    fail("inspect directory",e);
+    return bytes(NULL,0);
+  }
+  if(S_ISLNK(rst.st_mode)) {
+    free(root);
+    fail("directory path must not be a symlink",ELOOP);
+    return bytes(NULL,0);
+  }
+  if(!S_ISDIR(rst.st_mode)) {
+    free(root);
+    fail("path is not a directory",ENOTDIR);
+    return bytes(NULL,0);
+  }
+  int cur_fd=open(root,O_RDONLY|O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC);
+  int open_err=errno;
+  free(root);
+  if(cur_fd<0) { fail("open directory",open_err); return bytes(NULL,0); }
+  struct stat fst;
+  if(fstat(cur_fd,&fst)<0 || !S_ISDIR(fst.st_mode) || !same_inode(&fst,&rst)) {
+    close(cur_fd);
+    fail("directory changed on open",ESTALE);
+    return bytes(NULL,0);
+  }
+  const char *seg=rel;
+  const char *slash=NULL;
+  while((slash=strchr(seg,'/'))!=NULL) {
+    size_t slen=(size_t)(slash-seg);
+    char *comp=malloc(slen+1);
+    if(!comp) { close(cur_fd); fail("directory component allocation",ENOMEM); return bytes(NULL,0); }
+    memcpy(comp,seg,slen);
+    comp[slen]=0;
+    int next_fd=openat(cur_fd,comp,O_RDONLY|O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC);
+    int nerr=errno;
+    if(next_fd<0) {
+      struct stat cst;
+      if(nerr==ELOOP || (fstatat(cur_fd,comp,&cst,AT_SYMLINK_NOFOLLOW)==0 && S_ISLNK(cst.st_mode))) {
+        fail("symlink encountered in directory path",ELOOP);
+      } else {
+        fail("open subdirectory",nerr);
+      }
+      free(comp);
+      close(cur_fd);
+      return bytes(NULL,0);
+    }
+    free(comp);
+    struct stat nst;
+    if(fstat(next_fd,&nst)<0 || !S_ISDIR(nst.st_mode)) {
+      close(next_fd);
+      close(cur_fd);
+      fail("subdirectory changed on open",ESTALE);
+      return bytes(NULL,0);
+    }
+    if(close(cur_fd)<0) {
+      int e=errno;
+      close(next_fd);
+      fail("close parent directory",e);
+      return bytes(NULL,0);
+    }
+    cur_fd=next_fd;
+    seg=slash+1;
+  }
+  int f=openat(cur_fd,seg,O_RDONLY|O_NOFOLLOW|O_CLOEXEC|O_NONBLOCK);
+  int lerr=errno;
+  if(f<0) {
+    struct stat lst;
+    if(lerr==ELOOP || (fstatat(cur_fd,seg,&lst,AT_SYMLINK_NOFOLLOW)==0 && S_ISLNK(lst.st_mode))) {
+      fail("file must not be a symlink",ELOOP);
+    } else {
+      fail("open input",lerr);
+    }
+    close(cur_fd);
+    return bytes(NULL,0);
+  }
+  if(close(cur_fd)<0) {
+    int e=errno;
+    close(f);
+    fail("close parent directory",e);
+    return bytes(NULL,0);
+  }
+  unsigned char *buffer=NULL; size_t used=0,capacity=0;
+  struct stat st;
+  if(fstat(f,&st)<0) fail("stat input",errno);
+  else if(!S_ISREG(st.st_mode)) fail("input must be a regular file",EINVAL);
+  else if(st.st_size>cap) limit_fail("input size",cap);
+  while(!problem[0]) {
+    unsigned char chunk[4096];
+    size_t room=(size_t)cap-used;
+    size_t request=room<sizeof(chunk)?room+1:sizeof(chunk);
+    ssize_t got=read(f,chunk,request);
+    if(got<0) { if(errno==EINTR) continue; fail("read input",errno); break; }
+    if(!got) break;
+    if((size_t)got>room) { limit_fail("read limit",cap); break; }
+    size_t wanted=used+(size_t)got;
+    if(wanted>capacity) {
+      size_t next=capacity?capacity:((size_t)cap<4096?(size_t)cap:4096);
+      while(next<wanted) next=next>(size_t)cap/2?(size_t)cap:next*2;
+      unsigned char *grown=realloc(buffer,next);
+      if(!grown) { fail("read buffer allocation",ENOMEM); break; }
+      buffer=grown; capacity=next;
+    }
+    memcpy(buffer+used,chunk,(size_t)got); used=wanted;
+  }
+  if(close(f)<0) fail("close input",errno);
+  moonbit_bytes_t result=problem[0]?bytes(NULL,0):bytes(buffer,used);
+  free(buffer);
+  return result;
+#endif
+}
+
+MOONBIT_FFI_EXPORT int32_t mbsd_dir_exists_nosymlink(moonbit_bytes_t dir_path) {
+  problem[0]=0;
+#ifdef _WIN32
+  wchar_t *w=win_trim_dir_path((const char *)dir_path);
+  if(!w) return -1;
+  DWORD attrs=GetFileAttributesW(w);
+  DWORD e=GetLastError();
+  free(w);
+  if(attrs==INVALID_FILE_ATTRIBUTES) {
+    if(e==ERROR_FILE_NOT_FOUND || e==ERROR_PATH_NOT_FOUND) return 0;
+    fail("inspect directory",e);
+    return -1;
+  }
+  if(attrs & FILE_ATTRIBUTE_REPARSE_POINT) {
+    fail("directory path must not be a symlink or reparse point",ERROR_ACCESS_DENIED);
+    return -1;
+  }
+  if(!(attrs & FILE_ATTRIBUTE_DIRECTORY)) {
+    fail("path is not a directory",ERROR_DIRECTORY);
+    return -1;
+  }
+  return 1;
+#else
+  char *p=posix_trim_dir_path((const char *)dir_path);
+  if(!p) return -1;
+  struct stat st;
+  if(lstat(p,&st)<0) {
+    int e=errno;
+    free(p);
+    if(e==ENOENT) return 0;
+    fail("inspect directory",e);
+    return -1;
+  }
+  free(p);
+  if(S_ISLNK(st.st_mode)) {
+    fail("directory path must not be a symlink",ELOOP);
+    return -1;
+  }
+  if(!S_ISDIR(st.st_mode)) {
+    fail("path is not a directory",ENOTDIR);
+    return -1;
+  }
+  return 1;
+#endif
+}
+
+MOONBIT_FFI_EXPORT int32_t mbsd_file_nosymlink_check(moonbit_bytes_t file_path) {
+  problem[0]=0;
+#ifdef _WIN32
+  wchar_t *w=wide((const char *)file_path);
+  if(!w) return 0;
+  DWORD attrs=GetFileAttributesW(w);
+  DWORD e=GetLastError();
+  free(w);
+  if(attrs==INVALID_FILE_ATTRIBUTES) {
+    fail("inspect file",e);
+    return 0;
+  }
+  if(attrs & FILE_ATTRIBUTE_REPARSE_POINT) {
+    fail("file must not be a symlink or reparse point",ERROR_ACCESS_DENIED);
+    return 0;
+  }
+  if(attrs & (FILE_ATTRIBUTE_DIRECTORY|FILE_ATTRIBUTE_DEVICE)) {
+    fail("path is not a regular file",ERROR_INVALID_FUNCTION);
+    return 0;
+  }
+  return 1;
+#else
+  struct stat st;
+  if(lstat((const char *)file_path,&st)<0) {
+    fail("inspect file",errno);
+    return 0;
+  }
+  if(S_ISLNK(st.st_mode)) {
+    fail("file must not be a symlink",ELOOP);
+    return 0;
+  }
+  if(!S_ISREG(st.st_mode)) {
+    fail("path is not a regular file",EINVAL);
+    return 0;
+  }
+  return 1;
+#endif
+}
+
+MOONBIT_FFI_EXPORT int32_t mbsd_mkdir_new(moonbit_bytes_t dir_path) {
+  problem[0]=0;
+#ifdef _WIN32
+  wchar_t *w=wide((const char *)dir_path);
+  if(!w) return 0;
+  if(!win_validate_output_path(w)) { free(w); return 0; }
+  if(!CreateDirectoryW(w,NULL)) {
+    DWORD e=GetLastError();
+    free(w);
+    fail("create output directory",e);
+    return 0;
+  }
+  DWORD attrs=GetFileAttributesW(w);
+  DWORD e=GetLastError();
+  free(w);
+  if(attrs==INVALID_FILE_ATTRIBUTES) {
+    fail("verify created output directory",e);
+    return 0;
+  }
+  if((attrs & FILE_ATTRIBUTE_REPARSE_POINT) || !(attrs & FILE_ATTRIBUTE_DIRECTORY)) {
+    fail("created output directory identity invalid",ERROR_ACCESS_DENIED);
+    return 0;
+  }
+  return 1;
+#else
+  const char *path=(const char *)dir_path;
+  size_t len=strlen(path);
+  if(!len || path[len-1]=='/') {
+    fail("invalid output directory name",EINVAL);
+    return 0;
+  }
+  const char *slash=strrchr(path,'/');
+  const char *leaf=slash?slash+1:path;
+  if(!*leaf || strcmp(leaf,".")==0 || strcmp(leaf,"..")==0) {
+    fail("invalid output directory name",EINVAL);
+    return 0;
+  }
+  if(mkdir(path,0755)<0) {
+    fail("create output directory",errno);
+    return 0;
+  }
+  struct stat st;
+  if(lstat(path,&st)<0) {
+    fail("verify created output directory",errno);
+    return 0;
+  }
+  if(!S_ISDIR(st.st_mode) || S_ISLNK(st.st_mode)) {
+    fail("verify created output directory",ESTALE);
+    return 0;
+  }
+  return 1;
+#endif
+}
+
+MOONBIT_FFI_EXPORT int32_t mbsd_mkdir_parents(moonbit_bytes_t root_dir,moonbit_bytes_t rel_path) {
+  problem[0]=0;
+  const char *rel=(const char *)rel_path;
+#ifdef _WIN32
+  if(!validate_rel_path_c(rel,1)) return 0;
+#else
+  if(!validate_rel_path_c(rel,0)) return 0;
+#endif
+  const char *last_slash=strrchr(rel,'/');
+#ifdef _WIN32
+  wchar_t *cur=win_trim_dir_path((const char *)root_dir);
+  if(!cur) return 0;
+  DWORD rattrs=GetFileAttributesW(cur);
+  if(rattrs==INVALID_FILE_ATTRIBUTES) {
+    DWORD e=GetLastError();
+    free(cur);
+    fail("inspect output root directory",e);
+    return 0;
+  }
+  if((rattrs & FILE_ATTRIBUTE_REPARSE_POINT) || !(rattrs & FILE_ATTRIBUTE_DIRECTORY)) {
+    free(cur);
+    fail("output root must be a non-symlink directory",ERROR_ACCESS_DENIED);
+    return 0;
+  }
+  if(!last_slash) { free(cur); return 1; }
+  int depth=0;
+  const char *seg=rel;
+  while(seg<last_slash) {
+    const char *next=strchr(seg,'/');
+    if(!next || next>last_slash) break;
+    size_t slen=(size_t)(next-seg);
+    if(++depth>MBSD_DIR_MAX_DEPTH) {
+      free(cur);
+      fail("directory depth limit exceeded",ERROR_BUFFER_OVERFLOW);
+      return 0;
+    }
+    char *comp=malloc(slen+1);
+    if(!comp) { free(cur); fail("directory component allocation",ERROR_NOT_ENOUGH_MEMORY); return 0; }
+    memcpy(comp,seg,slen);
+    comp[slen]=0;
+    wchar_t *wcomp=wide(comp);
+    free(comp);
+    if(!wcomp) { free(cur); return 0; }
+    wchar_t *joined=win_join_segment(cur,wcomp);
+    free(wcomp);
+    free(cur);
+    if(!joined) return 0;
+    cur=joined;
+    DWORD cattrs=GetFileAttributesW(cur);
+    if(cattrs==INVALID_FILE_ATTRIBUTES) {
+      DWORD e=GetLastError();
+      if(e!=ERROR_FILE_NOT_FOUND) {
+        free(cur);
+        fail("inspect output subdirectory",e);
+        return 0;
+      }
+      if(!CreateDirectoryW(cur,NULL)) {
+        DWORD ce=GetLastError();
+        if(ce!=ERROR_ALREADY_EXISTS) {
+          free(cur);
+          fail("create output subdirectory",ce);
+          return 0;
+        }
+      }
+      cattrs=GetFileAttributesW(cur);
+      if(cattrs==INVALID_FILE_ATTRIBUTES) {
+        DWORD ve=GetLastError();
+        free(cur);
+        fail("verify output subdirectory",ve);
+        return 0;
+      }
+    }
+    if(cattrs & FILE_ATTRIBUTE_REPARSE_POINT) {
+      free(cur);
+      fail("symlink or reparse point in output path",ERROR_ACCESS_DENIED);
+      return 0;
+    }
+    if(!(cattrs & FILE_ATTRIBUTE_DIRECTORY)) {
+      free(cur);
+      fail("output path component is not a directory",ERROR_DIRECTORY);
+      return 0;
+    }
+    seg=next+1;
+  }
+  free(cur);
+  return 1;
+#else
+  char *root=posix_trim_dir_path((const char *)root_dir);
+  if(!root) return 0;
+  struct stat rst;
+  if(lstat(root,&rst)<0) {
+    int e=errno;
+    free(root);
+    fail("inspect output root directory",e);
+    return 0;
+  }
+  if(S_ISLNK(rst.st_mode) || !S_ISDIR(rst.st_mode)) {
+    free(root);
+    fail("output root must be a non-symlink directory",ELOOP);
+    return 0;
+  }
+  int cur_fd=open(root,O_RDONLY|O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC);
+  int open_err=errno;
+  free(root);
+  if(cur_fd<0) { fail("open output root directory",open_err); return 0; }
+  struct stat fst;
+  if(fstat(cur_fd,&fst)<0 || !S_ISDIR(fst.st_mode) || !same_inode(&fst,&rst)) {
+    close(cur_fd);
+    fail("output root changed on open",ESTALE);
+    return 0;
+  }
+  if(!last_slash) {
+    if(close(cur_fd)<0) { fail("close output root directory",errno); return 0; }
+    return 1;
+  }
+  int depth=0;
+  const char *seg=rel;
+  while(seg<last_slash) {
+    const char *next=strchr(seg,'/');
+    if(!next || next>last_slash) break;
+    size_t slen=(size_t)(next-seg);
+    if(++depth>MBSD_DIR_MAX_DEPTH) {
+      close(cur_fd);
+      fail("directory depth limit exceeded",ELOOP);
+      return 0;
+    }
+    char *comp=malloc(slen+1);
+    if(!comp) { close(cur_fd); fail("directory component allocation",ENOMEM); return 0; }
+    memcpy(comp,seg,slen);
+    comp[slen]=0;
+    if(mkdirat(cur_fd,comp,0755)<0 && errno!=EEXIST) {
+      int e=errno;
+      free(comp); close(cur_fd);
+      fail("create output subdirectory",e);
+      return 0;
+    }
+    struct stat cst;
+    if(fstatat(cur_fd,comp,&cst,AT_SYMLINK_NOFOLLOW)<0) {
+      int e=errno;
+      free(comp); close(cur_fd);
+      fail("stat output subdirectory",e);
+      return 0;
+    }
+    if(S_ISLNK(cst.st_mode) || !S_ISDIR(cst.st_mode)) {
+      free(comp); close(cur_fd);
+      fail("output path component is a symlink or non-directory",ELOOP);
+      return 0;
+    }
+    int next_fd=openat(cur_fd,comp,O_RDONLY|O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC);
+    int nerr=errno;
+    free(comp);
+    if(next_fd<0) {
+      close(cur_fd);
+      fail("open output subdirectory",nerr);
+      return 0;
+    }
+    struct stat nst;
+    if(fstat(next_fd,&nst)<0 || !S_ISDIR(nst.st_mode) || !same_inode(&nst,&cst)) {
+      close(next_fd); close(cur_fd);
+      fail("output subdirectory changed on open",ESTALE);
+      return 0;
+    }
+    close(cur_fd);
+    cur_fd=next_fd;
+    seg=next+1;
+  }
+  if(close(cur_fd)<0) { fail("close output subdirectory",errno); return 0; }
+  return 1;
+#endif
 }

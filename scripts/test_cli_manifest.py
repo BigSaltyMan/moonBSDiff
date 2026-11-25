@@ -44,8 +44,8 @@ class ManifestCli(unittest.TestCase):
             patch=real/'same.patch';r=self.generate(alias/'same.patch',patch,code=1)
             self.assertIn(b'same target',r.stderr);self.assertFalse(patch.exists())
             if os.name=='nt':
-                for name in ['SAME.PATCH','same.patch.','same.patch ']:
-                    r=self.generate(real/name,patch,code=1);self.assertIn(b'same target',r.stderr);self.assertFalse(patch.exists())
+                for name,expected in [('SAME.PATCH',b'same target'),('same.patch.',b'trailing dot or space'),('same.patch ',b'trailing dot or space')]:
+                    r=self.generate(real/name,patch,code=1);self.assertIn(expected,r.stderr);self.assertFalse(patch.exists())
         finally:
             if os.name=='nt':alias.rmdir()
             else:alias.unlink()

@@ -62,17 +62,24 @@ test "stream pull: source refill, paused runs, strict end, budget" {
     }
     assert_true(failed)
   }
+  // Partial-prefix pull on a block <= 4096 RLE bytes succeeds up to the exact
+  // budget and fails closed on the next byte.
+  let small_writer = Writer::new(level=1)
+  let small_packed = small_writer.push(
+      (b"ABCD\x00\xff" + Bytes::make(256, 0x5a))[:],
+    ) +
+    small_writer.finish()
   let mut at = 0
   let budget = Budget::{ remaining: 6L, emitted: 0L, }
   let reader = StreamReader::new(
-    packed.length(),
+    small_packed.length(),
     fn() {
-      let n = Int32::min(4096, packed.length() - at)
-      let b = packed[at:at + n].to_owned()
+      let n = Int32::min(4096, small_packed.length() - at)
+      let b = small_packed[at:at + n].to_owned()
       at += n
       b
     },
-    plain.length(),
+    262,
     budget,
   )
   assert_eq(reader.read(6), b"ABCD\x00\xff")
@@ -83,6 +90,33 @@ test "stream pull: source refill, paused runs, strict end, budget" {
   }
   assert_true(limited)
   assert_eq(budget.emitted, 6L)
+
+  // Block > 4096 RLE bytes under tight budget must abort inside MTF BEFORE
+  // inverse-BWT (never allocating the full RLE/BWT block).
+  let mut at_over = 0
+  let over_budget = Budget::{ remaining: 6L, emitted: 0L, }
+  let over_reader = StreamReader::new(
+    packed.length(),
+    fn() {
+      let n = Int32::min(4096, packed.length() - at_over)
+      let b = packed[at_over:at_over + n].to_owned()
+      at_over += n
+      b
+    },
+    plain.length(),
+    over_budget,
+  )
+  let mut over_limited = false
+  try over_reader.read(6) |> ignore catch {
+    Limit(field="decompressed_remaining", value~, limit=6L) =>
+      over_limited = value > 4096L
+    _ => ()
+  }
+  assert_true(over_limited)
+  assert_eq(over_reader.plain.length(), 0)
+  assert_false(over_reader.in_block)
+  assert_true(over_reader.failed)
+  assert_eq(over_budget.emitted, 0L)
 }
 
 ///|
@@ -203,4 +237,57 @@ test "stream pull: fault latch and zero-remaining block bound" {
   }
   assert_true(saw_decode_rem_limit)
   assert_eq(rem_only_budget.emitted, 0L)
+
+  // 45-byte BZh9 BWT bomb (898,000 alternating \x00\x01 bytes): StreamReader
+  // must reject before inverse-BWT under tight cap or budget, never filling `plain`.
+  let bwt_bomb = b"\x42\x5a\x68\x39\x31\x41\x59\x26\x53\x59\x76\x31\xc6\x35\x03\x6c\xf3\xc0\x00\x60\x00\x20\x00\x30\x80\x4d\x46\xa9\x05\x11\x35\x48\x28\x89\xc5\xdc\x91\x4e\x14\x24\x1d\x8c\x71\x8d\x40"
+  let mut at_bomb_cap = 0
+  let bomb_cap_budget = Budget::{ remaining: 100000L, emitted: 0L, }
+  let bomb_cap_reader = StreamReader::new(
+    bwt_bomb.length(),
+    fn() {
+      let n = Int32::min(4096, bwt_bomb.length() - at_bomb_cap)
+      let part = bwt_bomb[at_bomb_cap:at_bomb_cap + n].to_owned()
+      at_bomb_cap += n
+      part
+    },
+    1,
+    bomb_cap_budget,
+  )
+  let mut saw_bomb_cap = false
+  try bomb_cap_reader.read(1) |> ignore catch {
+    Limit(field="block_output_bytes", value~, limit=1L) =>
+      saw_bomb_cap = value > 4096L
+    _ => ()
+  }
+  assert_true(saw_bomb_cap)
+  assert_eq(bomb_cap_reader.plain.length(), 0)
+  assert_false(bomb_cap_reader.in_block)
+  assert_true(bomb_cap_reader.failed)
+  assert_eq(bomb_cap_budget.emitted, 0L)
+
+  let mut at_bomb_rem = 0
+  let bomb_rem_budget = Budget::{ remaining: 1L, emitted: 0L, }
+  let bomb_rem_reader = StreamReader::new(
+    bwt_bomb.length(),
+    fn() {
+      let n = Int32::min(4096, bwt_bomb.length() - at_bomb_rem)
+      let part = bwt_bomb[at_bomb_rem:at_bomb_rem + n].to_owned()
+      at_bomb_rem += n
+      part
+    },
+    100000,
+    bomb_rem_budget,
+  )
+  let mut saw_bomb_rem = false
+  try bomb_rem_reader.read(1) |> ignore catch {
+    Limit(field="decompressed_remaining", value~, limit=1L) =>
+      saw_bomb_rem = value > 4096L
+    _ => ()
+  }
+  assert_true(saw_bomb_rem)
+  assert_eq(bomb_rem_reader.plain.length(), 0)
+  assert_false(bomb_rem_reader.in_block)
+  assert_true(bomb_rem_reader.failed)
+  assert_eq(bomb_rem_budget.emitted, 0L)
 }

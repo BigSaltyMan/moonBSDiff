@@ -1,0 +1,12 @@
+import {
+  "BigSaltyMan/moonbsdiff",
+  "BigSaltyMan/moonbsdiff/manifest",
+  "BigSaltyMan/moonbsdiff/internal/manifest" @manifest_support,
+  "moonbitlang/core/debug",
+  "moonbitlang/core/encoding/utf8",
+  "moonbitlang/core/json",
+}
+
+supported_targets = "-all+js"
+
+pkgtype(kind: "foreign_library")

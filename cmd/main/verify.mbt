@@ -59,7 +59,7 @@ fn verified_restore(config : CliConfig) -> Bytes {
       manifest_path,
       data,
       limits,
-      config.public_key,
+      config.public_keys,
       config.signature,
     ) {
     Ok(value) => value
@@ -92,7 +92,7 @@ fn verify_command(config : CliConfig) -> Unit {
   } else {
     verified_restore(config) |> ignore
   }
-  if config.public_key is Some(_) {
+  if !config.public_keys.is_empty() {
     println(
       "Verification succeeded: signature, manifest, inputs and restored content match.",
     )

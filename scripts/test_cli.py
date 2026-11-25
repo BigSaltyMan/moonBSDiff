@@ -38,8 +38,12 @@ class CliFiles(unittest.TestCase):
         self.assertEqual(self.run_cli(['--version']).stdout.decode('utf8').strip(),'moonbsdiff '+version())
     def test_command_help_pages(self):
         file_limits = {'--max-old-bytes', '--max-new-bytes', '--max-output-bytes', '--max-patch-bytes'}
-        apply_limits = file_limits | {'--max-expanded-bytes', '--max-controls'}
-        generation = apply_limits | {'--max-sort-work', '--max-match-work', '--compression-level'}
+        apply_limits = file_limits | {
+            '--max-expanded-bytes', '--max-decompressed-bytes',
+            '--max-controls', '--max-control-instructions',
+        }
+        dir_diff_limits = apply_limits | {'--max-sort-work', '--max-match-work'}
+        generation = dir_diff_limits | {'--compression-level'}
         plan = file_limits | {'--target-manifest', '--max-steps'}
         pages = [
             ('diff', '[OPTIONS] OLD_FILE NEW_FILE PATCH_FILE',
@@ -47,16 +51,19 @@ class CliFiles(unittest.TestCase):
             ('diff-many', '[OPTIONS] OLD (NEW PATCH MANIFEST)...', generation),
             ('patch', '[OPTIONS] OLD_FILE PATCH_FILE OUTPUT_FILE',
              apply_limits | {'--manifest', '--public-key', '--signature', '--stream', '--progress', '--show-limits'}),
-            ('patch-chain', '--target-manifest FILE [--progress text|json] [LIMITS] OLD OUTPUT (PATCH MANIFEST)...',
-             apply_limits | {'--target-manifest', '--progress'}),
-            ('verify-chain', '--target-manifest FILE [--progress text|json] [LIMITS] OLD (PATCH MANIFEST)...',
-             apply_limits | {'--target-manifest', '--progress'}),
-            ('verify', '[--stream] --manifest MANIFEST_FILE [--public-key KEY_FILE --signature SIG_FILE] [LIMITS] OLD_FILE PATCH_FILE',
+            ('patch-chain',
+             '--target-manifest FILE [--public-key KEY_FILE ... --target-signature SIG_FILE --step-signature SIG_FILE ...] [--progress text|json] [LIMITS] OLD OUTPUT (PATCH MANIFEST)...',
+             apply_limits | {'--target-manifest', '--public-key', '--target-signature', '--step-signature', '--progress'}),
+            ('verify-chain',
+             '--target-manifest FILE [--public-key KEY_FILE ... --target-signature SIG_FILE --step-signature SIG_FILE ...] [--progress text|json] [LIMITS] OLD (PATCH MANIFEST)...',
+             apply_limits | {'--target-manifest', '--public-key', '--target-signature', '--step-signature', '--progress'}),
+            ('verify', '[--stream] --manifest MANIFEST_FILE [--public-key KEY_FILE ... --signature SIG_FILE] [LIMITS] OLD_FILE PATCH_FILE',
              apply_limits | {'--manifest', '--public-key', '--signature', '--stream'}),
-            ('inspect', '[--deep] [--json] [--max-patch-bytes VALUE] PATCH_FILE',
-             {'--deep', '--json', '--max-patch-bytes', '--max-output-bytes', '--max-expanded-bytes', '--max-controls'}),
+            ('inspect', '[--deep | --analyze] [--json] [--max-patch-bytes VALUE] PATCH_FILE',
+             {'--deep', '--analyze', '--json', '--max-patch-bytes', '--max-output-bytes',
+              '--max-expanded-bytes', '--max-decompressed-bytes', '--max-controls', '--max-control-instructions'}),
             ('install-full',
-             '--target-manifest FILE [--public-key KEY_FILE --signature SIG_FILE] [--max-new-bytes VALUE] [--max-output-bytes VALUE] DOWNLOADED_FILE OUTPUT_FILE',
+             '--target-manifest FILE [--public-key KEY_FILE ... --signature SIG_FILE] [--max-new-bytes VALUE] [--max-output-bytes VALUE] DOWNLOADED_FILE OUTPUT_FILE',
              {'--target-manifest', '--public-key', '--signature', '--max-new-bytes', '--max-output-bytes'}),
             ('manifest create', '[LIMITS] OLD_FILE NEW_FILE PATCH_FILE MANIFEST_FILE', apply_limits),
             ('manifest select', '[LIMITS] OLD_FILE MANIFEST_FILE [MANIFEST_FILE...]', file_limits),
@@ -69,8 +76,23 @@ class CliFiles(unittest.TestCase):
             ('manifest keygen', '[--json] PRIVATE_KEY_FILE PUBLIC_KEY_FILE', {'--json'}),
             ('manifest sign', '[--json] --private-key KEY_FILE MANIFEST_FILE SIGNATURE_FILE',
              {'--json', '--private-key'}),
-            ('manifest verify-sig', '[--json] --public-key KEY_FILE --signature SIG_FILE MANIFEST_FILE',
+            ('manifest verify-sig', '[--json] --public-key KEY_FILE [--public-key KEY2 ...] --signature SIG_FILE MANIFEST_FILE',
              {'--json', '--public-key', '--signature'}),
+            ('manifest catalog sign', '[--json] --private-key KEY_FILE CATALOG_FILE SIG_FILE',
+             {'--json', '--private-key'}),
+            ('manifest catalog verify',
+             '[--json] --public-key KEY_FILE [--public-key KEY2 ...] --signature SIG_FILE [--min-catalog-version N] CATALOG_FILE',
+             {'--json', '--public-key', '--signature', '--min-catalog-version'}),
+            ('manifest catalog plan',
+             '[--json] --public-key KEY_FILE [--public-key KEY2 ...] --signature SIG_FILE --current-version V --target-version V [--min-catalog-version N] [--max-steps COUNT] [--max-download-bytes VALUE] [--allow-full] [LIMITS] CATALOG_FILE CURRENT_FILE',
+             file_limits | {'--json', '--public-key', '--signature', '--current-version', '--target-version',
+                            '--min-catalog-version', '--max-steps', '--max-download-bytes', '--allow-full'}),
+            ('dir-diff', '[--private-key KEY_FILE] [--json] [LIMITS] OLD_DIR NEW_DIR BUNDLE_DIR',
+             dir_diff_limits | {'--private-key', '--json'}),
+            ('dir-verify', '[--public-key KEY_FILE ... --signature SIG_FILE] [--json] [LIMITS] OLD_DIR BUNDLE_DIR',
+             apply_limits | {'--public-key', '--signature', '--json'}),
+            ('dir-patch', '[--public-key KEY_FILE ... --signature SIG_FILE] [--json] [LIMITS] OLD_DIR BUNDLE_DIR OUTPUT_DIR',
+             apply_limits | {'--public-key', '--signature', '--json'}),
         ]
         for command, usage, options in pages:
             with self.subTest(command=command):
@@ -82,7 +104,7 @@ class CliFiles(unittest.TestCase):
                     self.assertIn('after OLD_FILE', output)
 
     def test_command_help_aliases_and_manifest_group(self):
-        for command in ([], ['diff'], ['manifest']):
+        for command in ([], ['diff'], ['manifest'], ['manifest', 'catalog'], ['dir-diff'], ['dir-verify'], ['dir-patch']):
             with self.subTest(command=command):
                 self.assertEqual(self.run_cli([*command, '-h']).stdout,
                                  self.run_cli([*command, '--help']).stdout)
@@ -91,10 +113,17 @@ class CliFiles(unittest.TestCase):
                               (b'plan', b'download route'), (b'plan-local', b'offline route'),
                               (b'keygen', b'Ed25519 signing keypair'),
                               (b'sign', b'Sign a Schema 1 manifest'),
-                              (b'verify-sig', b'Verify a detached Ed25519')]:
+                              (b'verify-sig', b'Verify a detached Ed25519'),
+                              (b'catalog', b'release catalogs')]:
             with self.subTest(subcommand=name):
                 self.assertTrue(any(line.split()[:1] == [name] and purpose in line
                                     for line in output.splitlines()))
+        cat_output = self.run_cli(['manifest', 'catalog', '--help']).stdout
+        for name, purpose in [(b'sign', b'release catalog'), (b'verify', b'Verify a detached'),
+                              (b'plan', b'anti-downgrade update route')]:
+            with self.subTest(catalog_subcommand=name):
+                self.assertTrue(any(line.split()[:1] == [name] and purpose in line
+                                    for line in cat_output.splitlines()))
 
     def test_command_help_exact_forms(self):
         for args, error in [
@@ -275,6 +304,27 @@ class CliFiles(unittest.TestCase):
                 r=subprocess.run(['icacls',str(folder),'/remove:d',user],capture_output=True);self.assertEqual(r.returncode,0)
             else:folder.chmod(0o700)
     def test_patch_output_same_input(self):self.generate();self.run_cli(['patch',self.old,self.patch,self.patch],1)
+    def test_windows_device_namespace_trailing_dot_and_unicode_pair_check(self):
+        if os.name == 'nt':
+            base = str(self.p.resolve()).rstrip('\\')
+            for bad in (f'\\\\.\\{base}\\file_dev_dot.', '\\\\.\\C:/moonbsdiff_dev_bad', f'{base}\\trail_out.', f'{base}\\trail_out '):
+                with self.subTest(bad=bad):
+                    self.run_cli(['diff', self.old, self.new, bad], 1)
+            self.assertFalse((self.p / 'file_dev_dot').exists())
+            self.assertFalse((self.p / 'trail_out').exists())
+        # Unicode case-colliding keygen outputs must be rejected on case-insensitive filesystems.
+        probe_lo = self.p / 'ci_probe_a'
+        probe_hi = self.p / 'ci_probe_A'
+        probe_lo.write_bytes(b'x')
+        try:
+            fs_ci = (os.name == 'nt') or probe_hi.exists()
+        finally:
+            probe_lo.unlink()
+        if fs_ci:
+            err = self.run_cli(['manifest', 'keygen', self.p / '\u00e4.key', self.p / '\u00c4.key'], 1).stderr
+            self.assertIn(b'same target', err)
+            self.assertFalse((self.p / '\u00e4.key').exists())
+            self.assertFalse((self.p / '\u00c4.key').exists())
 
 if __name__=='__main__':
     parser = argparse.ArgumentParser()

@@ -44,7 +44,7 @@ python scripts/build_cli.py --check-version
 On Windows initialize the MSVC developer environment first (the verified local
 script is `C:\Program Files\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvars64.bat`).
 The script generates `internal/manifest/version.mbt` from the module's `version`
-field in `moon.mod` (currently `0.6.0`). The CLI and manifest serializer share
+field in `moon.mod` (currently `0.7.0`). The CLI and manifest serializer share
 that version. The script then builds `cmd/main` for native and copies the
 artifact to:
 
@@ -85,8 +85,9 @@ Our order is **patch OLD PATCH OUTPUT**, different from upstream
 0 success, 2 invalid command/arguments/configuration, 1 operation failure. Help/version use stdout;
 operation errors use stderr, with operation, relevant paths and core kind/stage/
 field/value/limit metadata where available. Successful diff/patch are silent.
-No overwrite switch, stdin protocol, network update or directory synchronization
-is provided.
+No overwrite switch, stdin protocol, or network update is provided (offline
+directory delta bundles are supported via `dir-diff`, `dir-verify`, and
+`dir-patch`).
 
 With a build of the current source, use standalone `--help` or `-h` after a
 command to see its paths and supported options.
@@ -165,6 +166,18 @@ The unreleased `inspect --deep PATCH_FILE` also decodes the three streams and
 checks controls, CRC and full consumption. Add `--json` for machine-readable
 counts. The three deep limits are `--max-output-bytes`, `--max-expanded-bytes`
 and `--max-controls`. See [inspection modes](inspect.md).
+
+`inspect --analyze [--json] PATCH_FILE` (Unreleased; mutually exclusive with
+`--deep`) runs bounded preflight patch forensics via `@moonbsdiff.analyze_patch`
+without needing an old file or allocating restored output. It accepts
+`--max-patch-bytes`, `--max-output-bytes`, `--max-expanded-bytes` (alias
+`--max-decompressed-bytes`), and `--max-controls` (alias
+`--max-control-instructions`), reports stream ratios, negative/max seek metrics,
+deterministic risk level/flags (`HIGH_EXPANSION_RATIO`,
+`PATCH_LARGER_THAN_OUTPUT`, `HIGH_EXTRA_RATIO`, `EXCESSIVE_CONTROL_DENSITY`,
+`ZERO_OUTPUT_NONTRIVIAL_PATCH`), the first 64 control samples, and exact
+`required_limits`. Tight caps abort decompression bombs fail-closed (exit `1`,
+empty stdout). See [preflight patch analysis](analyze.md).
 
 ## External manifest output (CLI 0.2.0)
 
@@ -265,6 +278,81 @@ moonbsdiff manifest verify-sig [--json] --public-key KEY_FILE --signature SIG_FI
 
 See [detached manifest signing](manifest.md#detached-ed25519-manifest-signing-and-verification-unreleased)
 for envelope schemas and MoonBit APIs.
+
+## Multi-key rotation, signed chains, and release catalogs (Unreleased)
+
+```sh
+moonbsdiff manifest catalog sign [--json] --private-key KEY_FILE CATALOG_FILE SIG_FILE
+moonbsdiff manifest catalog verify [--json] --public-key KEY1 [--public-key KEY2 ...] --signature SIG_FILE [--min-catalog-version N] CATALOG_FILE
+moonbsdiff manifest catalog plan [--json] --public-key KEY1 [--public-key KEY2 ...] --signature SIG_FILE --current-version V --target-version V [--min-catalog-version N] [--max-steps COUNT] [--max-download-bytes VALUE] [--allow-full] [LIMITS] CATALOG_FILE CURRENT_FILE
+```
+
+- **Repeatable `--public-key` for zero-downtime key rotation**: Up to 64
+  `--public-key KEY_FILE` flags may be passed on `manifest verify-sig`,
+  `verify`, `patch`, `install-full`, `verify-chain`, `patch-chain`,
+  `dir-verify`, `dir-patch`, and `manifest catalog verify|plan`. Keys are
+  validated and deduplicated via `TrustStore::from_keys` (conflicting distinct
+  keys sharing a `key_id` fail closed; exceeding 64 flags exits `2`).
+- **Signed multi-hop chains (`verify-chain` / `patch-chain`)**: Pass repeatable
+  `--public-key KEY_FILE` together with `--target-signature FILE` and one
+  `--step-signature FILE` per `(PATCH MANIFEST)` step in order. All manifest
+  signatures are verified against the pinned trust store before opening old or
+  patch files or writing output.
+- **Release catalog commands (`manifest catalog`)**:
+  - `sign` validates Schema 1 `ReleaseCatalog` (`<= 256 KiB`) first, signs with
+    domain prefix `moonbsdiff-catalog-ed25519-v1\x00`, and delivers `SIG_FILE`
+    without overwriting or aliasing inputs.
+  - `verify` authenticates the detached `CatalogSignature` before parsing JSON
+    and enforces `--min-catalog-version N` anti-replay when supplied.
+  - `plan` authenticates the catalog and anti-replay floor *before* opening
+    `CURRENT_FILE`, hashes `CURRENT_FILE` by bounded streaming under
+    `--max-old-bytes`, rejects downgrades (`target_version < min_version` or
+    `< current_version`) and downgrade intermediate hops, and outputs the
+    decision (`up-to-date`, `patches`, or `full-file`) in text or Schema 1 JSON.
+
+See [multi-key trust stores and signed release catalogs](catalog.md).
+
+## Directory delta bundles (Unreleased)
+
+```sh
+moonbsdiff dir-diff [--private-key KEY_FILE] [--json] [LIMITS] OLD_DIR NEW_DIR BUNDLE_DIR
+moonbsdiff dir-verify [--public-key KEY_FILE ... --signature SIG_FILE] [--json] [LIMITS] OLD_DIR BUNDLE_DIR
+moonbsdiff dir-patch [--public-key KEY_FILE ... --signature SIG_FILE] [--json] [LIMITS] OLD_DIR BUNDLE_DIR OUTPUT_DIR
+```
+
+- **Bundle layout**: `dir-diff` creates a brand-new `BUNDLE_DIR` containing
+  `dir-manifest.json` (Schema 1, `<= 512 KiB`), optional `dir-manifest.sig`
+  (when `--private-key` is supplied, domain
+  `moonbsdiff-dir-manifest-ed25519-v1\x00`), and `blobs/blob-XXXX.{patch,full}`
+  (omitted when all entries are unchanged, renamed, or deleted).
+- **Deduplication, bounds & fallback**: Unchanged and renamed/copied files carry
+  `0` payload bytes; modified files automatically select BSDIFF40 only when the
+  patch is strictly smaller than the new file, otherwise falling back to a full
+  blob (`full_fallback: true`). Per-file `Limits` apply across `Unchanged`,
+  `Renamed`, `Patched`, and `Added`, cumulative cross-action
+  `cloned_bytes` is capped at `<= --max-output-bytes`, `Patched.from_path` is
+  unique per manifest, and `old_file_count <= new_file_count + deleted`.
+- **Filesystem & verification safety**:
+  - Rejects symlinks and Windows reparse points during directory traversal and
+    validates every relative path with `validate_relative_path`, plus full
+    Unicode 16.0 case-folding collision checks on case-insensitive filesystems
+    (Windows NTFS, WSL2 DrvFs, macOS case-insensitive APFS/HFS+, and Linux
+    `NTFS3`).
+  - On Windows, rejects `\\.\` / `//./` device-namespace paths, unconditional
+    trailing `.` or space on segments/leaves, and extended DOS device names
+    (`COM0`, `LPT0`, `CONIN$`, `CONOUT$`, `COM¹²³`/`LPT¹²³`) before creating
+    `OUTPUT_DIR`; `dir-diff` resolves directory reads through canonical `\\?\`
+    extended paths so names like `file` and `file.` do not alias under Win32
+    normalization.
+  - Refuses existing, aliased, trailing-slash, missing-parent, or nested-inside-input
+    `BUNDLE_DIR` / `OUTPUT_DIR` targets before reading inputs.
+  - When `--public-key` and `--signature` are given on `dir-verify` /
+    `dir-patch`, verifies `dir-manifest.sig` against `dir-manifest.json`
+    *before* opening `OLD_DIR` or reading `blobs/`. Rejects missing/extra blobs,
+    subdirectories in `blobs/`, silent deletions without `Deleted` entries, and
+    `old_tree_sha256` / `new_tree_sha256` mismatches.
+
+See [directory delta bundles](dir-delta.md).
 
 ## Dependencies and native isolation
 
