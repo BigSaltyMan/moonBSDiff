@@ -2,7 +2,9 @@
 
 ## Unreleased
 
-## 0.7.1
+## 0.7.1 — 2026-11-27
+
+See [0.7.1 release evidence](docs/release-0.7.1.md) for exact source, package, and CLI identities.
 
 - **MoonBit `1.0.0-rc1` toolchain migration (`moonc v1.0.0-rc1+3c0520448`)**:
   - Upgrade the pinned CI, verification, and release toolchain from `moonc v0.10.19+bee578715` to `moonc v1.0.0-rc1+3c0520448` (`moon 0.1.20261126`, `moonrun 0.1.20261126`).

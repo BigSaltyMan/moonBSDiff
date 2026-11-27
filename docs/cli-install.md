@@ -5,7 +5,8 @@ published archives. Starting with `v0.6.0`, releases ship 6 assets across 4
 CI-built native targets (4 archives, `SHA256SUMS`, and `build-info.json`, with
 `<VERSION>` matching `moon.mod`); earlier releases `v0.5.0` through `v0.5.4`
 shipped 4 assets (Windows and Linux `x86_64`, `SHA256SUMS`, `build-info.json`).
-See the [0.7.0 release record](release-0.7.0.md),
+See the [0.7.1 release record](release-0.7.1.md),
+[0.7.0 release record](release-0.7.0.md),
 [0.6.0 release record](release-0.6.0.md),
 [0.5.4 release record](release-0.5.4.md), [0.5.0 release record](release-0.5.0.md),
 and [0.4.0 record](release-0.4.0.md) for published package and CLI identities.
