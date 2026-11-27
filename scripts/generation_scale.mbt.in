@@ -10,7 +10,7 @@ fn scale_random(n : Int, seed : UInt) -> Bytes {
 
 ///|
 fn scale_sha(data : Bytes) -> String {
-  let hex = StringBuilder(size_hint=64)
+  let hex = StringBuilder(capacity=64)
   for byte in @sha2.hash(data[:], kind=@sha2.Sha256) {
     hex.write_string(byte.to_hex())
   }

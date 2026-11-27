@@ -31,7 +31,7 @@ fn catalog_test_from_hex(hex : String) -> Bytes {
 
 ///|
 fn catalog_test_to_hex(bytes : Bytes) -> String {
-  let out = StringBuilder(size_hint=bytes.length() * 2)
+  let out = StringBuilder(capacity=bytes.length() * 2)
   for byte in bytes {
     out.write_string(byte.to_hex())
   }
@@ -312,8 +312,8 @@ test "verify_signed_candidates verifies all signatures before preparing any mani
     Err(
       @manifest.SignedCandidateError::Signature(
         index=1,
-        error=@manifest.KeyIdMismatch(..)
-      )
+        error=@manifest.KeyIdMismatch(..),
+      ),
     ) => ()
     _ =>
       abort("expected Signature(index=1, KeyIdMismatch) on poisoned candidate")
@@ -329,8 +329,8 @@ test "verify_signed_candidates verifies all signatures before preparing any mani
     Err(
       @manifest.SignedCandidateError::Signature(
         index=1,
-        error=@manifest.ManifestHashMismatch(..)
-      )
+        error=@manifest.ManifestHashMismatch(..),
+      ),
     ) => ()
     _ => abort("expected Signature(index=1, ManifestHashMismatch)")
   }
@@ -349,8 +349,8 @@ test "verify_signed_candidates verifies all signatures before preparing any mani
     Err(
       @manifest.SignedCandidateError::Signature(
         index=1,
-        error=@manifest.KeyIdMismatch(..)
-      )
+        error=@manifest.KeyIdMismatch(..),
+      ),
     ) => ()
     _ =>
       abort(
@@ -368,8 +368,8 @@ test "verify_signed_candidates verifies all signatures before preparing any mani
     Err(
       @manifest.SignedCandidateError::Manifest(
         index=1,
-        error=@manifest.InvalidJson(..)
-      )
+        error=@manifest.InvalidJson(..),
+      ),
     ) => ()
     _ =>
       abort("expected Manifest(index=1, InvalidJson) when all signatures pass")
@@ -384,8 +384,8 @@ test "verify_signed_candidates verifies all signatures before preparing any mani
     Err(
       @manifest.SignedCandidateError::Manifest(
         index=0,
-        error=@manifest.LimitExceeded(field="max_new_bytes", ..)
-      )
+        error=@manifest.LimitExceeded(field="max_new_bytes", ..),
+      ),
     ) => ()
     _ => abort("expected Manifest(index=0, LimitExceeded) under tight limits")
   }
@@ -802,7 +802,7 @@ test "release catalog strict JSON and schema validation rejections" {
       },
     ]) {
     Err(
-      @manifest.CatalogError::InvalidSchema(field="patches[0].from_version", ..)
+      @manifest.CatalogError::InvalidSchema(field="patches[0].from_version", ..),
     ) => ()
     _ => abort("accepted patch with unknown from_version")
   }
@@ -817,7 +817,7 @@ test "release catalog strict JSON and schema validation rejections" {
       },
     ]) {
     Err(
-      @manifest.CatalogError::InvalidSchema(field="patches[0].to_version", ..)
+      @manifest.CatalogError::InvalidSchema(field="patches[0].to_version", ..),
     ) => ()
     _ => abort("accepted patch with unknown to_version")
   }
@@ -832,7 +832,7 @@ test "release catalog strict JSON and schema validation rejections" {
       },
     ]) {
     Err(
-      @manifest.CatalogError::InvalidSchema(field="patches[0].to_version", ..)
+      @manifest.CatalogError::InvalidSchema(field="patches[0].to_version", ..),
     ) => ()
     _ => abort("accepted self-loop patch")
   }
@@ -850,7 +850,7 @@ test "release catalog strict JSON and schema validation rejections" {
       @manifest.CatalogError::InvalidSchema(
         field="patches[0].patch_size_bytes",
         ..
-      )
+      ),
     ) => ()
     _ => abort("accepted patch_size_bytes < 32")
   }
@@ -868,7 +868,7 @@ test "release catalog strict JSON and schema validation rejections" {
       @manifest.CatalogError::InvalidSchema(
         field="patches[0].manifest_sha256",
         ..
-      )
+      ),
     ) => ()
     _ => abort("accepted invalid manifest_sha256")
   }
@@ -1079,8 +1079,8 @@ test "release catalog strict JSON and schema validation rejections" {
       @manifest.CatalogError::LimitExceeded(
         field="max_catalog_file_bytes",
         value~,
-        limit=262144L
-      )
+        limit=262144L,
+      ),
     ) => assert_true(value > 262144L)
     _ =>
       abort(

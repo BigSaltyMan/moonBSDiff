@@ -295,7 +295,7 @@ def main():
     require(re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+', version()), 'invalid distribution version')
     sdk = pathlib.Path(os.environ['MOON_HOME']) if os.environ.get('MOON_HOME') else pathlib.Path(shutil.which('moon')).resolve().parent.parent
     toolchain = run(['moon', 'version', '--all'], cwd=ROOT)
-    require('moon 0.1.20261102 (ea07287 2026-11-02)' in toolchain and 'moonc v0.10.19+bee578715' in toolchain, 'wrong SDK')
+    require('moon 0.1.20261126 (ccd306a 2026-11-26)' in toolchain and 'moonc v1.0.0-rc1+3c0520448' in toolchain, 'wrong SDK')
     run([sys.executable, str(ROOT / 'scripts/build_cli.py'), '--release'], cwd=ROOT)
     require(not run(git + ['status', '--porcelain', '--untracked-files=no'], cwd=ROOT), 'release build changed tracked source')
     exe_name = 'moonbsdiff.exe' if system == 'windows' else 'moonbsdiff'

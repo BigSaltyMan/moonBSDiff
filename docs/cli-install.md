@@ -18,7 +18,7 @@ and [0.4.0 record](release-0.4.0.md) for published package and CLI identities.
 - `build-info.json`
 
 Intel macOS (`macos-x86_64`) is not built in CI because upstream MoonBit
-`0.10.19` does not publish `darwin-x86_64` native toolchains.
+`1.0.0-rc1` does not publish `darwin-x86_64` native toolchains.
 
 ## Choose, verify, and extract
 
@@ -81,7 +81,7 @@ release identities through a channel appropriate to your use.
 Four CI-built native targets are shipped starting with `0.6.0`:
 `windows-x86_64`, `linux-x86_64`, `linux-arm64`, and `macos-arm64` (earlier
 `0.5.x` archives covered `windows-x86_64` and `linux-x86_64` only; Intel macOS
-`macos-x86_64` is not built in CI because upstream MoonBit `0.10.19` does not
+`macos-x86_64` is not built in CI because upstream MoonBit `1.0.0-rc1` does not
 publish `darwin-x86_64` native toolchains). Read the selected platform's
 `runtime` entry in `build-info.json`: it records actual compiler, host/runner
 image, PE DLL imports, ELF loader/`NEEDED` libraries and glibc symbols, or
@@ -173,8 +173,8 @@ expected hash and demo output.
 
 ## Build/provenance procedure
 
-CI uses moon `0.1.20261102 (ea07287 2026-11-02)`, moonc
-`v0.10.19+bee578715`, the existing platform-native compiler environments, and
+CI uses moon `0.1.20261126 (ccd306a 2026-11-26)`, moonc
+`v1.0.0-rc1+3c0520448`, the existing platform-native compiler environments, and
 `python scripts/build_cli.py --release`. From a clean tracked source SHA:
 
 ```sh
@@ -191,7 +191,7 @@ exist; choose `--output` with a fresh path for another run.
 
 Per-platform files retain the exact project/BSDiff/Apache license materials,
 core NOTICE and pinned SDK credits. `docs/cli-sdk-credits.txt` copies CREDITS.md (only trailing whitespace normalized)
-from the verified 0.10.19+bee578715 Windows SDK. It also mentions
+from the verified `1.0.0-rc1+3c0520448` Windows SDK (identical to `0.10.19+bee578715`). It also mentions
 optional SDK tools; those tools and the SDK itself are not in the CLI archive.
 No C oracle program or Python implementation is bundled.
 
@@ -202,7 +202,7 @@ source SHA equals the workflow checkout, verifies hashes and embedded
 provenance, and emits the six public assets (the four archives,
 `build-info.json`, and `SHA256SUMS`; `0.5.0`–`0.5.4` releases emitted the
 two-platform / four-asset layout; Intel macOS `macos-x86_64` is excluded because
-upstream MoonBit `0.10.19` does not publish `darwin-x86_64` native toolchains). `build-info.json` is external so archive
+upstream MoonBit `1.0.0-rc1` does not publish `darwin-x86_64` native toolchains). `build-info.json` is external so archive
 hashes are not self-referential. Ordinary pushes only build and verify; they
 never create tags or releases. Formal publication reuses those exact
 successful-CI bytes. Fixed archive metadata does not imply a bit-level

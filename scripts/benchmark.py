@@ -43,7 +43,7 @@ def main():
     tools,oracle=verified_tools()
     source_sha=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip()
     version=subprocess.check_output(['moon','version','--all'],text=True)
-    assert 'moon 0.1.20261102 (ea07287 2026-11-02)' in version and 'moonc v0.10.19+bee578715' in version
+    assert 'moon 0.1.20261126 (ccd306a 2026-11-26)' in version and 'moonc v1.0.0-rc1+3c0520448' in version
     folder=ROOT/'_build/benchmarks'/('run-'+uuid.uuid4().hex);folder.mkdir(parents=True)
     # Plan is fixed before builds/timing. No tuning/reselection after results.
     plan=dict(case_ids=IDS,warmups=1,repeats=3,scales=[4096,3962],method='subprocess elapsed perf_counter, startup + CLI file IO + operation + close/delivery; excludes compile and Python full-byte/hash comparison; core API latency not measured')

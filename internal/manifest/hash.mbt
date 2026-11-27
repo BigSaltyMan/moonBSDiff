@@ -3,7 +3,7 @@ pub const MAX_MANIFEST_BYTES : Int32 = 16384
 
 ///|
 pub fn digest_hex(digest : Bytes) -> String {
-  let hex = StringBuilder(size_hint=64)
+  let hex = StringBuilder(capacity=64)
   for byte in digest {
     hex.write_string(byte.to_hex())
   }

@@ -170,7 +170,7 @@ python scripts/run_update_demo.py --cli _build/bin/macos/moonbsdiff
 
 ### 环境要求
 
-- **MoonBit 工具链**：`moon 0.1.20261102`、`moonc v0.10.19+bee578715`
+- **MoonBit 工具链**：`moon 0.1.20261126`、`moonc v1.0.0-rc1+3c0520448`
 - **Python**：构建、打包与演示脚本需 `3.10+`（CLI `unittest` 测试套件因使用 `contextlib.chdir` 需 `3.11+`）
 - **Node.js**：运行 `--target js` 测试与 [Web Studio](https://github.com/BigSaltyMan/moonBSDiff/blob/master/examples/web-studio/README.md) 校验所需
 - **C 编译器**：原生 C 工具链（Windows 下请在已初始化的 MSVC 开发者终端中运行）
@@ -187,7 +187,7 @@ python scripts/test_web_studio.py -v
 
 构建脚本会输出原生可执行文件到 `_build/bin/windows/moonbsdiff.exe`、`_build/bin/linux/moonbsdiff` 或 `_build/bin/macos/moonbsdiff`。
 
-发行打包覆盖 **4 个 CI 原生目标**（`windows-x86_64`、`linux-x86_64`、`linux-arm64`、`macos-arm64`），共产出 **6 个发布产物**（4 份归档 + `SHA256SUMS` + `build-info.json`）。由于上游 MoonBit `0.10.19` 未提供 `darwin-x86_64` 原生工具链，CI 不构建 Intel macOS（`macos-x86_64`）。
+发行打包覆盖 **4 个 CI 原生目标**（`windows-x86_64`、`linux-x86_64`、`linux-arm64`、`macos-arm64`），共产出 **6 个发布产物**（4 份归档 + `SHA256SUMS` + `build-info.json`）。由于上游 MoonBit `1.0.0-rc1` 未提供 `darwin-x86_64` 原生工具链，CI 不构建 Intel macOS（`macos-x86_64`）。
 
 详见 [兼容性与 BSDiff 互操作说明](https://github.com/BigSaltyMan/moonBSDiff/blob/master/docs/compatibility.md) 与 [CI 运行记录](https://github.com/BigSaltyMan/moonBSDiff/actions/workflows/ci.yml)。
 

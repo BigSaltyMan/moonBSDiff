@@ -1,8 +1,8 @@
 {
   "schema": 1,
   "toolchain": [
-    "moon 0.1.20261102 (ea07287 2026-11-02)",
-    "moonc v0.10.19+bee578715 (2026-11-02)"
+    "moon 0.1.20261126 (ccd306a 2026-11-26)",
+    "moonc v1.0.0-rc1+3c0520448 (2026-11-26)"
   ],
   "target": "wasm-gc",
   "flags": [
@@ -126,6 +126,16 @@
         "size": 3962,
         "sha256": "f67d87bd8b0a9a5155f51f8116edfccc0e6ef8f16b81b02d0dacc5be5aaccb4c"
       }
+    },
+    "0.7.1": {
+      "v1": {
+        "size": 3956,
+        "sha256": "360a09fbab55f0e5ec53f9e1d7a0c3291ba1bd7229907392e089b007c74e02a7"
+      },
+      "v2": {
+        "size": 3956,
+        "sha256": "18e981666b4f7904753b70546f5c4d2f09bae03b4104c94f656012a089dc4285"
+      }
     }
   },
   "version_0_2_0_origin": "Independent direct Linux/WSL compilation, same pinned compiler/flags; each output differs from verified 0.1.0 bytes only at offset 3888 in custom name section (module @0.1.0 -> @0.2.0). No code/data section change and no diff/apply used to derive expectations. Original expected field retains Commit 14/15 history.",
@@ -136,5 +146,6 @@
   "version_0_5_3_origin": "Independent direct Ubuntu 24.04 WSL compilation with the pinned compiler and wasm-gc --release --strip. Normalizing the single @0.5.3 custom-name string to @0.5.2 reproduces both fixed 0.5.2 whole-file hashes. No diff/apply output was used.",
   "version_0_5_4_origin": "Independent direct Ubuntu 24.04 WSL compilation with the pinned compiler and wasm-gc --release --strip. Normalizing the single @0.5.4 custom-name string to @0.5.3 reproduces both fixed 0.5.3 whole-file hashes. No diff/apply output was used.",
   "version_0_6_0_origin": "Independent direct Ubuntu 24.04 WSL compilation with the pinned compiler and wasm-gc --release --strip. Normalizing the single @0.6.0 custom-name string to @0.5.4 reproduces both fixed 0.5.4 whole-file hashes. No diff/apply output was used.",
-  "version_0_7_0_origin": "Independent direct Ubuntu 24.04 WSL compilation with the pinned compiler and wasm-gc --release --strip. Normalizing the single @0.7.0 custom-name string to @0.6.0 reproduces both fixed 0.6.0 whole-file hashes. No diff/apply output was used."
+  "version_0_7_0_origin": "Independent direct Ubuntu 24.04 WSL compilation with the pinned compiler and wasm-gc --release --strip. Normalizing the single @0.7.0 custom-name string to @0.6.0 reproduces both fixed 0.6.0 whole-file hashes. No diff/apply output was used.",
+  "version_0_7_1_origin": "Independent direct Ubuntu 24.04 WSL compilation with moonc v1.0.0-rc1+3c0520448 (2026-11-26) and wasm-gc --release --strip. Both modules shrink from 3962 to 3956 bytes under 1.0.0-rc1 codegen; no diff/apply output was used."
 }

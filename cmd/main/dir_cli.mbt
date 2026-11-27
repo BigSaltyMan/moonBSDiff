@@ -94,7 +94,7 @@ fn dir_delta_diagnostic(err : @manifest.DirDeltaError) -> String {
 
 ///|
 fn replace_slash_with_backslash(s : String) -> String {
-  let sb = StringBuilder(size_hint=s.length())
+  let sb = StringBuilder(capacity=s.length())
   for ch in s {
     if ch == '/' {
       sb.write_char('\\')
@@ -162,7 +162,7 @@ fn fold_case_path(op : String, s : String) -> String {
 
 ///|
 fn ascii_to_upper(s : String) -> String {
-  let sb = StringBuilder(size_hint=s.length())
+  let sb = StringBuilder(capacity=s.length())
   for ch in s {
     let c = ch.to_int()
     if c >= 97 && c <= 122 {
@@ -206,7 +206,7 @@ fn is_win_dos_device_name(seg : String) -> Bool {
   while stem_chars.length() > 0 && stem_chars[stem_chars.length() - 1] == ' ' {
     stem_chars.pop() |> ignore
   }
-  let sb = StringBuilder(size_hint=stem_chars.length())
+  let sb = StringBuilder(capacity=stem_chars.length())
   for ch in stem_chars {
     sb.write_char(ch)
   }

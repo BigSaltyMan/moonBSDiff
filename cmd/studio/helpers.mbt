@@ -129,7 +129,7 @@ fn decode_hex_bytes(hex : String) -> Result[Bytes, String] {
 
 ///|
 fn encode_hex_bytes(bytes : Bytes) -> String {
-  let out = StringBuilder(size_hint=bytes.length() * 2)
+  let out = StringBuilder(capacity=bytes.length() * 2)
   for b in bytes {
     out.write_string(b.to_hex())
   }
@@ -226,6 +226,37 @@ fn tamper_bytes(bytes : Bytes) -> Bytes {
 }
 
 ///|
+fn json_exceeds_max_depth(text : StringView, max_depth : Int32) -> Bool {
+  let mut depth = 0
+  let mut in_string = false
+  let mut escaped = false
+  for i = 0; i < text.length(); i = i + 1 {
+    let ch = text.code_unit_at(i)
+    if in_string {
+      if escaped {
+        escaped = false
+      } else if ch == 0x5c {
+        escaped = true
+      } else if ch == 0x22 {
+        in_string = false
+      }
+    } else if ch == 0x22 {
+      in_string = true
+    } else if ch == 0x7b || ch == 0x5b {
+      depth = depth + 1
+      if depth > max_depth {
+        return true
+      }
+    } else if ch == 0x7d || ch == 0x5d {
+      if depth > 0 {
+        depth = depth - 1
+      }
+    }
+  }
+  false
+}
+
+///|
 fn parse_json_object_or_empty(
   text : String,
 ) -> Result[Map[String, @json.Json], String] {
@@ -233,7 +264,10 @@ fn parse_json_object_or_empty(
   if trimmed.length() == 0 {
     return Ok(Map([]))
   }
-  let parsed = @json.parse(trimmed, max_nesting_depth=16) catch {
+  if json_exceeds_max_depth(trimmed, 16) {
+    return Err("invalid request JSON: nesting depth limit exceeded")
+  }
+  let parsed = @json.parse(trimmed) catch {
     err => return Err("invalid request JSON: " + @debug.to_string(err))
   }
   match parsed {

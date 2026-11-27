@@ -112,7 +112,7 @@ def run(args):
     print('run directory:',directory,flush=True)
     try:
         version=run_process(['moon','version','--all'],directory/'toolchain',cwd=ROOT).stdout.decode('utf8')
-        require('moon 0.1.20261102 (ea07287 2026-11-02)' in version and 'moonc v0.10.19+bee578715 (2026-11-02)' in version,'wrong isolated toolchain')
+        require('moon 0.1.20261126 (ccd306a 2026-11-26)' in version and 'moonc v1.0.0-rc1+3c0520448 (2026-11-26)' in version,'wrong isolated toolchain')
         oracle_phase(directory,'prepare')
         prepared=read_json((directory/'prepared.json').read_text());require(prepared['run_id']==request['run_id'] and prepared['manifest_sha256']==request['manifest_sha256'],'stale prepared metadata')
         require([r['case_id'] for r in prepared['cases']]==all_ids(request,manifest),'prepared case set mismatch')

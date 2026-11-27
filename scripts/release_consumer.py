@@ -28,6 +28,7 @@ PROBES = {
     "0.5.4": "scripts/release_consumer_050.mbt.in",
     "0.6.0": "scripts/release_consumer_060.mbt.in",
     "0.7.0": "scripts/release_consumer_070.mbt.in",
+    "0.7.1": "scripts/release_consumer_070.mbt.in",
 }
 MANIFEST_PROBE_PATCH_CAPS = {
     "0.5.0": 65536,
@@ -37,6 +38,7 @@ MANIFEST_PROBE_PATCH_CAPS = {
     "0.5.4": 131072,
     "0.6.0": 131072,
     "0.7.0": 131072,
+    "0.7.1": 131072,
 }
 MANIFEST_PROBE_PACKAGE = """import {
   "BigSaltyMan/moonbsdiff",
@@ -100,7 +102,7 @@ def main():
         return result.stdout.decode("utf8")
 
     toolchain = run(["moon", "version", "--all"])
-    require("moonc v0.10.19+bee578715" in toolchain, "wrong consumer compiler")
+    require("moonc v1.0.0-rc1+3c0520448" in toolchain, "wrong consumer compiler")
     module = project / "moon.mod"
     module.write_text('name = "releasecheck/consumer"\nversion = "0.1.0"\n', encoding="utf8")
     if expected_marker:

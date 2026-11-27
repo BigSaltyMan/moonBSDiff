@@ -61,7 +61,7 @@ pub(all) enum DirDeltaError {
   IdentityMismatch(
     path~ : String,
     object~ : ContentObject,
-    difference~ : IdentityDifference
+    difference~ : IdentityDifference,
   )
   ApplyError(path~ : String, error~ : @moonbsdiff.BsdiffError)
   Signature(SignatureError)
@@ -96,13 +96,13 @@ priv enum DirEntryActionRepr {
     old_identity~ : DirIdentityRepr,
     new_identity~ : DirIdentityRepr,
     patch_identity~ : DirIdentityRepr,
-    blob_name~ : String
+    blob_name~ : String,
   )
   Added(
     path~ : String,
     identity~ : DirIdentityRepr,
     blob_name~ : String,
-    full_fallback~ : Bool
+    full_fallback~ : Bool,
   )
   Deleted(path~ : String, old_identity~ : DirIdentityRepr)
 }
@@ -124,13 +124,13 @@ pub(all) enum DirEntryAction {
     old_identity~ : ContentIdentity,
     new_identity~ : ContentIdentity,
     patch_identity~ : ContentIdentity,
-    blob_name~ : String
+    blob_name~ : String,
   )
   Added(
     path~ : String,
     identity~ : ContentIdentity,
     blob_name~ : String,
-    full_fallback~ : Bool
+    full_fallback~ : Bool,
   )
   Deleted(path~ : String, old_identity~ : ContentIdentity)
 }
@@ -151,7 +151,7 @@ pub impl @debug.Debug for DirEntryAction with fn to_repr(self) {
       old_identity~,
       new_identity~,
       patch_identity~,
-      blob_name~
+      blob_name~,
     ) =>
       Patched(
         path~,
@@ -613,7 +613,7 @@ fn dir_tree_sha256_from_sorted_identities(
   if items.length() == 0 {
     return @manifest_support.sha256_hex(b"")
   }
-  let sb = StringBuilder(size_hint=items.length() * 96)
+  let sb = StringBuilder(capacity=items.length() * 96)
   for item in items {
     let (path, identity) = item
     sb.write_string(identity.hash)
@@ -703,7 +703,7 @@ fn dir_entry_action_to_json(action : DirEntryAction) -> @json.Json {
       old_identity~,
       new_identity~,
       patch_identity~,
-      blob_name~
+      blob_name~,
     ) =>
       @json.Json::object({
         "action": @json.Json::string("patched"),
@@ -1132,17 +1132,18 @@ fn dir_parse_manifest_inner(data : Bytes) -> DirManifest raise DirDeltaFault {
   let text = @utf8.decode(data[:], ignore_bom=false) catch {
     _ => raise DirRejected(InvalidEncoding)
   }
+  if json_exceeds_max_depth(text[:], 16) {
+    raise DirRejected(
+      InvalidJson(field=None, detail="nesting depth limit exceeded"),
+    )
+  }
   let json = @json.parse(
     text[:],
-    max_nesting_depth=16,
     reject_duplicate_keys=true,
     preserve_number_repr=true,
   ) catch {
     error => {
-      let field = match error {
-        @json.DuplicateKey(_, name) => Some(name)
-        _ => None
-      }
+      let field = json_duplicate_key_field(error)
       raise DirRejected(InvalidJson(field~, detail=@debug.to_string(error)))
     }
   }
@@ -1268,7 +1269,7 @@ fn dir_parse_manifest_inner(data : Bytes) -> DirManifest raise DirDeltaFault {
         old_identity~,
         new_identity~,
         patch_identity~,
-        blob_name~
+        blob_name~,
       ) => {
         if seen_blobs.contains(blob_name) {
           raise DirRejected(DuplicateBlob(blob_name))
@@ -1525,17 +1526,16 @@ fn dir_parse_signature_envelope(
   let text = @utf8.decode(data[:], ignore_bom=false) catch {
     _ => return Err(InvalidEncoding)
   }
+  if json_exceeds_max_depth(text[:], 4) {
+    return Err(InvalidJson(field=None, detail="nesting depth limit exceeded"))
+  }
   let json = @json.parse(
     text[:],
-    max_nesting_depth=4,
     reject_duplicate_keys=true,
     preserve_number_repr=true,
   ) catch {
     error => {
-      let field = match error {
-        @json.DuplicateKey(_, name) => Some(name)
-        _ => None
-      }
+      let field = json_duplicate_key_field(error)
       return Err(InvalidJson(field~, detail=@debug.to_string(error)))
     }
   }
@@ -2414,7 +2414,7 @@ pub fn dir_apply(
         old_identity~,
         new_identity~,
         patch_identity~,
-        blob_name~
+        blob_name~,
       ) => {
         match
           dir_check_limit(

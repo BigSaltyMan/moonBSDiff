@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 0.7.1
+
+- **MoonBit `1.0.0-rc1` toolchain migration (`moonc v1.0.0-rc1+3c0520448`)**:
+  - Upgrade the pinned CI, verification, and release toolchain from `moonc v0.10.19+bee578715` to `moonc v1.0.0-rc1+3c0520448` (`moon 0.1.20261126`, `moonrun 0.1.20261126`).
+  - Migrate deprecated `1.0.0-rc1` stdlib calls (`StringBuilder(capacity=...)`, `@string.parse_bigint`, `@json.Json(...)`), replace the deprecated `@json.parse(max_nesting_depth=...)` label with an explicit upfront `json_exceeds_max_depth` scanner preserving identical depth-limit enforcement, and eliminate `@json.ParseError` constructor pattern matching (`Warning [0014]`) so all targets pass `--deny-warn` with zero warnings.
+  - Re-verify `examples/wasm-update` fixed Wasm-GC expectations under `moonc v1.0.0-rc1+3c0520448` and sync formatting across all packages.
+
 ## 0.7.0 — 2026-11-25
 
 See [0.7.0 release evidence](docs/release-0.7.0.md) for exact source, package, and CLI identities.

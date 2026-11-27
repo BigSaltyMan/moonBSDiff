@@ -36,7 +36,7 @@ test "manifest public bundle round trip" {
 
 ///|
 fn bundle_hex(bytes : Bytes) -> String {
-  let output = StringBuilder(size_hint=bytes.length() * 2)
+  let output = StringBuilder(capacity=bytes.length() * 2)
   for byte in bytes {
     output.write_string(byte.to_hex())
   }

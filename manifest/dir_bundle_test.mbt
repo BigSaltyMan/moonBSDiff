@@ -77,7 +77,7 @@ fn dir_test_blobs_to_array(
 
 ///|
 fn dir_test_repeat_char(ch : String, count : Int32) -> String {
-  let sb = StringBuilder(size_hint=count)
+  let sb = StringBuilder(capacity=count)
   for _i = 0; _i < count; _i = _i + 1 {
     sb.write_string(ch)
   }
@@ -270,7 +270,7 @@ test "dir bundle realistic multi-file app update round trip" {
       @manifest.Renamed(
         path="docs/guide.md",
         from_path="docs/old-guide.md",
-        identity~
+        identity~,
       ) => {
         assert_true(
           identity == @manifest.ContentIdentity::of_bytes(guide_bytes),
@@ -283,7 +283,7 @@ test "dir bundle realistic multi-file app update round trip" {
         old_identity~,
         new_identity~,
         patch_identity~,
-        blob_name~
+        blob_name~,
       ) => {
         assert_true(
           old_identity == @manifest.ContentIdentity::of_bytes(app_old),
@@ -299,7 +299,7 @@ test "dir bundle realistic multi-file app update round trip" {
         path="config/version.txt",
         identity~,
         blob_name~,
-        full_fallback=true
+        full_fallback=true,
       ) => {
         assert_true(
           identity == @manifest.ContentIdentity::of_bytes(version_new),
@@ -311,7 +311,7 @@ test "dir bundle realistic multi-file app update round trip" {
         path="assets/new-banner.txt",
         identity~,
         blob_name~,
-        full_fallback=false
+        full_fallback=false,
       ) => {
         assert_true(identity == @manifest.ContentIdentity::of_bytes(new_banner))
         assert_true(blob_name.has_suffix(".full"))
@@ -710,8 +710,8 @@ test "dir bundle signed update key rotation tampering and cross-domain replay" {
       @manifest.IdentityMismatch(
         path="bin/service",
         object=@manifest.Patch,
-        difference=@manifest.Sha256
-      )
+        difference=@manifest.Sha256,
+      ),
     ) => ()
     other =>
       abort(
@@ -742,8 +742,8 @@ test "dir bundle signed update key rotation tampering and cross-domain replay" {
       @manifest.IdentityMismatch(
         path="notes.txt",
         object=@manifest.Restored,
-        difference=@manifest.Sha256
-      )
+        difference=@manifest.Sha256,
+      ),
     ) => ()
     other =>
       abort(

@@ -5,6 +5,7 @@ import {
   "moonbitlang/core/encoding/utf8",
   "moonbitlang/core/json",
   "moonbitlang/core/priority_queue",
+  "moonbitlang/core/string",
   "moonbitstack/mooncrypt/sign/ed25519",
   "moonbitstack/mooncrypt/spec",
 }

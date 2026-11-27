@@ -240,7 +240,7 @@ fn serialize_dir_entries(
         old_identity~,
         new_identity~,
         patch_identity~,
-        blob_name~
+        blob_name~,
       ) => {
         let saved = if new_identity.size > patch_identity.size {
           new_identity.size - patch_identity.size
@@ -269,7 +269,7 @@ fn serialize_dir_entries(
         path~,
         identity~,
         blob_name~,
-        full_fallback~
+        full_fallback~,
       ) => {
         let old_sz = if full_fallback {
           match old_sizes.get(path) {

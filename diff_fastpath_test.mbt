@@ -323,7 +323,7 @@ test "diff-fastpath-case4-middle-sort-reduction-and-tail-bridge" {
         stage: Sorting,
         field: Some("sort_remaining"),
         ..
-      }
+      },
     ),
   )
 

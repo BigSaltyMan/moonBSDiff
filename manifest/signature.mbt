@@ -51,18 +51,18 @@ let ed25519_two_255 : BigInt = (1 : BigInt) << 255
 let ed25519_p : BigInt = ed25519_two_255 - 19
 
 ///|
-let ed25519_d : BigInt = BigInt::from_string(
+let ed25519_d : BigInt = try! @string.parse_bigint(
   "37095705934669439343138083508754565189542113879843219016388785533085940283555",
 )
 
 ///|
-let ed25519_sqrt_m1 : BigInt = BigInt::from_string(
+let ed25519_sqrt_m1 : BigInt = try! @string.parse_bigint(
   "19681161376707505956807079304988542015446066515923890162744021073123829784752",
 )
 
 ///|
 let ed25519_l : BigInt = ((1 : BigInt) << 252) +
-  BigInt::from_string("27742317777372353535851937790883648493")
+  (try! @string.parse_bigint("27742317777372353535851937790883648493"))
 
 ///|
 let ed25519_small_order_points : Array[String] = [
@@ -240,22 +240,6 @@ fn parse_lowercase_hex(
 }
 
 ///|
-fn format_redacted_parse_error(error : @json.ParseError) -> String {
-  match error {
-    @json.InvalidChar(pos, _) =>
-      "invalid character at line \{pos.line}, column \{pos.column}"
-    @json.InvalidNumber(pos, _) =>
-      "invalid number at line \{pos.line}, column \{pos.column}"
-    @json.InvalidEof => "unexpected end of input"
-    @json.InvalidIdentEscape(pos) =>
-      "invalid escape at line \{pos.line}, column \{pos.column}"
-    @json.DepthLimitExceeded => "nesting depth limit exceeded"
-    @json.DuplicateKey(pos, _) =>
-      "duplicate key at line \{pos.line}, column \{pos.column}"
-  }
-}
-
-///|
 fn parse_signature_envelope(
   data : Bytes,
   limit : Int32,
@@ -275,19 +259,18 @@ fn parse_signature_envelope(
   let text = @utf8.decode(data[:], ignore_bom=false) catch {
     _ => return Err(InvalidEncoding)
   }
+  if json_exceeds_max_depth(text[:], 4) {
+    return Err(InvalidJson(field=None, detail="nesting depth limit exceeded"))
+  }
   let json = @json.parse(
     text[:],
-    max_nesting_depth=4,
     reject_duplicate_keys=true,
     preserve_number_repr=true,
   ) catch {
     error => {
-      let field = match error {
-        @json.DuplicateKey(_, name) => Some(name)
-        _ => None
-      }
+      let field = json_duplicate_key_field(error)
       let detail = if redact_detail {
-        format_redacted_parse_error(error)
+        json_format_redacted_parse_error(error)
       } else {
         @debug.to_string(error)
       }

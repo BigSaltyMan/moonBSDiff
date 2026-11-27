@@ -3,7 +3,7 @@
 pub fn studio_version() -> String {
   j_obj({
     "studio": j_str("moonbsdiff-web-studio"),
-    "studio_version": j_str("0.7.0"),
+    "studio_version": j_str(@manifest_support.PRODUCER_VERSION),
     "engine_version": j_str(@manifest_support.PRODUCER_VERSION),
     "target": j_str("js"),
     "capabilities": j_arr([

@@ -164,7 +164,7 @@ def measure(stage, output, prior):
         require(prior is None, 'first stage cannot have prior results')
         previous = None
     toolchain = subprocess.check_output(['moon', 'version', '--all'], text=True)
-    require('moon 0.1.20261102 (ea07287 2026-11-02)' in toolchain and 'moonc v0.10.19+bee578715' in toolchain, 'wrong SDK')
+    require('moon 0.1.20261126 (ccd306a 2026-11-26)' in toolchain and 'moonc v1.0.0-rc1+3c0520448' in toolchain, 'wrong SDK')
     folder = ROOT/'_build/generation-scales'/('run-'+uuid.uuid4().hex)
     folder.mkdir(parents=True)
     n = SIZES[stage]

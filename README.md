@@ -170,7 +170,7 @@ When using a downloaded release archive, replace `--cli` with the extracted bina
 
 ### Prerequisites
 
-- **MoonBit toolchain**: `moon 0.1.20261102`, `moonc v0.10.19+bee578715`
+- **MoonBit toolchain**: `moon 0.1.20261126`, `moonc v1.0.0-rc1+3c0520448`
 - **Python**: `3.10+` for build, packaging, and demo scripts (`3.11+` for the CLI `unittest` suite, which uses `contextlib.chdir`)
 - **Node.js**: required for `--target js` tests and [Web Studio](https://github.com/BigSaltyMan/moonBSDiff/blob/master/examples/web-studio/README.md) verification
 - **C compiler**: Native C toolchain (on Windows, run from an initialized MSVC developer shell)
@@ -187,7 +187,7 @@ python scripts/test_web_studio.py -v
 
 The build script writes the native CLI to `_build/bin/windows/moonbsdiff.exe`, `_build/bin/linux/moonbsdiff`, or `_build/bin/macos/moonbsdiff`.
 
-Release packaging covers **4 CI-built native targets** (`windows-x86_64`, `linux-x86_64`, `linux-arm64`, `macos-arm64`), emitting **6 release assets** (`4 archives + SHA256SUMS + build-info.json`). Intel macOS (`macos-x86_64`) is not built in CI because upstream MoonBit `0.10.19` does not publish `darwin-x86_64` native toolchains.
+Release packaging covers **4 CI-built native targets** (`windows-x86_64`, `linux-x86_64`, `linux-arm64`, `macos-arm64`), emitting **6 release assets** (`4 archives + SHA256SUMS + build-info.json`). Intel macOS (`macos-x86_64`) is not built in CI because upstream MoonBit `1.0.0-rc1` does not publish `darwin-x86_64` native toolchains.
 
 See [compatibility & BSDiff interoperability](https://github.com/BigSaltyMan/moonBSDiff/blob/master/docs/compatibility.md) and [CI workflow results](https://github.com/BigSaltyMan/moonBSDiff/actions/workflows/ci.yml).
 

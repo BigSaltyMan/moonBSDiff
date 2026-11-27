@@ -128,6 +128,109 @@ fn content_identity(
 }
 
 ///|
+fn json_exceeds_max_depth(text : StringView, max_depth : Int32) -> Bool {
+  let mut depth = 0
+  let mut in_string = false
+  let mut escaped = false
+  for i = 0; i < text.length(); i = i + 1 {
+    let ch = text.code_unit_at(i)
+    if in_string {
+      if escaped {
+        escaped = false
+      } else if ch == 0x5c {
+        escaped = true
+      } else if ch == 0x22 {
+        in_string = false
+      }
+    } else if ch == 0x22 {
+      in_string = true
+    } else if ch == 0x7b || ch == 0x5b {
+      depth = depth + 1
+      if depth > max_depth {
+        return true
+      }
+    } else if ch == 0x7d || ch == 0x5d {
+      if depth > 0 {
+        depth = depth - 1
+      }
+    }
+  }
+  false
+}
+
+///|
+fn json_parse_error_loc(pos : @json.Json) -> String? {
+  match pos {
+    @json.Object(fields) =>
+      match (fields.get("line"), fields.get("column")) {
+        (Some(@json.Number(line, ..)), Some(@json.Number(col, ..))) =>
+          Some("line \{line.to_int()}, column \{col.to_int()}")
+        _ => None
+      }
+    _ => None
+  }
+}
+
+///|
+fn json_duplicate_key_field(error : @json.ParseError) -> String? {
+  match @json.Json(error) {
+    @json.Array([@json.String("DuplicateKey"), _, @json.String(name)]) =>
+      Some(name)
+    @json.Object(fields) =>
+      match (fields.get("$tag"), fields.get("1")) {
+        (Some(@json.String("DuplicateKey")), Some(@json.String(name))) =>
+          Some(name)
+        _ => None
+      }
+    _ => None
+  }
+}
+
+///|
+fn json_format_redacted_parse_error(error : @json.ParseError) -> String {
+  let (tag, pos) : (String, @json.Json?) = match @json.Json(error) {
+    @json.String(t) => (t, None)
+    @json.Array([@json.String(t)]) => (t, None)
+    @json.Array([@json.String(t), p, ..]) => (t, Some(p))
+    @json.Object(fields) =>
+      match fields.get("$tag") {
+        Some(@json.String(t)) => (t, fields.get("0"))
+        _ => ("", None)
+      }
+    _ => ("", None)
+  }
+  let loc_opt = match pos {
+    Some(p) => json_parse_error_loc(p)
+    None => None
+  }
+  match tag {
+    "InvalidChar" =>
+      match loc_opt {
+        Some(loc) => "invalid character at \{loc}"
+        None => "invalid character"
+      }
+    "InvalidNumber" =>
+      match loc_opt {
+        Some(loc) => "invalid number at \{loc}"
+        None => "invalid number"
+      }
+    "InvalidIdentEscape" =>
+      match loc_opt {
+        Some(loc) => "invalid escape at \{loc}"
+        None => "invalid escape"
+      }
+    "DuplicateKey" =>
+      match loc_opt {
+        Some(loc) => "duplicate key at \{loc}"
+        None => "duplicate key"
+      }
+    "InvalidEof" => "unexpected end of input"
+    "DepthLimitExceeded" => "nesting depth limit exceeded"
+    _ => "invalid json"
+  }
+}
+
+///|
 fn parse_manifest(
   data : Bytes,
   limits : @moonbsdiff.Limits,
@@ -138,17 +241,16 @@ fn parse_manifest(
   let text = @utf8.decode(data[:], ignore_bom=false) catch {
     _ => raise Rejected(InvalidEncoding)
   }
+  if json_exceeds_max_depth(text[:], 8) {
+    raise Rejected(InvalidJson(field=None, detail="DepthLimitExceeded"))
+  }
   let json = @json.parse(
     text[:],
-    max_nesting_depth=8,
     reject_duplicate_keys=true,
     preserve_number_repr=true,
   ) catch {
     error => {
-      let field = match error {
-        @json.DuplicateKey(_, name) => Some(name)
-        _ => None
-      }
+      let field = json_duplicate_key_field(error)
       raise Rejected(InvalidJson(field~, detail=@debug.to_string(error)))
     }
   }

@@ -25,12 +25,12 @@ Windows and Linux `x86_64` archives; unreleased packaging expands the CI-built
 release matrix to 4 targets (`windows-x86_64`, `linux-x86_64`, `linux-arm64`,
 and `macos-arm64`) and 6 release assets (`4 archives + SHA256SUMS +
 build-info.json`). Intel macOS (`macos-x86_64`) is not built in CI because
-upstream MoonBit `0.10.19` does not publish `darwin-x86_64` native toolchains.
+upstream MoonBit `1.0.0-rc1` does not publish `darwin-x86_64` native toolchains.
 Source builds below require the SDK/compiler; running the prebuilt CLI does not.
 
 Current CI-built native CLI platform scope covers Windows (`x86_64`), Linux
-(`x86_64` and `arm64`), and macOS (`arm64`), built with `moon 0.1.20261102
-(ea07287)`, `moonc v0.10.19+bee578715`, and `moonrun 0.1.20261102`. The root
+(`x86_64` and `arm64`), and macOS (`arm64`), built with `moon 0.1.20261126
+(ccd306a)`, `moonc v1.0.0-rc1+3c0520448`, and `moonrun 0.1.20261126`. The root
 and `manifest` libraries remain pure MoonBit and run on Native, JS, and Wasm-GC.
 
 From the repository root with that isolated toolchain on PATH, Python 3 and a
@@ -44,7 +44,7 @@ python scripts/build_cli.py --check-version
 On Windows initialize the MSVC developer environment first (the verified local
 script is `C:\Program Files\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvars64.bat`).
 The script generates `internal/manifest/version.mbt` from the module's `version`
-field in `moon.mod` (currently `0.7.0`). The CLI and manifest serializer share
+field in `moon.mod` (currently `0.7.1`). The CLI and manifest serializer share
 that version. The script then builds `cmd/main` for native and copies the
 artifact to:
 

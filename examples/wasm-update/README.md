@@ -2,7 +2,7 @@
 
 The repository-owned v1/v2 MoonBit programs compute adjusted_size(40) as 41/42.
 Both are real Wasm-GC executables, not renamed files. Use the pinned toolchain:
-moon 0.1.20261102 (ea07287), moonc v0.10.19+bee578715 (2026-11-02), Node for the
+moon 0.1.20261126 (ccd306a), moonc v1.0.0-rc1+3c0520448 (2026-11-26), Node for the
 memory example, Python 3 for orchestration, and a native C compiler for the CLI.
 On Windows initialize an MSVC developer shell. From repository root:
 
@@ -28,7 +28,8 @@ refresh it from restored bytes. The original expected field retains the 0.1.0
 Commit 14/15 evidence. Version-keyed expectations also cover 0.2.0: direct
 compilation changed only byte 3888 of each Wasm custom name section, from
 module @0.1.0 to @0.2.0; code/data bytes are identical. Unknown module versions
-fail rather than selecting an arbitrary expectation. Each module is 3962 bytes, below CLI generation
+fail rather than selecting an arbitrary expectation. Each module is 3956 bytes
+under 1.0.0-rc1 (`0.7.1`, down from 3962 bytes under 0.10.19), below CLI generation
 limits. The script rejects a toolchain/source/module identity difference rather
 than silently accepting platform drift. Other platforms must reproduce exactly;
 final CI results establish which hosts did so. No cross-compiler reproducibility

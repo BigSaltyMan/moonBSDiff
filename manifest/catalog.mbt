@@ -203,7 +203,7 @@ pub(all) enum CatalogError {
   DowngradeRejected(
     current_version~ : Int64,
     target_version~ : Int64,
-    min_version~ : Int64
+    min_version~ : Int64,
   )
   UnknownVersion(version~ : Int64)
   CurrentIdentityMismatch(version~ : Int64, difference~ : IdentityDifference)
@@ -1412,17 +1412,16 @@ pub fn ReleaseCatalog::from_json_bytes(
   let text = @utf8.decode(data[:], ignore_bom=false) catch {
     _ => return Err(InvalidEncoding)
   }
+  if json_exceeds_max_depth(text[:], 8) {
+    return Err(InvalidJson(field=None, detail="nesting depth limit exceeded"))
+  }
   let json = @json.parse(
     text[:],
-    max_nesting_depth=8,
     reject_duplicate_keys=true,
     preserve_number_repr=true,
   ) catch {
     error => {
-      let field = match error {
-        @json.DuplicateKey(_, name) => Some(name)
-        _ => None
-      }
+      let field = json_duplicate_key_field(error)
       return Err(InvalidJson(field~, detail=@debug.to_string(error)))
     }
   }

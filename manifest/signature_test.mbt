@@ -31,7 +31,7 @@ fn test_from_hex(hex : String) -> Bytes {
 
 ///|
 fn test_to_hex(bytes : Bytes) -> String {
-  let out = StringBuilder(size_hint=bytes.length() * 2)
+  let out = StringBuilder(capacity=bytes.length() * 2)
   for byte in bytes {
     out.write_string(byte.to_hex())
   }
@@ -67,7 +67,7 @@ fn test_utf8_decode(bytes : Bytes) -> String {
 ///|
 fn test_ed25519_l() -> BigInt {
   ((1 : BigInt) << 252) +
-  BigInt::from_string("27742317777372353535851937790883648493")
+  (try! @string.parse_bigint("27742317777372353535851937790883648493"))
 }
 
 ///|
@@ -477,8 +477,8 @@ test "signature JSON envelope strict validation rejections" {
       @manifest.LimitExceeded(
         field="max_key_file_bytes",
         value=4097L,
-        limit=4096L
-      )
+        limit=4096L,
+      ),
     ) => ()
     _ => abort("expected LimitExceeded for oversized private key JSON")
   }
@@ -787,8 +787,8 @@ test "validate_manifest_schema prepare_signed and apply_signed" {
     ) {
     Err(
       @manifest.Manifest(
-        @manifest.LimitExceeded(field="max_new_bytes", value=42L, limit=5L)
-      )
+        @manifest.LimitExceeded(field="max_new_bytes", value=42L, limit=5L),
+      ),
     ) => ()
     _ => abort("expected Manifest(LimitExceeded) for tight limits")
   }

@@ -241,8 +241,8 @@ def main():
 
     version = run(["moon", "version", "--all"])
     require(
-        "moon 0.1.20261102 (ea07287 2026-11-02)" in version
-        and "moonc v0.10.19+bee578715" in version,
+        "moon 0.1.20261126 (ccd306a 2026-11-26)" in version
+        and "moonc v1.0.0-rc1+3c0520448" in version,
         "wrong release toolchain",
     )
     run(["moon", "update"])
